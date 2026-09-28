@@ -11,12 +11,12 @@ const NAV = [
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
   ] },
   { group: '📥 데이터 업로드', items: [
-    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐', soon: '준비중' },
+    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐' },
     { key: 'upload-board', label: '게시판 업로드', icon: '💬', soon: '준비중' },
   ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
-    { key: 'reviews', label: '리뷰 분석', icon: '📊', soon: '준비중' },
+    { key: 'reviews', label: '리뷰 분석', icon: '📊' },
     { key: 'board', label: '게시판 분석', icon: '🔎', soon: '준비중' },
   ] },
   { group: '⚙️ 기준 관리', items: [
@@ -55,9 +55,7 @@ function LoginPage() {
 }
 
 const SOON_PAGES = {
-  'upload-reviews': { icon: '⭐', title: '리뷰 업로드는 곧 열려요', desc: '플랫폼에서 받은 리뷰 파일을 올리면 긍정·부정이 자동 분류돼요.', items: ['별점 기준 긍정·부정 분류', '상품 마스터 자동 연결', '기존 리뷰 약 8,500건 이관'] },
   'upload-board': { icon: '💬', title: '게시판 업로드는 곧 열려요', desc: '29CM·무신사·자사몰 게시판 파일을 그대로 올리면 문의 유형이 자동 분류돼요.', items: ['재입고 · 배송 · 교환/반품 · 사이즈/상품정보 등 자동 분류', '상반기 핀카 게시판 분석 결과: 재입고 문의가 전체의 약 29%', '재입고 문의 많은 상품 → 후속 조치 보드 리오더 검토로 연결'] },
-  reviews: { icon: '📊', title: '리뷰 분석은 곧 열려요', desc: '긍정·부정 리뷰 비중, 많이 나온 코멘트 키워드, 상품별 평점을 보여줘요.' },
   board: { icon: '🔎', title: '게시판 분석은 곧 열려요', desc: '문의 유형 비중과 재입고 문의가 많은 상품 순위를 보여줘요.' },
 };
 
@@ -91,6 +89,8 @@ function Shell({ session }) {
     monthly: <MonthlyReportPage />,
     report: <ReportPage go={go} />,
     daily: <DailyEntryPage />,
+    'upload-reviews': <ReviewUploadPage />,
+    reviews: <ReviewAnalysisPage />,
     actions: <ActionsPage />,
     'voc-new': <VocEntryPage />,
     'voc-list': <VocListPage />,

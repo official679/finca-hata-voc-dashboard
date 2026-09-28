@@ -90,6 +90,8 @@ button { font-family: inherit; }
 .card-title .input { width: auto; padding: 6px 10px; font-size: 13px; }
 .grid { display: grid; gap: 16px; }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.grid-2w { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+@media (max-width: 900px) { .grid-2w { grid-template-columns: 1fr; } }
 .grid-kpi { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin-bottom: 16px; }
 
 .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
@@ -227,6 +229,18 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .memo { display: grid; gap: 14px; }
 .memo b { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 .memo p { white-space: pre-wrap; line-height: 1.7; }
+
+/* 리뷰 */
+.clickable-bar { cursor: pointer; border-radius: 6px; }
+.clickable-bar:hover { background: #F4F7FC; }
+.review-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.review-card.neg { border-left: 3px solid var(--danger); }
+.review-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+.review-head .stars { color: #E5A200; letter-spacing: 1px; }
+.review-product { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
+.review-head .handled { margin-left: auto; display: flex; gap: 4px; align-items: center; color: var(--muted); cursor: pointer; }
+.review-body { margin-top: 8px; line-height: 1.6; white-space: pre-wrap; }
+.review-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
 
 @media print {
   .sidebar, .mobile-bar, .no-print, .filters .input, .toast { display: none !important; }
