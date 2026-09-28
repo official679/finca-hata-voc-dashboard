@@ -337,7 +337,7 @@ function MonthlyReportPage() {
     return [...set].sort().reverse();
   }, [daily]);
   const [ym, setYm] = useState('');
-  const [brandView, setBrandView] = useState('');
+  const [brandView, setBrandView] = useState('핀카');   // 한 브랜드씩 보기 (핀카 먼저)
   useEffect(() => { if (!ym && months.length) setYm(months[0]); }, [months, ym]);
 
   if (!daily) return <div className="loading-screen">불러오는 중...</div>;
@@ -359,7 +359,7 @@ function MonthlyReportPage() {
   return (
     <>
       <PageHeader title={`${y}년 ${Number(m)}월 월간 보고`} desc={`보고일 ${fmtDate(from)} ~ ${fmtDate(to)} · 매월 첫 화요일~다음 월요일 = 1주차 (전일 접수 기준)`}>
-        <Segmented options={BRAND_FILTER} value={brandView} onChange={setBrandView} />
+        <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brandView} onChange={setBrandView} />
         <Select value={ym} onChange={setYm} options={months.map(v => ({ value: v, label: `${v.slice(0, 4)}년 ${Number(v.slice(5))}월` }))} />
         <button className="btn no-print" onClick={() => window.print()}>🖨 인쇄 / PDF</button>
       </PageHeader>
