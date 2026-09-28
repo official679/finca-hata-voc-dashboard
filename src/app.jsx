@@ -2,24 +2,25 @@
 
 const NAV = [
   { group: '📊 한눈에 보기', items: [
-    { key: 'report', label: '전사 리포트', icon: '📈' },
-    { key: 'actions', label: '액션 보드', icon: '🎯' },
+    { key: 'monthly', label: '월간 보고', icon: '📈' },
+    { key: 'report', label: 'VOC 현황', icon: '📉' },
+    { key: 'actions', label: '후속 조치 보드', icon: '🎯' },
   ] },
   { group: '✏️ 입력', items: [
-    { key: 'daily', label: 'CS 데일리', icon: '🗓️', soon: '3단계' },
+    { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
   ] },
   { group: '📥 데이터 업로드', items: [
-    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐', soon: '2단계' },
-    { key: 'upload-board', label: '게시판 업로드', icon: '💬', soon: '2단계' },
+    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐', soon: '준비중' },
+    { key: 'upload-board', label: '게시판 업로드', icon: '💬', soon: '준비중' },
   ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
-    { key: 'reviews', label: '리뷰 분석', icon: '📊', soon: '2단계' },
-    { key: 'board', label: '게시판 분석', icon: '🔎', soon: '2단계' },
+    { key: 'reviews', label: '리뷰 분석', icon: '📊', soon: '준비중' },
+    { key: 'board', label: '게시판 분석', icon: '🔎', soon: '준비중' },
   ] },
   { group: '⚙️ 기준 관리', items: [
-    { key: 'codes', label: 'VOC 기준', icon: '🧩' },
+    { key: 'codes', label: '기준 관리', icon: '🧩' },
     { key: 'guides', label: 'CX 응대 주의사항', icon: '⚠️' },
   ] },
 ];
@@ -54,16 +55,15 @@ function LoginPage() {
 }
 
 const SOON_PAGES = {
-  daily: { icon: '🗓️', title: 'CS 데일리 입력은 3단계에서 열려요', desc: "지금 '데일리' 시트처럼 날짜·브랜드·플랫폼별 주문, 반품·교환, 리뷰, 게시판, 해피톡, 전화 건수를 입력하면 전사 리포트에 반품교환율·과실률이 자동 계산돼요." },
-  'upload-reviews': { icon: '⭐', title: '리뷰 업로드는 2단계에서 열려요', desc: '플랫폼에서 받은 리뷰 파일을 올리면 긍정·부정이 자동 분류돼요.', items: ['별점 기준 긍정·부정 분류', '상품 마스터 자동 연결', '기존 리뷰 약 8,500건 이관'] },
-  'upload-board': { icon: '💬', title: '게시판 업로드는 2단계에서 열려요', desc: '29CM·무신사·자사몰 게시판 파일을 그대로 올리면 문의 유형이 자동 분류돼요.', items: ['재입고 · 배송 · 교환/반품 · 사이즈/상품정보 등 자동 분류', '상반기 핀카 게시판 분석 결과: 재입고 문의가 전체의 약 29%', '재입고 문의 많은 상품 → 액션 보드 리오더 검토로 연결'] },
-  reviews: { icon: '📊', title: '리뷰 분석은 2단계에서 열려요', desc: '긍정·부정 리뷰 비중, 많이 나온 코멘트 키워드, 상품별 평점을 보여줘요.' },
-  board: { icon: '🔎', title: '게시판 분석은 2단계에서 열려요', desc: '문의 유형 비중과 재입고 문의가 많은 상품 순위를 보여줘요.' },
+  'upload-reviews': { icon: '⭐', title: '리뷰 업로드는 곧 열려요', desc: '플랫폼에서 받은 리뷰 파일을 올리면 긍정·부정이 자동 분류돼요.', items: ['별점 기준 긍정·부정 분류', '상품 마스터 자동 연결', '기존 리뷰 약 8,500건 이관'] },
+  'upload-board': { icon: '💬', title: '게시판 업로드는 곧 열려요', desc: '29CM·무신사·자사몰 게시판 파일을 그대로 올리면 문의 유형이 자동 분류돼요.', items: ['재입고 · 배송 · 교환/반품 · 사이즈/상품정보 등 자동 분류', '상반기 핀카 게시판 분석 결과: 재입고 문의가 전체의 약 29%', '재입고 문의 많은 상품 → 후속 조치 보드 리오더 검토로 연결'] },
+  reviews: { icon: '📊', title: '리뷰 분석은 곧 열려요', desc: '긍정·부정 리뷰 비중, 많이 나온 코멘트 키워드, 상품별 평점을 보여줘요.' },
+  board: { icon: '🔎', title: '게시판 분석은 곧 열려요', desc: '문의 유형 비중과 재입고 문의가 많은 상품 순위를 보여줘요.' },
 };
 
 function currentRoute() {
   const key = location.hash.replace(/^#\/?/, '');
-  return ALL_NAV.some(n => n.key === key) ? key : 'report';
+  return ALL_NAV.some(n => n.key === key) ? key : 'monthly';
 }
 
 function Shell({ session }) {
@@ -88,7 +88,9 @@ function Shell({ session }) {
   );
   else if (SOON_PAGES[route]) page = <><PageHeader title={ALL_NAV.find(n => n.key === route).label} /><ComingSoon {...SOON_PAGES[route]} /></>;
   else page = {
+    monthly: <MonthlyReportPage />,
     report: <ReportPage go={go} />,
+    daily: <DailyEntryPage />,
     actions: <ActionsPage />,
     'voc-new': <VocEntryPage />,
     'voc-list': <VocListPage />,

@@ -120,7 +120,7 @@ function VocForm({ initial, onSaved, onCancel }) {
         reason_detail: form.reason_detail.trim() || null,
         note: form.note.trim() || null,
         action_required: form.action_required || null,
-        // 액션이 바뀌면 다시 '진행 중'으로
+        // 후속 조치가 바뀌면 다시 '진행 중'으로
         action_done: !!(initial && initial.action_done && (initial.action_required || '') === form.action_required),
         photos: [...keptPhotos, ...uploaded],
       };
@@ -209,7 +209,7 @@ function VocForm({ initial, onSaved, onCancel }) {
       <div className="form-section">처리 · 후속 조치</div>
       <div className="form-grid">
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
-        {field('필요 액션', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
+        {field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>처리 메모</label>
           <textarea value={form.note} onChange={onInput('note')} rows="2" placeholder="회수 송장, 처리 결과 등" />
@@ -277,7 +277,7 @@ function VocListPage({ initialFilter }) {
   }, [cases, f, productById]);
 
   const exportCsv = () => downloadCsv(`VOC목록_${today()}.csv`,
-    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', 'VOC구분', '상담방법', '진행상황', '사유카테고리', '상세사유', '처리메모', '필요액션', '사진수'],
+    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', 'VOC구분', '상담방법', '진행상황', '사유카테고리', '상세사유', '처리메모', '후속조치', '사진수'],
     rows.map(c => [c.received_date, c.brand, c.handler, c.platform, c.order_no, c.orderer, c.receiver, caseProductName(c, productById),
       productById.get(c.product_id)?.category, c.voc_type, c.consult_method, c.status, c.reason_category, c.reason_detail, c.note, c.action_required, (c.photos || []).length]));
 
@@ -298,7 +298,7 @@ function VocListPage({ initialFilter }) {
           <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
           <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
-          <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '액션 지정된 건' }, ...codeOptions('action', true)]} placeholder="액션 전체" />
+          <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />
           <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·내용 검색" />
           {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', q: '' })}>필터 초기화</button>}
         </div>
@@ -307,7 +307,7 @@ function VocListPage({ initialFilter }) {
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>액션</th><th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
               {rows.slice(0, 500).map(c => (

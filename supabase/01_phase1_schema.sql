@@ -42,7 +42,7 @@ insert into code_items (group_key, label, sort_order) values
   ('reason', '디자인/색상 차이', 7), ('reason', '사이즈/핏', 8),
   ('reason', '오배송/누락', 9), ('reason', '기타', 99),
 
-  -- 액션 보드에 표시되는 후속 조치
+  -- 후속 조치 보드에 표시되는 후속 조치
   ('action', '상품개선', 1), ('action', '리오더', 2),
   ('action', '재고 검수', 3), ('action', '상세페이지 수정', 4)
 on conflict (group_key, label) do nothing;

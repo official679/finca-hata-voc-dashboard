@@ -11,18 +11,20 @@ const PHOTO_BUCKET = 'voc-photos';
 const CODE_GROUPS = [
   { key: 'voc_type', label: 'VOC 구분', column: 'voc_type' },
   { key: 'reason', label: '사유 카테고리', column: 'reason_category' },
-  { key: 'action', label: '필요 액션', column: 'action_required' },
+  { key: 'action', label: '후속 조치', column: 'action_required' },
   { key: 'status', label: '진행상황', column: 'status' },
   { key: 'consult_method', label: '상담방법', column: 'consult_method' },
   { key: 'platform', label: '플랫폼', column: 'platform' },
   { key: 'handler', label: '처리자', column: 'handler' },
   { key: 'brand', label: '브랜드', column: 'brand' },
+  { key: 'daily_platform:핀카', label: '데일리 플랫폼(핀카)', table: 'cs_daily', column: 'platform', match: { brand: '핀카' } },
+  { key: 'daily_platform:하타', label: '데일리 플랫폼(하타)', table: 'cs_daily', column: 'platform', match: { brand: '하타' } },
 ];
 
 // VOC 브랜드 표기 → 상품 마스터 브랜드 표기
 const PRODUCT_BRAND = { '핀카': 'FINCA', '하타': 'HaTA' };
 
-// 브랜드 과실 여부 (리포트·액션 보드 집계 기준)
+// 브랜드 과실 여부 (리포트·후속 조치 보드 집계 기준)
 const isFault = (vocType) => (vocType || '').includes('브랜드과실');
 
 // Supabase는 한 번에 최대 1000행만 돌려주므로 나눠서 전부 가져옴
@@ -81,6 +83,7 @@ function useAppData(session) {
   const [products, setProducts] = useState([]);
   const [codes, setCodes] = useState([]);
   const [cases, setCases] = useState([]);
+  const [daily, setDaily] = useState(null);   // CS 데일리는 필요한 화면에서만 불러옴
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState('');
 
@@ -93,6 +96,11 @@ function useAppData(session) {
   const loadCases = useCallback(async () => {
     const rows = await fetchAll(() => db.from('voc_cases').select('*').order('received_date', { ascending: false }).order('id', { ascending: false }));
     setCases(rows);
+  }, []);
+
+  const loadDaily = useCallback(async () => {
+    const rows = await fetchAll(() => db.from('cs_daily').select('*').order('report_date').order('id'));
+    setDaily(rows);
   }, []);
 
   // 토큰 갱신 때마다 다시 불러오지 않도록 사용자 id 기준
@@ -119,7 +127,7 @@ function useAppData(session) {
   const codeOptions = useCallback((group, includeInactive = false) =>
     codes.filter(c => c.group_key === group && (includeInactive || c.active)).map(c => c.label), [codes]);
 
-  return { products, productById, codes, codeOptions, cases, setCases, loadCodes, loadCases, ready, loadError };
+  return { products, productById, codes, codeOptions, cases, setCases, daily, setDaily, loadDaily, loadCodes, loadCases, ready, loadError };
 }
 
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';

@@ -1,14 +1,20 @@
 // 기준 관리 · CX 응대 주의사항
 
 function CodeGroupEditor({ group }) {
-  const { codes, loadCodes, cases, setCases } = useApp();
+  const { codes, loadCodes, cases, setCases, daily, setDaily, loadDaily } = useApp();
   const toast = useToast();
   const items = codes.filter(c => c.group_key === group.key);
   const [newLabel, setNewLabel] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editLabel, setEditLabel] = useState('');
 
-  const usage = (label) => cases.filter(c => c[group.column] === label).length;
+  // 이 기준을 쓰는 데이터: VOC(기본) 또는 CS 데일리
+  const table = group.table || 'voc_cases';
+  useEffect(() => { if (table === 'cs_daily' && !daily) loadDaily(); }, [table, daily, loadDaily]);
+  const rows = table === 'cs_daily' ? (daily || []) : cases;
+  const setRows = table === 'cs_daily' ? setDaily : setCases;
+  const matches = (r) => Object.entries(group.match || {}).every(([k, v]) => r[k] === v);
+  const usage = (label) => rows.filter(r => r[group.column] === label && matches(r)).length;
 
   const run = async (promise, okMsg) => {
     const { error } = await promise;
@@ -31,12 +37,14 @@ function CodeGroupEditor({ group }) {
     if (!label || label === item.label) { setEditingId(null); return; }
     if (items.some(i => i.label === label)) { toast('❌ 이미 있는 항목이에요', 'err'); return; }
     const n = usage(item.label);
-    if (n && !confirm(`'${item.label}'로 저장된 VOC ${n}건도 '${label}'(으)로 함께 바뀌어요. 진행할까요?`)) return;
+    if (n && !confirm(`'${item.label}'로 저장된 데이터 ${n}건도 '${label}'(으)로 함께 바뀌어요. 진행할까요?`)) return;
     if (!(await run(db.from('code_items').update({ label }).eq('id', item.id)))) return;
     if (n) {
-      const { error } = await db.from('voc_cases').update({ [group.column]: label }).eq(group.column, item.label);
-      if (error) { toast('❌ 기존 VOC 변경 실패: ' + error.message, 'err'); return; }
-      setCases(prev => prev.map(c => c[group.column] === item.label ? { ...c, [group.column]: label } : c));
+      let q = db.from(table).update({ [group.column]: label }).eq(group.column, item.label);
+      Object.entries(group.match || {}).forEach(([k, v]) => { q = q.eq(k, v); });
+      const { error } = await q;
+      if (error) { toast('❌ 기존 데이터 변경 실패: ' + error.message, 'err'); return; }
+      setRows(prev => prev.map(r => r[group.column] === item.label && matches(r) ? { ...r, [group.column]: label } : r));
     }
     setEditingId(null);
     toast('✅ 이름을 바꿨어요');
@@ -63,7 +71,7 @@ function CodeGroupEditor({ group }) {
       <div className="card-title">{group.label} <small>숨긴 항목은 새 입력 목록에만 안 보이고, 기존 데이터는 그대로예요</small></div>
       <div className="table-wrap">
         <table className="table">
-          <thead><tr><th style={{ width: 70 }}>순서</th><th>항목</th><th className="num">사용 VOC</th><th>상태</th><th /></tr></thead>
+          <thead><tr><th style={{ width: 70 }}>순서</th><th>항목</th><th className="num">{table === 'cs_daily' ? '사용 데일리' : '사용 VOC'}</th><th>상태</th><th /></tr></thead>
           <tbody>
             {items.map((it, i) => {
               const n = usage(it.label);
