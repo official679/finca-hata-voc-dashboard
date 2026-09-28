@@ -36,7 +36,7 @@
             `${SUPABASE_URL}/rest/v1/${table}`,
             {
               headers: {
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'apikey': SUPABASE_KEY`,
                 'Content-Type': 'application/json',
               }
             }
@@ -94,7 +94,7 @@
               {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${SUPABASE_KEY}`,
+                  'apikey': SUPABASE_KEY`,
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(formData)
