@@ -1,0 +1,337 @@
+// VOC 접수 폼 · VOC 목록
+
+function usePhotoUrls(paths) {
+  const [urls, setUrls] = useState({});
+  const key = (paths || []).join('|');
+  useEffect(() => {
+    if (!paths || !paths.length) { setUrls({}); return; }
+    let alive = true;
+    db.storage.from(PHOTO_BUCKET).createSignedUrls(paths, 3600).then(({ data }) => {
+      if (!alive || !data) return;
+      setUrls(Object.fromEntries(data.filter(d => d.signedUrl).map(d => [d.path, d.signedUrl])));
+    });
+    return () => { alive = false; };
+  }, [key]);
+  return urls;
+}
+
+function Lightbox({ src, onClose }) {
+  if (!src) return null;
+  return <div className="lightbox" onClick={onClose}><img src={src} alt="" /></div>;
+}
+
+const MAX_PHOTOS = 5;
+
+function PhotoPicker({ existing, onRemoveExisting, files, onAddFiles, onRemoveFile }) {
+  const urls = usePhotoUrls(existing);
+  const [zoom, setZoom] = useState(null);
+  const inputRef = useRef(null);
+  const total = existing.length + files.length;
+  return (
+    <div>
+      <div className="photos">
+        {existing.map(p => (
+          <div className="photo" key={p}>
+            {urls[p] && <img src={urls[p]} alt="" onClick={() => setZoom(urls[p])} />}
+            <button type="button" className="remove" onClick={() => onRemoveExisting(p)}>×</button>
+          </div>
+        ))}
+        {files.map((f, i) => (
+          <div className="photo" key={f.preview}>
+            <img src={f.preview} alt="" onClick={() => setZoom(f.preview)} />
+            <button type="button" className="remove" onClick={() => onRemoveFile(i)}>×</button>
+          </div>
+        ))}
+        {total < MAX_PHOTOS && (
+          <div className="photo-add" onClick={() => inputRef.current.click()}>
+            <span style={{ fontSize: 22 }}>＋</span>사진 추가
+          </div>
+        )}
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={e => {
+        const picked = [...e.target.files].slice(0, MAX_PHOTOS - total);
+        onAddFiles(picked.map(file => Object.assign(file, { preview: URL.createObjectURL(file) })));
+        e.target.value = '';
+      }} />
+      <div className="hint">최대 {MAX_PHOTOS}장 · 사진을 누르면 크게 볼 수 있어요</div>
+      <Lightbox src={zoom} onClose={() => setZoom(null)} />
+    </div>
+  );
+}
+
+const emptyCase = () => ({
+  received_date: today(), brand: '핀카', handler: '', platform: '', order_no: '', orderer: '', receiver: '',
+  product_name: '', voc_type: '', consult_method: '', status: '접수', reason_category: '', reason_detail: '',
+  note: '', action_required: '', photos: [],
+});
+
+function VocForm({ initial, onSaved, onCancel }) {
+  const { products, productById, codeOptions, setCases } = useApp();
+  const toast = useToast();
+  const [form, setForm] = useState(() => {
+    if (!initial) return emptyCase();
+    const f = { ...emptyCase(), ...initial };
+    Object.keys(f).forEach(k => { if (f[k] === null) f[k] = ''; });
+    f.product_name = caseProductName(initial, productById);
+    if (f.product_name === '(상품 미입력)') f.product_name = '';
+    return f;
+  });
+  const [keptPhotos, setKeptPhotos] = useState(initial?.photos || []);
+  const [newFiles, setNewFiles] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  const set = (k) => (v) => setForm(prev => ({ ...prev, [k]: v }));
+  const onInput = (k) => (e) => set(k)(e.target.value);
+
+  const brandProducts = useMemo(
+    () => products.filter(p => p.brand === PRODUCT_BRAND[form.brand]),
+    [products, form.brand]);
+  const matchedProduct = brandProducts.find(p => p.product_name === form.product_name.trim());
+
+  const withCurrent = (opts, current) => (current && !opts.includes(current) ? [...opts, current] : opts);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const uploaded = [];
+      for (const file of newFiles) {
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `${form.received_date.slice(0, 7)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error } = await db.storage.from(PHOTO_BUCKET).upload(path, file, { contentType: file.type });
+        if (error) throw new Error('사진 업로드 실패: ' + error.message);
+        uploaded.push(path);
+      }
+
+      const row = {
+        received_date: form.received_date,
+        brand: form.brand,
+        handler: form.handler || null,
+        platform: form.platform || null,
+        order_no: form.order_no.trim() || null,
+        orderer: form.orderer.trim() || null,
+        receiver: form.receiver.trim() || null,
+        product_id: matchedProduct ? matchedProduct.id : null,
+        product_name: form.product_name.trim() || null,
+        voc_type: form.voc_type || null,
+        consult_method: form.consult_method || null,
+        status: form.status || '접수',
+        reason_category: form.reason_category || null,
+        reason_detail: form.reason_detail.trim() || null,
+        note: form.note.trim() || null,
+        action_required: form.action_required || null,
+        // 액션이 바뀌면 다시 '진행 중'으로
+        action_done: !!(initial && initial.action_done && (initial.action_required || '') === form.action_required),
+        photos: [...keptPhotos, ...uploaded],
+      };
+
+      const query = initial
+        ? db.from('voc_cases').update(row).eq('id', initial.id)
+        : db.from('voc_cases').insert(row);
+      const { data, error } = await query.select().single();
+      if (error) throw error;
+
+      const removed = (initial?.photos || []).filter(p => !keptPhotos.includes(p));
+      if (removed.length) await db.storage.from(PHOTO_BUCKET).remove(removed);
+
+      setCases(prev => initial ? prev.map(c => c.id === data.id ? data : c) : [data, ...prev]);
+      toast(initial ? '✅ VOC 수정 완료' : '✅ VOC 접수 완료');
+      newFiles.forEach(f => URL.revokeObjectURL(f.preview));
+      if (onSaved) onSaved(data);
+      if (!initial) { setForm(prev => ({ ...emptyCase(), received_date: prev.received_date, brand: prev.brand, handler: prev.handler })); setKeptPhotos([]); setNewFiles([]); }
+    } catch (err) {
+      toast('❌ 저장 실패: ' + (err.message || err), 'err');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('이 VOC를 삭제할까요? 되돌릴 수 없어요.')) return;
+    const { error } = await db.from('voc_cases').delete().eq('id', initial.id);
+    if (error) { toast('❌ 삭제 실패: ' + error.message, 'err'); return; }
+    if (initial.photos?.length) await db.storage.from(PHOTO_BUCKET).remove(initial.photos);
+    setCases(prev => prev.filter(c => c.id !== initial.id));
+    toast('✅ 삭제 완료');
+    if (onSaved) onSaved(null);
+  };
+
+  const field = (label, control, required) => (
+    <div className="field"><label>{label}{required && <span className="req"> *</span>}</label>{control}</div>
+  );
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="form-section">기본 정보</div>
+      <div className="form-grid">
+        {field('접수일', <input type="date" value={form.received_date} onChange={onInput('received_date')} required />, true)}
+        {field('브랜드', <Select className="" value={form.brand} onChange={set('brand')} options={withCurrent(codeOptions('brand'), form.brand)} />, true)}
+        {field('처리자', <Select className="" value={form.handler} onChange={set('handler')} options={withCurrent(codeOptions('handler'), form.handler)} placeholder="선택" />)}
+        {field('구매 플랫폼', <Select className="" value={form.platform} onChange={set('platform')} options={withCurrent(codeOptions('platform'), form.platform)} placeholder="선택" />)}
+        {field('주문번호', <input value={form.order_no} onChange={onInput('order_no')} />)}
+        {field('주문자', <input value={form.orderer} onChange={onInput('orderer')} />)}
+        {field('수령자', <input value={form.receiver} onChange={onInput('receiver')} />)}
+      </div>
+
+      <div className="form-section">상품 · 내용</div>
+      <div className="form-grid">
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>상품명</label>
+          <input list="voc-product-options" value={form.product_name} onChange={onInput('product_name')} placeholder="상품명 일부를 입력하고 목록에서 선택" />
+          <datalist id="voc-product-options">
+            {brandProducts.map(p => <option key={p.id} value={p.product_name} />)}
+          </datalist>
+          <div className="hint">
+            {form.product_name.trim() === '' ? `${form.brand} 상품 ${brandProducts.length.toLocaleString()}개에서 검색돼요`
+              : matchedProduct ? `✓ 상품 마스터와 연결됨 (${matchedProduct.category || '분류 없음'})`
+              : '상품 마스터에 없는 이름이에요. 그대로 저장되지만 상품별 집계가 정확하지 않을 수 있어요.'}
+          </div>
+        </div>
+        {field('VOC 구분', <Select className="" value={form.voc_type} onChange={set('voc_type')} options={withCurrent(codeOptions('voc_type'), form.voc_type)} placeholder="선택" />)}
+        {field('상담방법', <Select className="" value={form.consult_method} onChange={set('consult_method')} options={withCurrent(codeOptions('consult_method'), form.consult_method)} placeholder="선택" />)}
+        {field('사유 카테고리', <Select className="" value={form.reason_category} onChange={set('reason_category')} options={withCurrent(codeOptions('reason'), form.reason_category)} placeholder="선택" />)}
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>상세 사유 (고객 문의 내용)</label>
+          <textarea value={form.reason_detail} onChange={onInput('reason_detail')} rows="3" />
+        </div>
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>사진</label>
+          <PhotoPicker
+            existing={keptPhotos}
+            onRemoveExisting={p => setKeptPhotos(prev => prev.filter(x => x !== p))}
+            files={newFiles}
+            onAddFiles={fs => setNewFiles(prev => [...prev, ...fs])}
+            onRemoveFile={i => setNewFiles(prev => prev.filter((_, j) => j !== i))}
+          />
+        </div>
+      </div>
+
+      <div className="form-section">처리 · 후속 조치</div>
+      <div className="form-grid">
+        {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
+        {field('필요 액션', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>처리 메모</label>
+          <textarea value={form.note} onChange={onInput('note')} rows="2" placeholder="회수 송장, 처리 결과 등" />
+        </div>
+      </div>
+
+      <div className="form-actions">
+        {initial && <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }} onClick={handleDelete}>삭제</button>}
+        {onCancel && <button type="button" className="btn" onClick={onCancel}>취소</button>}
+        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? '저장 중...' : initial ? '수정 저장' : 'VOC 접수'}</button>
+      </div>
+    </form>
+  );
+}
+
+function VocEntryPage() {
+  return (
+    <>
+      <PageHeader title="VOC 접수" desc="브랜드 과실 교환·반품, 강성 고객, 재입고 문의 등 개별 VOC를 접수해요." />
+      <div className="card" style={{ maxWidth: 960 }}><VocForm /></div>
+    </>
+  );
+}
+
+function VocEditPanel({ vocCase, onClose }) {
+  if (!vocCase) return null;
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="panel" onClick={e => e.stopPropagation()}>
+        <div className="panel-head">
+          <h2>VOC 상세 · 수정</h2>
+          <button className="btn btn-sm" onClick={onClose}>닫기</button>
+        </div>
+        <div className="card"><VocForm initial={vocCase} onSaved={onClose} onCancel={onClose} /></div>
+      </div>
+    </div>
+  );
+}
+
+function downloadCsv(filename, header, rows) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = '﻿' + [header, ...rows].map(r => r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function VocListPage({ initialFilter }) {
+  const { cases, codeOptions, productById } = useApp();
+  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', q: '', ...initialFilter });
+  const [editing, setEditing] = useState(null);
+  const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
+
+  const rows = useMemo(() => {
+    const q = f.q.trim().toLowerCase();
+    return cases.filter(c =>
+      (!f.from || c.received_date >= f.from) && (!f.to || c.received_date <= f.to) &&
+      (!f.brand || c.brand === f.brand) && (!f.platform || c.platform === f.platform) &&
+      (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
+      (!f.reason || c.reason_category === f.reason) &&
+      (!f.action || (f.action === '__any' ? !!c.action_required : c.action_required === f.action)) &&
+      (!q || [caseProductName(c, productById), c.order_no, c.orderer, c.receiver, c.reason_detail, c.note].some(v => (v || '').toLowerCase().includes(q))));
+  }, [cases, f, productById]);
+
+  const exportCsv = () => downloadCsv(`VOC목록_${today()}.csv`,
+    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', 'VOC구분', '상담방법', '진행상황', '사유카테고리', '상세사유', '처리메모', '필요액션', '사진수'],
+    rows.map(c => [c.received_date, c.brand, c.handler, c.platform, c.order_no, c.orderer, c.receiver, caseProductName(c, productById),
+      productById.get(c.product_id)?.category, c.voc_type, c.consult_method, c.status, c.reason_category, c.reason_detail, c.note, c.action_required, (c.photos || []).length]));
+
+  const hasFilter = Object.values(f).some(Boolean);
+
+  return (
+    <>
+      <PageHeader title="VOC 목록" desc={`전체 ${cases.length.toLocaleString()}건 중 ${rows.length.toLocaleString()}건`}>
+        <button className="btn" onClick={exportCsv}>⬇ 엑셀(CSV) 다운로드</button>
+      </PageHeader>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="filters">
+          <input className="input" type="date" value={f.from} onChange={e => set('from')(e.target.value)} title="시작일" />
+          <span className="muted">~</span>
+          <input className="input" type="date" value={f.to} onChange={e => set('to')(e.target.value)} title="종료일" />
+          <Select value={f.brand} onChange={set('brand')} options={codeOptions('brand', true)} placeholder="브랜드 전체" />
+          <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
+          <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
+          <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
+          <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
+          <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '액션 지정된 건' }, ...codeOptions('action', true)]} placeholder="액션 전체" />
+          <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·내용 검색" />
+          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', q: '' })}>필터 초기화</button>}
+        </div>
+      </div>
+      <div className="card" style={{ padding: 0 }}>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>액션</th><th>처리자</th><th>📷</th></tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 500).map(c => (
+                <tr key={c.id} className="clickable" onClick={() => setEditing(c)}>
+                  <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.received_date)}</td>
+                  <td>{c.brand}</td>
+                  <td>{c.platform || '-'}</td>
+                  <td className="ellipsis" title={caseProductName(c, productById)}>{caseProductName(c, productById)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{c.voc_type || '-'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
+                  <td className="ellipsis" title={c.reason_detail || ''}>{c.reason_detail || '-'}</td>
+                  <td><StatusChip status={c.status} /></td>
+                  <td>{c.action_required ? <span className="chip chip-red">{c.action_required}</span> : <span className="muted">-</span>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{c.handler || '-'}</td>
+                  <td className="num">{(c.photos || []).length || ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {rows.length === 0 && <div className="empty">조건에 맞는 VOC가 없어요</div>}
+          {rows.length > 500 && <div className="empty">처음 500건만 표시돼요. 필터로 범위를 좁히거나 CSV로 받아보세요.</div>}
+        </div>
+      </div>
+      <VocEditPanel vocCase={editing} onClose={() => setEditing(null)} />
+    </>
+  );
+}
