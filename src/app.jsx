@@ -16,6 +16,7 @@ const NAV = [
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
     { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐' },
     { key: 'upload-board', label: '게시판 업로드', icon: '💬' },
+    { key: 'upload-orders', label: '주문 업로드', icon: '🛒' },
   ] },
   { group: '⚙️ 기준·매뉴얼', items: [
     { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
@@ -90,6 +91,7 @@ function Shell({ session }) {
     'upload-reviews': <ReviewUploadPage />,
     reviews: <ReviewAnalysisPage />,
     'upload-board': <BoardUploadPage />,
+    'upload-orders': <OrderUploadPage />,
     board: <BoardAnalysisPage />,
     actions: <ActionsPage />,
     'voc-new': <VocEntryPage />,

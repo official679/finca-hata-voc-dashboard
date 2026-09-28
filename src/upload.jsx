@@ -98,7 +98,8 @@ async function readUploadFile(file, kind) {
       const rows = grid.slice(h + 1)
         .filter(r => r.some(c => String(c).trim() !== ''))
         .map(r => format.map(Object.fromEntries(header.map((k, i) => [k, r[i]]))))
-        .filter(r => r.content && String(r.content).trim());
+        // 리뷰·게시판은 내용이 있어야, 주문·반품처럼 key(품목 번호)가 있는 형식은 key가 있어야 저장
+        .filter(r => (r.key !== undefined ? !!r.key : r.content && String(r.content).trim()));
       return { name, format, rows };
     }
     return { name, format: null, rows: [], empty: !grid.some(r => r.some(c => String(c).trim() !== '')) };
@@ -119,7 +120,7 @@ function productMatcher(products) {
 }
 
 // 업로드 화면 (리뷰·게시판 공통)
-function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert }) {
+function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel, linkProducts = true }) {
   const { products } = useApp();
   const toast = useToast();
   const [brand, setBrand] = useState('');
@@ -152,7 +153,11 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert }) {
     ready.forEach(s => s.rows.forEach(r => {
       const b = r.brand || brand;
       if (!b) return;
-      rows.push({ ...toRow(r), brand: b, platform: r.platform, source_key: contentKey(r.when, (r.title || '') + r.content), product_id: match(r.product_name) });
+      rows.push({
+        ...toRow(r), brand: b, platform: r.platform,
+        source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
+        ...(linkProducts ? { product_id: match(r.product_name) } : {}),
+      });
     }));
     // 같은 파일 안의 중복 제거
     const unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
@@ -162,7 +167,8 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert }) {
       for (let i = 0; i < unique.length; i += 500) {
         setBusy(`올리는 중... ${Math.min(i + 500, unique.length).toLocaleString()} / ${unique.length.toLocaleString()}`);
         // 이번에 새로 저장된 줄만 돌아옴 (이미 있던 줄은 건너뜀)
-        const { data, error } = await db.from(table).upsert(unique.slice(i, i + 500), { onConflict: 'platform,source_key', ignoreDuplicates: true }).select();
+        // 후속 처리가 필요할 때만 전체 줄을 돌려받음 (주문처럼 많은 데이터는 id만)
+        const { data, error } = await db.from(table).upsert(unique.slice(i, i + 500), { onConflict: 'platform,source_key', ignoreDuplicates: true }).select(afterInsert ? '*' : 'id');
         if (error) throw error;
         inserted += data.length;
         newRows.push(...data);
@@ -171,7 +177,7 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert }) {
       if (afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await afterInsert(newRows); }
       setResult({ total: unique.length, inserted, dup: rows.length - unique.length, skipped: unique.length - inserted, extra });
       setSheets(null);
-      toast(`✅ 새 ${kind === 'review' ? '리뷰' : '문의'} ${inserted.toLocaleString()}건 저장`);
+      toast(`✅ 새 ${itemLabel || (kind === 'review' ? '리뷰' : '문의')} ${inserted.toLocaleString()}건 저장`);
       if (onDone) onDone();
     } catch (e) {
       toast('❌ 업로드 실패: ' + (e.message || e), 'err');
