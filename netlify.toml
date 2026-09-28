@@ -1,4 +1,5 @@
-# Netlify Configuration for VOC Dashboard
+# FINCA·HaTA CX 대시보드 - Netlify 설정
+# 빌드 과정 없이 저장소 파일을 그대로 올리는 정적 사이트
 
 [build]
   command = "echo 'Static site - no build needed'"
@@ -9,41 +10,21 @@
   [headers.values]
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
-    X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
+# 화면 파일은 항상 최신 버전을 확인 (배포 직후에도 옛 화면이 남지 않게)
 [[headers]]
   for = "/index.html"
   [headers.values]
     Cache-Control = "max-age=0, must-revalidate"
 
 [[headers]]
-  for = "/styles.css"
+  for = "/src/*"
   [headers.values]
-    Cache-Control = "max-age=31536000"
+    Cache-Control = "max-age=0, must-revalidate"
 
 [[headers]]
-  for = "/*.js"
+  for = "/app.css"
   [headers.values]
-    Cache-Control = "max-age=31536000"
-
-[context.production]
-  command = "echo 'Production build'"
-  environment = { NODE_ENV = "production" }
-
-[context.deploy-preview]
-  command = "echo 'Preview build'"
-
-[context.branch-deploy]
-  command = "echo 'Branch preview build'"
-
-# Environment Variables (set in Netlify UI)
-[env]
-  REACT_APP_SUPABASE_URL = "https://kevibkvgledpcyqhlxtl.supabase.co"
-  REACT_APP_SUPABASE_KEY = "sb_publishable_tDSpF5YKm-oRqoLc7BqelQ_4YF_mRwS"
+    Cache-Control = "max-age=0, must-revalidate"
