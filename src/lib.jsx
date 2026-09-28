@@ -13,7 +13,9 @@ const CODE_GROUPS = [
   { key: 'reason', label: '사유 카테고리', column: 'reason_category' },
   { key: 'action', label: '후속 조치', column: 'action_required' },
   { key: 'status', label: '진행상황', column: 'status' },
-  { key: 'consult_method', label: '상담방법', column: 'consult_method' },
+  { key: 'consult_method', label: '문의 채널', column: 'consult_method' },
+  { key: 'handling', label: '처리 구분', column: 'handling' },
+  { key: 'department', label: '담당 부서', column: 'department' },
   { key: 'platform', label: '플랫폼', column: 'platform' },
   { key: 'handler', label: '처리자', column: 'handler' },
   { key: 'brand', label: '브랜드', column: 'brand' },
@@ -27,7 +29,9 @@ const PRODUCT_BRAND = { '핀카': 'FINCA', '하타': 'HaTA' };
 const BRAND_ONLY = [{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }];
 
 // 브랜드 과실 여부 (리포트·후속 조치 보드 집계 기준)
-const isFault = (vocType) => (vocType || '').includes('브랜드과실');
+// 품질 계열 VOC 구분은 브랜드 과실로 집계 (예전 '(반품)브랜드과실' 표기도 포함)
+const FAULT_TYPES = ['품질', '세탁·이염', '내구성'];
+const isFault = (vocType) => FAULT_TYPES.includes(vocType) || (vocType || '').includes('브랜드과실');
 
 // Supabase는 한 번에 최대 1000행만 돌려주므로 나눠서 전부 가져옴
 async function fetchAll(buildQuery) {
