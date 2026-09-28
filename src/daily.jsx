@@ -101,10 +101,13 @@ function DailyEntryPage() {
 
   const save = async () => {
     setSaving(true);
-    const rows = [
-      ...platforms.map(p => ({ report_date: date, brand, platform: p, ...Object.fromEntries(PLATFORM_FIELDS.flatMap(s => s.fields).map(([f]) => [f, values[p]?.[f] || 0])), updated_at: new Date().toISOString() })),
-      { report_date: date, brand, platform: BRAND_TOTAL, ...Object.fromEntries(BRAND_FIELDS.flatMap(s => s.fields).map(([f]) => [f, values[BRAND_TOTAL]?.[f] || 0])), updated_at: new Date().toISOString() },
-    ];
+    // 여러 줄을 한 번에 저장할 때 줄마다 칸 구성이 다르면 빈 칸이 null로 들어가므로 모든 칸을 채워서 보냄
+    const now = new Date().toISOString();
+    const rows = [...platforms, BRAND_TOTAL].map(p => ({
+      report_date: date, brand, platform: p,
+      ...Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, values[p]?.[f] || 0])),
+      updated_at: now,
+    }));
     const { data, error } = await db.from('cs_daily').upsert(rows, { onConflict: 'report_date,brand,platform' }).select();
     setSaving(false);
     if (error) { toast('❌ 저장 실패: ' + error.message, 'err'); return; }
