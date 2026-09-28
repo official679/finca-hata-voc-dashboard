@@ -80,9 +80,10 @@ function loadNegMax() { try { return Number(localStorage.getItem('reviewNegMax')
 
 function ReviewAnalysisPage() {
   const [reviews, setReviews] = useReviews();
-  const { productById } = useApp();
+  const { productById, products } = useApp();
   const toast = useToast();
   const [brand, setBrand] = useState('');
+  const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [period, setPeriod] = useState('all');
   const [negMax, setNegMax] = useState(loadNegMax);
@@ -94,8 +95,8 @@ function ReviewAnalysisPage() {
 
   const [from, to] = reviewPeriodStart(period);
   const scoped = useMemo(() => (reviews || []).filter(r =>
-    (!brand || r.brand === brand) && (!platform || r.platform === platform) &&
-    r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to), [reviews, brand, platform, from, to]);
+    (!brand || r.brand === brand) && (!platform || r.platform === platform) && (!category || categoryOf(r.product_id, productById) === category) &&
+    r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to), [reviews, brand, platform, category, from, to, productById]);
   const isNeg = (r) => r.rating !== null && r.rating <= negMax;
   const enriched = useMemo(() => scoped.map(r => ({ ...r, neg: isNeg(r), themes: reviewThemes(r.content, isNeg(r)), name: (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)' })), [scoped, negMax, productById]);
 
@@ -120,7 +121,7 @@ function ReviewAnalysisPage() {
 
   const listRows = (theme ? enriched.filter(r => r.themes.includes(theme.name) && (theme.side === 'neg' ? r.neg : !r.neg))
     : product ? enriched.filter(r => r.name === product && r.neg)
-    : neg.filter(r => listMode === 'all' || !r.handled)).slice(0, 100);
+    : neg.filter(r => listMode === 'all' || !r.handled));
 
   const updateReview = async (id, patch) => {
     const { error } = await db.from('review_items').update(patch).eq('id', id);
@@ -133,6 +134,7 @@ function ReviewAnalysisPage() {
       <PageHeader title="리뷰 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준 · 부정 = ${negMax}점 이하`}>
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
         <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
+        <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="카테고리 전체" />
         <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
         <Select value={String(negMax)} onChange={v => setNegMax(Number(v))} options={[{ value: '3', label: '부정: 3점 이하' }, { value: '2', label: '부정: 2점 이하' }]} />
       </PageHeader>
@@ -206,16 +208,15 @@ function ReviewAnalysisPage() {
         <div className="card-title">
           <span>
             {theme ? `${theme.side === 'neg' ? '👎 부정' : '👍 긍정'} 리뷰 · "${theme.name}"` : product ? `부정 리뷰 · ${product}` : '부정 리뷰 관리'}
-            <small> {listRows.length >= 100 ? '최근 100건' : `${listRows.length}건`}</small>
+            <small> {listRows.length.toLocaleString()}건</small>
           </span>
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {(theme || product) ? <button className="btn btn-sm" onClick={() => { setTheme(null); setProduct(''); }}>← 부정 리뷰 관리로</button>
               : <Segmented options={[{ key: 'unhandled', label: '처리 안 됨' }, { key: 'all', label: '전체' }]} value={listMode} onChange={setListMode} />}
           </span>
         </div>
-        {listRows.length === 0 ? <div className="empty">해당하는 리뷰가 없어요</div> : listRows.map(r => (
-          <ReviewCard key={r.id} r={r} onUpdate={updateReview} />
-        ))}
+        <Paged items={listRows} resetKey={`${theme?.name}|${theme?.side}|${product}|${listMode}|${brand}|${platform}|${period}|${negMax}`}
+          empty="해당하는 리뷰가 없어요" render={r => <ReviewCard key={r.id} r={r} onUpdate={updateReview} />} />
       </div>
     </>
   );

@@ -130,6 +130,11 @@ function useAppData(session) {
   return { products, productById, codes, codeOptions, cases, setCases, daily, setDaily, loadDaily, loadCodes, loadCases, ready, loadError };
 }
 
+// 상품 카테고리 (상품 마스터 기준). 상품이 연결 안 된 건은 '(미분류)'
+const NO_CATEGORY = '(미분류)';
+const categoryOf = (productId, productById) => (productId && productById.get(productId)?.category) || NO_CATEGORY;
+const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(Boolean))].sort(), NO_CATEGORY];
+
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';
 
 // ---------- 알림 ----------
@@ -214,6 +219,34 @@ function Bars({ items, max, color }) {
 
 const STATUS_CHIP = { '접수': 'chip-blue', '확인중': 'chip-amber', '처리완료': 'chip-green', '보상완료': 'chip-green' };
 const StatusChip = ({ status }) => <span className={`chip ${STATUS_CHIP[status] || ''}`}>{status || '-'}</span>;
+
+// 목록을 10개씩 나눠 보여주고 페이지를 넘기는 부품. resetKey가 바뀌면 1페이지로
+function Paged({ items, render, size = 10, resetKey, empty }) {
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [resetKey]);
+  const pages = Math.max(1, Math.ceil(items.length / size));
+  const cur = Math.min(page, pages);
+  if (!items.length) return <div className="empty">{empty || '해당하는 항목이 없어요'}</div>;
+  // 현재 페이지 주변 번호만 보여줌
+  const nums = [...new Set([1, cur - 2, cur - 1, cur, cur + 1, cur + 2, pages])].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b);
+  return (
+    <>
+      {items.slice((cur - 1) * size, cur * size).map(render)}
+      {pages > 1 && (
+        <div className="pager">
+          <button className="btn btn-sm" disabled={cur === 1} onClick={() => setPage(cur - 1)}>‹ 이전</button>
+          {nums.map((n, i) => (
+            <React.Fragment key={n}>
+              {i > 0 && n - nums[i - 1] > 1 && <span className="muted">…</span>}
+              <button className={`btn btn-sm${n === cur ? ' btn-primary' : ''}`} onClick={() => setPage(n)}>{n}</button>
+            </React.Fragment>
+          ))}
+          <button className="btn btn-sm" disabled={cur === pages} onClick={() => setPage(cur + 1)}>다음 ›</button>
+        </div>
+      )}
+    </>
+  );
+}
 
 function ComingSoon({ icon, title, desc, items }) {
   return (

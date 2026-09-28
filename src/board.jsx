@@ -60,9 +60,10 @@ function restockRanking(rows, productById, since) {
 
 function BoardAnalysisPage() {
   const [rows, setRows] = useBoard();
-  const { productById } = useApp();
+  const { productById, products } = useApp();
   const toast = useToast();
   const [brand, setBrand] = useState('');
+  const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [period, setPeriod] = useState('all');
   const [type, setType] = useState('');
@@ -71,8 +72,8 @@ function BoardAnalysisPage() {
 
   const [from, to] = reviewPeriodStart(period);
   const scoped = useMemo(() => (rows || []).filter(r =>
-    (!brand || r.brand === brand) && (!platform || r.platform === platform) &&
-    r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to), [rows, brand, platform, from, to]);
+    (!brand || r.brand === brand) && (!platform || r.platform === platform) && (!category || categoryOf(r.product_id, productById) === category) &&
+    r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to), [rows, brand, platform, category, from, to, productById]);
 
   if (!rows) return <div className="loading-screen">게시판 문의 불러오는 중...</div>;
   if (!rows.length) return <><PageHeader title="게시판 분석" /><div className="card empty">아직 올린 게시판 문의가 없어요. <a href="#/upload-board">게시판 업로드</a>에서 파일을 올려주세요.</div></>;
@@ -88,7 +89,7 @@ function BoardAnalysisPage() {
 
   const query = q.trim().toLowerCase();
   const list = scoped.filter(r => (!type || r.inquiry_type === type) && (!product || ((r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품 미지정)') === product) &&
-    (!query || [r.product_name, r.title, r.content].some(v => (v || '').toLowerCase().includes(query)))).slice(0, 100);
+    (!query || [r.product_name, r.title, r.content].some(v => (v || '').toLowerCase().includes(query))));
 
   const setInquiryType = async (id, t) => {
     const { error } = await db.from('board_items').update({ inquiry_type: t }).eq('id', id);
@@ -102,6 +103,7 @@ function BoardAnalysisPage() {
       <PageHeader title="게시판 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준`}>
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
         <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
+        <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="카테고리 전체" />
         <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
       </PageHeader>
 
@@ -158,14 +160,14 @@ function BoardAnalysisPage() {
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-title">
-          <span>문의 목록 <small>{list.length >= 100 ? '최근 100건' : `${list.length}건`}{product ? ` · ${product}` : ''} · 유형이 틀리면 바로 바꿀 수 있어요</small></span>
+          <span>문의 목록 <small>{list.length.toLocaleString()}건{product ? ` · ${product}` : ''} · 유형이 틀리면 바로 바꿀 수 있어요</small></span>
           <span className="filters">
             <Select value={type} onChange={v => { setType(v); }} options={BOARD_TYPE_NAMES} placeholder="유형 전체" />
             <input className="input" value={q} onChange={e => setQ(e.target.value)} placeholder="상품명·내용 검색" />
             {(type || product || q) && <button className="btn-link" onClick={() => { setType(''); setProduct(''); setQ(''); }}>초기화</button>}
           </span>
         </div>
-        {list.length === 0 ? <div className="empty">해당하는 문의가 없어요</div> : list.map(r => (
+        <Paged items={list} resetKey={`${type}|${product}|${q}|${brand}|${platform}|${period}`} empty="해당하는 문의가 없어요" render={r => (
           <div className="review-card" key={r.id}>
             <div className="review-head">
               <Select value={r.inquiry_type || '기타'} onChange={t => setInquiryType(r.id, t)} options={BOARD_TYPE_NAMES} />
@@ -177,7 +179,7 @@ function BoardAnalysisPage() {
             <div className="review-body">{r.title && r.title !== r.product_name ? <b>{r.title} · </b> : null}{r.content}</div>
             {r.answer && <div className="hint" style={{ marginTop: 6 }}>↳ 답변: {r.answer.slice(0, 160)}{r.answer.length > 160 ? '…' : ''}</div>}
           </div>
-        ))}
+        )} />
       </div>
     </>
   );

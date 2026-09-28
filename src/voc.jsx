@@ -170,7 +170,6 @@ function VocForm({ initial, onSaved, onCancel }) {
         {field('구매 플랫폼', <Select className="" value={form.platform} onChange={set('platform')} options={withCurrent(codeOptions('platform'), form.platform)} placeholder="선택" />)}
         {field('주문번호', <input value={form.order_no} onChange={onInput('order_no')} />)}
         {field('주문자', <input value={form.orderer} onChange={onInput('orderer')} />)}
-        {field('수령자', <input value={form.receiver} onChange={onInput('receiver')} />)}
       </div>
 
       <div className="form-section">상품 · 내용</div>
@@ -260,8 +259,8 @@ function downloadCsv(filename, header, rows) {
 }
 
 function VocListPage({ initialFilter }) {
-  const { cases, codeOptions, productById } = useApp();
-  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', q: '', ...initialFilter });
+  const { cases, codeOptions, productById, products } = useApp();
+  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', q: '', ...initialFilter });
   const [editing, setEditing] = useState(null);
   const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
 
@@ -271,7 +270,7 @@ function VocListPage({ initialFilter }) {
       (!f.from || c.received_date >= f.from) && (!f.to || c.received_date <= f.to) &&
       (!f.brand || c.brand === f.brand) && (!f.platform || c.platform === f.platform) &&
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
-      (!f.reason || c.reason_category === f.reason) &&
+      (!f.reason || c.reason_category === f.reason) && (!f.category || categoryOf(c.product_id, productById) === f.category) &&
       (!f.action || (f.action === '__any' ? !!c.action_required : c.action_required === f.action)) &&
       (!q || [caseProductName(c, productById), c.order_no, c.orderer, c.receiver, c.reason_detail, c.note].some(v => (v || '').toLowerCase().includes(q))));
   }, [cases, f, productById]);
@@ -296,18 +295,19 @@ function VocListPage({ initialFilter }) {
           <Select value={f.brand} onChange={set('brand')} options={codeOptions('brand', true)} placeholder="브랜드 전체" />
           <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
           <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
+          <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="카테고리 전체" />
           <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
           <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />
           <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·내용 검색" />
-          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', q: '' })}>필터 초기화</button>}
+          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', q: '' })}>필터 초기화</button>}
         </div>
       </div>
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>카테고리</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
               {rows.slice(0, 500).map(c => (
@@ -315,6 +315,9 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.received_date)}</td>
                   <td>{c.brand}</td>
                   <td>{c.platform || '-'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{c.order_no || '-'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{categoryOf(c.product_id, productById)}</td>
                   <td className="ellipsis" title={caseProductName(c, productById)}>{caseProductName(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.voc_type || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>

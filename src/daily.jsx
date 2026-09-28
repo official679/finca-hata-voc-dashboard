@@ -214,12 +214,12 @@ const WEEK_METRICS = [
   { label: '출고전 취소', fn: (s) => s.cancels },
   { label: '주문 대비 취소율', fn: (s) => pct(s.cancels, s.orders), rate: true },
   { label: '반품·교환건', fn: (s) => returnsExchanges(s) },
-  { label: '반품·교환율', fn: (s) => pct(returnsExchanges(s), s.orders), rate: true, key: true },
+  { label: '반품·교환율', fn: (s) => pct(returnsExchanges(s), s.orders), val: (s) => s.orders ? returnsExchanges(s) / s.orders : null, key: true },
   { label: '과실건', fn: (s) => faults(s) },
-  { label: '주문 대비 과실률', fn: (s) => pct(faults(s), s.orders), rate: true, key: true },
+  { label: '주문 대비 과실률', fn: (s) => pct(faults(s), s.orders), val: (s) => s.orders ? faults(s) / s.orders : null, key: true },
   { label: '작성 리뷰', fn: (s) => s.reviews_total },
   { label: '부정 리뷰', fn: (s) => s.reviews_negative },
-  { label: '부정 리뷰율', fn: (s) => pct(s.reviews_negative, s.reviews_total), rate: true, key: true },
+  { label: '부정 리뷰율', fn: (s) => pct(s.reviews_negative, s.reviews_total), val: (s) => s.reviews_total ? s.reviews_negative / s.reviews_total : null, key: true },
   { label: '게시판', fn: (s) => s.board_total },
   { label: '해피톡', fn: (s) => s.ht_total },
   { label: '전화 인입', fn: (s) => s.call_in, phone: true },
@@ -239,13 +239,18 @@ function BrandWeekTable({ brand, rows, weeks }) {
             <tr><th>구분</th>{weeks.map(w => <th key={w.label} className="num" title={w.range}>{w.label.split(' ')[1]}<div className="th-sub">{w.range}</div></th>)}<th className="num">합계·평균</th></tr>
           </thead>
           <tbody>
-            {WEEK_METRICS.filter(m => !m.phone || hasPhone).map(m => (
+            {WEEK_METRICS.filter(m => !m.phone || hasPhone).map(m => {
+              // 핵심 비율은 가장 높았던(나빴던) 주를 빨갛게
+              const vals = m.val ? cols.map(m.val) : [];
+              const worst = vals.some(v => v !== null) ? vals.indexOf(Math.max(...vals.filter(v => v !== null))) : -1;
+              return (
               <tr key={m.label} className={m.key ? 'key-row' : ''}>
                 <td>{m.label}</td>
-                {cols.map((c, i) => <td key={i} className="num">{c.orders || c.reviews_total || c.ht_total ? m.fn(c) : <span className="muted">-</span>}</td>)}
+                {cols.map((c, i) => <td key={i} className={`num${i === worst ? ' worst' : ''}`} title={i === worst ? '이달 중 가장 높은 주' : ''}>{c.orders || c.reviews_total || c.ht_total ? m.fn(c) : <span className="muted">-</span>}</td>)}
                 <td className="num total">{m.fn(month)}</td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -314,6 +319,16 @@ function MonthNotes({ ym, brand }) {
   );
 }
 
+// 지난달 대비 증감 (비율은 %p). 나빠지면 빨강, 좋아지면 초록
+function Delta({ cur, prev, higherIsGood, count }) {
+  if (cur === null || prev === null || prev === undefined || (count && !prev)) return <span className="muted">지난달 비교 없음</span>;
+  const diff = cur - prev;
+  if (Math.abs(diff) < (count ? 0.5 : 0.0005)) return <span className="muted">지난달과 같음</span>;
+  const good = higherIsGood ? diff > 0 : diff < 0;
+  const text = count ? `${diff > 0 ? '+' : ''}${Math.round(diff).toLocaleString()}건 (${diff > 0 ? '+' : ''}${(diff / prev * 100).toFixed(0)}%)` : `${diff > 0 ? '+' : ''}${(diff * 100).toFixed(1)}%p`;
+  return <span className={good ? 'delta-good' : 'delta-bad'}>{diff > 0 ? '▲' : '▼'} 지난달 대비 {text}</span>;
+}
+
 function MonthlyReportPage() {
   const daily = useDaily();
   const months = useMemo(() => {
@@ -322,6 +337,7 @@ function MonthlyReportPage() {
     return [...set].sort().reverse();
   }, [daily]);
   const [ym, setYm] = useState('');
+  const [brandView, setBrandView] = useState('');
   useEffect(() => { if (!ym && months.length) setYm(months[0]); }, [months, ym]);
 
   if (!daily) return <div className="loading-screen">불러오는 중...</div>;
@@ -333,43 +349,50 @@ function MonthlyReportPage() {
   const inMonth = daily.filter(r => r.report_date >= from && r.report_date <= to);
   const brandRows = (b) => inMonth.filter(r => r.brand === b);
   const [y, m] = ym.split('-');
+  const brands = brandView ? [brandView] : ['핀카', '하타'];
+  const pairClass = brands.length > 1 ? 'grid grid-2' : 'grid';
+  // 지난달 (증감 비교용)
+  const prevYm = toISODate(new Date(Number(y), Number(m) - 2, 1)).slice(0, 7);
+  const prevWeeks = monthWeeks(prevYm);
+  const prevRows = daily.filter(r => r.report_date >= prevWeeks[0].from && r.report_date <= prevWeeks[prevWeeks.length - 1].to);
 
   return (
     <>
       <PageHeader title={`${y}년 ${Number(m)}월 월간 보고`} desc={`보고일 ${fmtDate(from)} ~ ${fmtDate(to)} · 매월 첫 화요일~다음 월요일 = 1주차 (전일 접수 기준)`}>
+        <Segmented options={BRAND_FILTER} value={brandView} onChange={setBrandView} />
         <Select value={ym} onChange={setYm} options={months.map(v => ({ value: v, label: `${v.slice(0, 4)}년 ${Number(v.slice(5))}월` }))} />
         <button className="btn no-print" onClick={() => window.print()}>🖨 인쇄 / PDF</button>
       </PageHeader>
 
       <div className="grid grid-kpi">
-        {['핀카', '하타'].map(b => {
+        {brands.map(b => {
           const s = sumRows(brandRows(b));
+          const p = sumRows(prevRows.filter(r => r.brand === b));
+          const ratio = (a, n) => (n ? a / n : null);
           return (
             <React.Fragment key={b}>
-              <Kpi label={`${b} 주문건`} value={s.orders.toLocaleString()} sub={`취소율 ${pct(s.cancels, s.orders)}`} />
-              <Kpi label={`${b} 반품·교환율`} value={pct(returnsExchanges(s), s.orders)} sub={`${returnsExchanges(s)}건 · 과실 ${faults(s)}건`} />
-              <Kpi label={`${b} 부정 리뷰율`} value={pct(s.reviews_negative, s.reviews_total)} sub={`리뷰 ${s.reviews_total}건 중 ${s.reviews_negative}건`} />
+              <Kpi label={`${b} 주문건`} value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count />} />
+              <Kpi label={`${b} 반품·교환율`} value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratio(returnsExchanges(s), s.orders)} prev={ratio(returnsExchanges(p), p.orders)} />} />
+              <Kpi label={`${b} 과실률`} value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} />} />
+              <Kpi label={`${b} 부정 리뷰율`} value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} />} />
             </React.Fragment>
           );
         })}
       </div>
 
-      <div className="section-title">주간 주문 · 반품교환 · 과실 · 리뷰 현황</div>
-      <div className="grid grid-2" style={{ alignItems: 'start' }}>
-        <BrandWeekTable brand="핀카" rows={brandRows('핀카')} weeks={weeks} />
-        <BrandWeekTable brand="하타" rows={brandRows('하타')} weeks={weeks} />
+      <div className="section-title">주간 주문 · 반품교환 · 과실 · 리뷰 현황 <small className="muted">빨간 칸 = 그달 가장 높았던 주</small></div>
+      <div className={pairClass}>
+        {brands.map(b => <BrandWeekTable key={b} brand={b} rows={brandRows(b)} weeks={weeks} />)}
       </div>
 
       <div className="section-title">채널별 현황</div>
-      <div className="grid grid-2" style={{ alignItems: 'start' }}>
-        <ChannelTable brand="핀카" rows={brandRows('핀카').filter(r => r.platform !== BRAND_TOTAL)} />
-        <ChannelTable brand="하타" rows={brandRows('하타').filter(r => r.platform !== BRAND_TOTAL)} />
+      <div className={pairClass}>
+        {brands.map(b => <ChannelTable key={b} brand={b} rows={brandRows(b).filter(r => r.platform !== BRAND_TOTAL)} />)}
       </div>
 
       <div className="section-title">VOC · 주요 이슈</div>
-      <div className="grid grid-2" style={{ alignItems: 'start' }}>
-        <MonthNotes ym={ym} brand="핀카" />
-        <MonthNotes ym={ym} brand="하타" />
+      <div className={pairClass}>
+        {brands.map(b => <MonthNotes key={b} ym={ym} brand={b} />)}
       </div>
     </>
   );

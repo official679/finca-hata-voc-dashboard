@@ -89,7 +89,10 @@ button { font-family: inherit; }
 .card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .card-title small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .card-title .input { width: auto; padding: 6px 10px; font-size: 13px; }
-.grid { display: grid; gap: 16px; }
+.grid { display: grid; gap: 16px; align-items: stretch !important; }
+/* 나란히 놓인 카드는 위 여백 없이 같은 높이로 */
+.grid > .card + .card { margin-top: 0; }
+.grid > .card, .grid > .kpi { height: 100%; }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .grid-2w { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
 @media (max-width: 900px) { .grid-2w { grid-template-columns: 1fr; } }
@@ -227,6 +230,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .section-title { font-size: 15px; font-weight: 700; margin: 24px 0 12px; }
 .report-table .th-sub { font-weight: 400; font-size: 11px; color: var(--faint); }
 .report-table .key-row td { background: #F5F9FF; font-weight: 600; }
+.report-table td.worst { background: var(--danger-soft) !important; color: #B42F34; font-weight: 700; }
+.delta-good { color: var(--success); font-weight: 600; }
+.delta-bad { color: var(--danger); font-weight: 600; }
+.kpi-value { color: var(--text); }
 .memo { display: grid; gap: 14px; }
 .memo b { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 .memo p { white-space: pre-wrap; line-height: 1.7; }
@@ -243,6 +250,8 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .review-head .handled { margin-left: auto; display: flex; gap: 4px; align-items: center; color: var(--muted); cursor: pointer; }
 .review-body { margin-top: 8px; line-height: 1.6; white-space: pre-wrap; }
 .review-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+
+.pager { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 14px; flex-wrap: wrap; }
 
 /* 매뉴얼 */
 .manual-card { padding: 0; }

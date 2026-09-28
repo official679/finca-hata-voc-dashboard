@@ -2,6 +2,7 @@
 
 const NAV = [
   { group: '📊 한눈에 보기', items: [
+    { key: 'home', label: '메인 요약', icon: '🏠' },
     { key: 'monthly', label: '월간 보고', icon: '📈' },
     { key: 'report', label: 'VOC 현황', icon: '📉' },
     { key: 'actions', label: '후속 조치 보드', icon: '🎯' },
@@ -58,7 +59,7 @@ const SOON_PAGES = {
 
 function currentRoute() {
   const key = location.hash.replace(/^#\/?/, '');
-  return ALL_NAV.some(n => n.key === key) ? key : 'monthly';
+  return ALL_NAV.some(n => n.key === key) ? key : 'home';
 }
 
 function Shell({ session }) {
@@ -83,6 +84,7 @@ function Shell({ session }) {
   );
   else if (SOON_PAGES[route]) page = <><PageHeader title={ALL_NAV.find(n => n.key === route).label} /><ComingSoon {...SOON_PAGES[route]} /></>;
   else page = {
+    home: <HomePage />,
     monthly: <MonthlyReportPage />,
     report: <ReportPage go={go} />,
     daily: <DailyEntryPage />,
@@ -109,7 +111,7 @@ function Shell({ session }) {
       {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
       <div className="layout">
         <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
-          <a className="sidebar-brand" href="#/monthly" title="메인(월간 보고)으로">FINCA·HaTA CX<small>VOC · 리뷰 · 게시판 관리</small></a>
+          <a className="sidebar-brand" href="#/home" title="메인으로">FINCA·HaTA CX<small>VOC · 리뷰 · 게시판 관리</small></a>
           {NAV.map(g => (
             <div className="nav-group" key={g.group}>
               <div className="nav-group-title">{g.group}</div>
