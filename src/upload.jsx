@@ -66,6 +66,8 @@ const FILE_FORMATS = [
     map: (r) => ({ brand: normBrand(r.front_brand_name), platform: normPlatform(r['플랫폼']), product_name: r.item_name, rating: num(r.point), content: r.contents, when: parseWhen(r.insert_timestamp), order_no: r['주문번호'] }) },
   { kind: 'review', label: '29CM 리뷰', headers: ['front_brand_name', 'item_name', 'point', 'contents', 'insert_timestamp'],
     map: (r) => ({ brand: normBrand(r.front_brand_name), platform: '29CM', product_name: r.item_name, rating: num(r.point), content: r.contents, when: parseWhen(r.insert_timestamp), order_no: r.order_serial }) },
+  { kind: 'review', label: '29CM 리뷰 (파트너 화면)', headers: ['리뷰번호', '상품명', '별점', '리뷰 내용', '등록일시'],
+    map: (r) => ({ platform: '29CM', product_name: r['상품명'], rating: num(r['별점']), content: r['리뷰 내용'], when: parseWhen(r['등록일시']), order_no: r['주문번호'] }) },
   { kind: 'review', label: '아임웹 리뷰', headers: ['리뷰작성일', '리뷰본문', '상품명', '리뷰별점'],
     map: (r) => ({ platform: '아임웹', product_name: r['상품명'], rating: num(r['리뷰별점']), content: r['리뷰본문'], when: parseWhen(r['리뷰작성일']), order_no: r['주문번호'] }) },
   { kind: 'review', label: '무신사 리뷰', headers: ['상품명', '후기 내용', '평점', '등록일시'],
@@ -79,6 +81,8 @@ const FILE_FORMATS = [
     map: (r) => ({ brand: normBrand(r['브랜드']), platform: '29CM', product_name: r['상품'], content: r['문의 내용'], when: parseWhen(r['등록일시']) }) },
   { kind: 'board', label: '무신사 게시판', headers: ['상품명', '문의구분', '제목', '문의내용', '작성일'],
     map: (r) => ({ platform: '무신사', product_name: r['상품명'], option_text: r['옵션'], platform_category: r['문의구분'], title: r['제목'], content: r['문의내용'], when: parseWhen(r['작성일']) }) },
+  { kind: 'board', label: '무신사 게시판', headers: ['상품명', '문의구분', '제목', '내용', '작성일'],
+    map: (r) => ({ platform: '무신사', product_name: r['상품명'], option_text: r['옵션'], platform_category: r['문의구분'], title: r['제목'], content: r['내용'], when: parseWhen(r['작성일']) }) },
 ];
 
 // 파일 → 시트별 { name, format, rows(정리된 값) }
@@ -97,7 +101,7 @@ async function readUploadFile(file, kind) {
         .filter(r => r.content && String(r.content).trim());
       return { name, format, rows };
     }
-    return { name, format: null, rows: [] };
+    return { name, format: null, rows: [], empty: !grid.some(r => r.some(c => String(c).trim() !== '')) };
   });
 }
 
@@ -198,7 +202,7 @@ function UploadPanel({ kind, table, toRow, onDone, guide }) {
                   return (
                     <tr key={s.file + s.name}>
                       <td>{s.file} · {s.name}</td>
-                      <td>{s.format ? <span className="chip chip-green">{s.format.label}</span> : <span className="chip">형식을 알 수 없어 건너뜀</span>}</td>
+                      <td>{s.format ? <span className="chip chip-green">{s.format.label}</span> : s.empty ? <span className="chip">빈 시트</span> : <span className="chip chip-amber">형식을 알 수 없어 건너뜀</span>}</td>
                       <td>{[...new Set(s.rows.map(r => r.platform))].join(', ') || '-'}</td>
                       <td className="num">{s.rows.length.toLocaleString()}</td>
                       <td>{dates.length ? `${dates[0].slice(0, 10)} ~ ${dates[dates.length - 1].slice(0, 10)}` : '-'}</td>
