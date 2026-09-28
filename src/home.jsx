@@ -27,10 +27,9 @@ function ColumnChart({ items, format = (v) => v, color = 'var(--accent)', highli
   );
 }
 
-function useLight(table, columns) {
-  const [rows, setRows] = useState(null);
-  useEffect(() => { fetchAll(() => db.from(table).select(columns)).then(setRows).catch(() => setRows([])); }, [table, columns]);
-  return rows;
+// 요약·보고서용 가벼운 조회 (기본: 최근 13개월만)
+function useLight(table, columns, since = monthsAgo(12)) {
+  return useSince(table, columns, since)[0];
 }
 
 function HomePage() {

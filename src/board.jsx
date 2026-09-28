@@ -118,13 +118,9 @@ function BoardUploadPage() {
   );
 }
 
-function useBoard() {
-  const [rows, setRows] = useState(null);
-  useEffect(() => {
-    fetchAll(() => db.from('board_items').select('id,brand,platform,product_name,product_id,option_text,title,content,written_at,answer,inquiry_type,note').order('written_at', { ascending: false }))
-      .then(setRows).catch(() => setRows([]));
-  }, []);
-  return [rows, setRows];
+// 고른 기간의 문의만 불러옴 (since 없으면 전체)
+function useBoard(since) {
+  return useSince('board_items', 'id,brand,platform,product_name,product_id,option_text,title,content,written_at,answer,inquiry_type,note', since);
 }
 
 // 재입고 문의가 많은 상품 (후속 조치 보드에서도 사용)
@@ -143,13 +139,13 @@ function restockRanking(rows, productById, since) {
 }
 
 function BoardAnalysisPage() {
-  const [rows, setRows] = useBoard();
   const { productById, products } = useApp();
   const toast = useToast();
   const [brand, setBrand] = useState('핀카');
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
-  const [period, setPeriod] = useState('all');
+  const [period, setPeriod] = useState('6');     // 기본 최근 6개월
+  const [rows, setRows] = useBoard(period === 'all' ? null : reviewPeriodStart(period)[0]);
   const [type, setType] = useState('');
   const [q, setQ] = useState('');
   const [product, setProduct] = useState('');
@@ -163,7 +159,7 @@ function BoardAnalysisPage() {
   const [tidyBusy, setTidyBusy] = useState('');
 
   if (!rows) return <div className="loading-screen">게시판 문의 불러오는 중...</div>;
-  if (!rows.length) return <><PageHeader title="게시판 분석" /><div className="card empty">아직 올린 게시판 문의가 없어요. <a href="#/upload-board">게시판 업로드</a>에서 파일을 올려주세요.</div></>;
+  if (!rows.length && period === 'all') return <><PageHeader title="게시판 분석" /><div className="card empty">아직 올린 게시판 문의가 없어요. <a href="#/upload-board">게시판 업로드</a>에서 파일을 올려주세요.</div></>;
 
   const types = BOARD_TYPE_NAMES.map(t => ({ label: t, count: scoped.filter(r => r.inquiry_type === t).length })).filter(t => t.count).sort((a, b) => b.count - a.count);
   const restock = scoped.filter(r => r.inquiry_type === '재입고');

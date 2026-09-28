@@ -39,13 +39,9 @@ const NEGATIVE_THEMES = [
 ];
 const reviewThemes = (text, negative) => (negative ? NEGATIVE_THEMES : POSITIVE_THEMES).filter(([, re]) => re.test(text || '')).map(([name]) => name);
 
-function useReviews() {
-  const [rows, setRows] = useState(null);
-  const load = useCallback(async () => {
-    setRows(await fetchAll(() => db.from('review_items').select('id,brand,platform,product_name,product_id,rating,content,written_at,note,handled').order('written_at', { ascending: false })));
-  }, []);
-  useEffect(() => { load(); }, [load]);
-  return [rows, setRows, load];
+// 고른 기간의 리뷰만 불러옴 (전체 기간은 '전체'를 눌렀을 때만)
+function useReviews(since) {
+  return useSince('review_items', 'id,brand,platform,product_name,product_id,rating,content,written_at', since);
 }
 
 // 부정 리뷰 불만 키워드 → VOC 구분 (먼저 걸리는 것)
@@ -124,13 +120,13 @@ function reviewPeriodStart(key) {
 function loadNegMax() { try { return Number(localStorage.getItem('reviewNegMax')) || 3; } catch { return 3; } }
 
 function ReviewAnalysisPage() {
-  const [reviews, setReviews] = useReviews();
   const { productById, products } = useApp();
   const toast = useToast();
   const [brand, setBrand] = useState('핀카');   // 한 브랜드씩 보기 (핀카 먼저)
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
-  const [period, setPeriod] = useState('all');
+  const [period, setPeriod] = useState('6');     // 기본 최근 6개월 (데이터가 쌓여도 빠르게)
+  const [reviews, setReviews] = useReviews(period === 'all' ? null : reviewPeriodStart(period)[0]);
   const [negMax, setNegMax] = useState(loadNegMax);
   const [theme, setTheme] = useState(null);     // { name, side }
   const [product, setProduct] = useState('');
@@ -145,7 +141,7 @@ function ReviewAnalysisPage() {
   const enriched = useMemo(() => scoped.map(r => ({ ...r, neg: isNeg(r), themes: reviewThemes(r.content, isNeg(r)), name: (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)' })), [scoped, negMax, productById]);
 
   if (!reviews) return <div className="loading-screen">리뷰 불러오는 중...</div>;
-  if (!reviews.length) return <><PageHeader title="리뷰 분석" /><div className="card empty">아직 올린 리뷰가 없어요. <a href="#/upload-reviews">리뷰 업로드</a>에서 파일을 올려주세요.</div></>;
+  if (!reviews.length && period === 'all') return <><PageHeader title="리뷰 분석" /><div className="card empty">아직 올린 리뷰가 없어요. <a href="#/upload-reviews">리뷰 업로드</a>에서 파일을 올려주세요.</div></>;
 
   const neg = enriched.filter(r => r.neg);
   const pos = enriched.filter(r => !r.neg);

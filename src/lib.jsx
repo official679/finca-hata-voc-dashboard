@@ -48,6 +48,23 @@ async function fetchAll(buildQuery) {
   }
 }
 
+// 기간을 정해서 필요한 줄만 불러오기 (리뷰·게시판처럼 계속 쌓이는 데이터가 많아져도 화면이 느려지지 않게)
+// since가 없으면 전체. 결과는 최신순
+function useSince(table, columns, since, dateCol = 'written_at') {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setRows(null);
+    fetchAll(() => { let q = db.from(table).select(columns).order('id'); if (since) q = q.gte(dateCol, since); return q; })
+      .then(r => { if (alive) setRows(r.sort((a, b) => String(b[dateCol] || '').localeCompare(String(a[dateCol] || '')))); })
+      .catch(() => { if (alive) setRows([]); });
+    return () => { alive = false; };
+  }, [table, columns, since, dateCol]);
+  return [rows, setRows];
+}
+// n개월 전 1일 (YYYY-MM-DD)
+const monthsAgo = (n) => { const d = new Date(); return toISODate(new Date(d.getFullYear(), d.getMonth() - n, 1)); };
+
 // ---------- 날짜 ----------
 const pad = (n) => String(n).padStart(2, '0');
 const toISODate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
