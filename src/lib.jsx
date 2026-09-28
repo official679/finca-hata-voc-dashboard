@@ -23,6 +23,8 @@ const CODE_GROUPS = [
 
 // VOC 브랜드 표기 → 상품 마스터 브랜드 표기
 const PRODUCT_BRAND = { '핀카': 'FINCA', '하타': 'HaTA' };
+// 한 브랜드씩 보는 화면용 선택 버튼
+const BRAND_ONLY = [{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }];
 
 // 브랜드 과실 여부 (리포트·후속 조치 보드 집계 기준)
 const isFault = (vocType) => (vocType || '').includes('브랜드과실');

@@ -139,6 +139,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table tr.clickable { cursor: pointer; }
 .table tr.clickable:hover td { background: #F8FAFD; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* 칸이 많은 표: 줄이지 않고 가로로 스크롤 */
+table.table-wide { min-width: 1500px; }
+table.table-wide td, table.table-wide th { white-space: nowrap; }
 .table .ellipsis { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .chip { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500; background: #EEF1F5; color: #4B5563; white-space: nowrap; }

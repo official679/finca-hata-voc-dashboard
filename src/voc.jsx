@@ -305,9 +305,9 @@ function VocListPage({ initialFilter }) {
       </div>
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap">
-          <table className="table">
+          <table className="table table-wide">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
               {rows.slice(0, 500).map(c => (
@@ -320,7 +320,6 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{categoryOf(c.product_id, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{subCategoryOf(c.product_id, productById)}</td>
                   <td className="ellipsis" title={caseProductName(c, productById)}>{caseProductName(c, productById)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{c.voc_type || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
                   <td className="ellipsis" title={c.reason_detail || ''}>{c.reason_detail || '-'}</td>
                   <td><StatusChip status={c.status} /></td>

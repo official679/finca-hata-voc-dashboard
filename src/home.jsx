@@ -1,12 +1,12 @@
 // 메인: 한눈에 보는 요약 대시보드
 
-// 최근 n주 (보고일 기준 화~월, 월간 보고와 같은 주 구분)
+// 최근 n주 (데이터 월~일 = 보고일 화~월, 보고서와 같은 주 구분)
 function recentWeeks(n) {
   const d = new Date(); d.setHours(0, 0, 0, 0);
   while (d.getDay() !== 2) d.setDate(d.getDate() - 1);
   return Array.from({ length: n }, (_, i) => {
     const s = addDays(d, -7 * (n - 1 - i));
-    return { from: toISODate(s), to: toISODate(addDays(s, 6)), label: fmtMD(s) };
+    return { from: toISODate(s), to: toISODate(addDays(s, 6)), label: fmtMD(addDays(s, -1)) };
   });
 }
 
@@ -36,7 +36,7 @@ function useLight(table, columns) {
 function HomePage() {
   const { cases, productById } = useApp();
   const daily = useDaily();
-  const reviews = useLight('review_items', 'brand,rating,written_at,handled');
+  const reviews = useLight('review_items', 'brand,rating,written_at');
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id');
   const [brand, setBrand] = useState('');
 
@@ -71,7 +71,7 @@ function HomePage() {
   const rv = byBrand(reviews).filter(r => r.written_at);
   const months = [...new Set(rv.map(r => r.written_at.slice(0, 7)))].sort().slice(-6);
   const reviewMonthly = months.map(m => { const rs = rv.filter(r => r.written_at.startsWith(m)); return { label: `${Number(m.slice(5))}월`, value: rs.length ? rs.filter(r => r.rating <= 3).length / rs.length : null }; });
-  const unhandledNeg = rv.filter(r => r.rating <= 3 && !r.handled).length;
+  const neg30 = rv.filter(r => r.rating <= 3 && r.written_at.slice(0, 10) >= since30).length;
 
   // 게시판
   const bd = byBrand(board).filter(r => r.written_at);
@@ -94,9 +94,9 @@ function HomePage() {
         <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} />} />
       </div>
       <div className="grid grid-kpi">
-        <Kpi label="진행 중인 후속 조치" value={pendingActions.length} sub={link('actions', '후속 조치 보드 →')} alert={pendingActions.length > 0} />
+        <Kpi label="이번 달 VOC 접수" value={c.filter(x => x.received_date >= toISODate(new Date(now.getFullYear(), now.getMonth(), 1))).length} sub={link('voc-list', 'VOC 목록 →')} />
         <Kpi label="처리 대기 VOC" value={openCases.length} sub={link('voc-list', 'VOC 목록 →')} alert={openCases.length > 0} />
-        <Kpi label="처리 안 된 부정 리뷰" value={unhandledNeg.toLocaleString()} sub={link('reviews', '리뷰 분석 →')} alert={unhandledNeg > 0} />
+        <Kpi label="부정 리뷰 (최근 30일)" value={neg30.toLocaleString()} sub={link('reviews', '리뷰 분석 →')} />
         <Kpi label="재입고 문의 (최근 30일)" value={restock30} sub={link('board', '게시판 분석 →')} />
       </div>
 

@@ -27,7 +27,12 @@ function sumRows(rows) {
 }
 const pct = (a, b) => (b ? `${(a / b * 100).toFixed(1)}%` : '-');
 
-// 주차: 보고일 기준, 매월 첫 화요일부터 다음 월요일까지 = 1주차 (기존 '주간' 시트와 같은 결과)
+// 데이터는 전일 기준: 보고일 화~월 = 데이터 월~일. 월요일 보고일에는 금~일 3일치가 들어감
+// 주차: 데이터 날짜 월~일 (보고일로는 매월 첫 화요일~다음 월요일) = 기존 '주간' 시트와 같은 결과
+function dataLabel(reportDate) {
+  const d = parseDate(reportDate);
+  return d.getDay() === 1 ? `${fmtMD(addDays(d, -3))}~${addDays(d, -1).getDate()}` : fmtMD(addDays(d, -1));
+}
 function firstWeekStart(year, month) {
   const d = new Date(year, month, 1);
   while (d.getDay() !== 2) d.setDate(d.getDate() + 1);
@@ -39,7 +44,7 @@ function monthWeeks(ym) {
   const next = firstWeekStart(m === 12 ? y + 1 : y, m === 12 ? 0 : m);
   const weeks = [];
   for (let s = start, i = 1; s < next; s = addDays(s, 7), i++) {
-    weeks.push({ label: `${m}월 ${i}주차`, from: toISODate(s), to: toISODate(addDays(s, 6)), range: `${fmtMD(s)}~${fmtMD(addDays(s, 6))}` });
+    weeks.push({ label: `${m}월 ${i}주차`, from: toISODate(s), to: toISODate(addDays(s, 6)), range: `${fmtMD(addDays(s, -1))}~${fmtMD(addDays(s, 5))}` });   // 데이터 날짜 (월~일)
   }
   return weeks;
 }
@@ -116,10 +121,6 @@ function DailyEntryPage() {
     toast(`✅ ${fmtDate(date)} ${brand} 데일리 저장 완료`);
   };
 
-  // 최근 14일 입력 현황
-  const recent = useMemo(() => Array.from({ length: 14 }, (_, i) => toISODate(addDays(new Date(), -i))), []);
-  const entered = (d, b) => daily && daily.some(r => r.report_date === d && r.brand === b);
-
   if (!daily) return <div className="loading-screen">불러오는 중...</div>;
 
   const derivedRow = (label, fn, isPct) => (
@@ -132,22 +133,10 @@ function DailyEntryPage() {
 
   return (
     <>
-      <PageHeader title="CS 데일리" desc="보고일(전일 접수 기준) · 브랜드별로 플랫폼 건수를 입력해요. 주말은 월요일 보고일에 합쳐서 입력하세요.">
+      <PageHeader title="CS 데일리" desc={`보고일 ${fmtDate(date)} → ${dataLabel(date)} 데이터 (전일 접수 기준) · 월요일 보고일에는 금~일 3일치를 합쳐서 입력해요`}>
         <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
       </PageHeader>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-title">최근 14일 입력 현황 <small>칸을 누르면 그 날짜로 이동해요</small></div>
-        <div className="day-strip">
-          {recent.map(d => (
-            <button key={d} className={`day-chip${d === date ? ' on' : ''}`} onClick={() => setDate(d)}>
-              <span>{fmtMD(parseDate(d))} {'일월화수목금토'[parseDate(d).getDay()]}</span>
-              <span>{['핀카', '하타'].map(b => <i key={b} className={entered(d, b) ? 'ok' : ''} title={`${b} ${entered(d, b) ? '입력됨' : '미입력'}`}>{b[0]}</i>)}</span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       <div className="grid grid-2" style={{ alignItems: 'start' }}>
         <div className="card" style={{ padding: 0 }}>
@@ -320,80 +309,11 @@ function MonthNotes({ ym, brand }) {
 }
 
 // 지난달 대비 증감 (비율은 %p). 나빠지면 빨강, 좋아지면 초록
-function Delta({ cur, prev, higherIsGood, count }) {
-  if (cur === null || prev === null || prev === undefined || (count && !prev)) return <span className="muted">지난달 비교 없음</span>;
+function Delta({ cur, prev, higherIsGood, count, vs = '지난달' }) {
+  if (cur === null || prev === null || prev === undefined || (count && !prev)) return <span className="muted">{vs} 비교 없음</span>;
   const diff = cur - prev;
-  if (Math.abs(diff) < (count ? 0.5 : 0.0005)) return <span className="muted">지난달과 같음</span>;
+  if (Math.abs(diff) < (count ? 0.5 : 0.0005)) return <span className="muted">{vs} 대비 변동 없음</span>;
   const good = higherIsGood ? diff > 0 : diff < 0;
   const text = count ? `${diff > 0 ? '+' : ''}${Math.round(diff).toLocaleString()}건 (${diff > 0 ? '+' : ''}${(diff / prev * 100).toFixed(0)}%)` : `${diff > 0 ? '+' : ''}${(diff * 100).toFixed(1)}%p`;
-  return <span className={good ? 'delta-good' : 'delta-bad'}>{diff > 0 ? '▲' : '▼'} 지난달 대비 {text}</span>;
-}
-
-function MonthlyReportPage() {
-  const daily = useDaily();
-  const months = useMemo(() => {
-    if (!daily) return [];
-    const set = new Set(daily.map(r => weekOf(r.report_date)?.ym).filter(Boolean));
-    return [...set].sort().reverse();
-  }, [daily]);
-  const [ym, setYm] = useState('');
-  const [brandView, setBrandView] = useState('핀카');   // 한 브랜드씩 보기 (핀카 먼저)
-  useEffect(() => { if (!ym && months.length) setYm(months[0]); }, [months, ym]);
-
-  if (!daily) return <div className="loading-screen">불러오는 중...</div>;
-  if (!months.length) return <><PageHeader title="월간 보고" /><div className="card empty">CS 데일리 데이터가 아직 없어요</div></>;
-  if (!ym) return null;
-
-  const weeks = monthWeeks(ym);
-  const from = weeks[0].from, to = weeks[weeks.length - 1].to;
-  const inMonth = daily.filter(r => r.report_date >= from && r.report_date <= to);
-  const brandRows = (b) => inMonth.filter(r => r.brand === b);
-  const [y, m] = ym.split('-');
-  const brands = brandView ? [brandView] : ['핀카', '하타'];
-  const pairClass = brands.length > 1 ? 'grid grid-2' : 'grid';
-  // 지난달 (증감 비교용)
-  const prevYm = toISODate(new Date(Number(y), Number(m) - 2, 1)).slice(0, 7);
-  const prevWeeks = monthWeeks(prevYm);
-  const prevRows = daily.filter(r => r.report_date >= prevWeeks[0].from && r.report_date <= prevWeeks[prevWeeks.length - 1].to);
-
-  return (
-    <>
-      <PageHeader title={`${y}년 ${Number(m)}월 월간 보고`} desc={`보고일 ${fmtDate(from)} ~ ${fmtDate(to)} · 매월 첫 화요일~다음 월요일 = 1주차 (전일 접수 기준)`}>
-        <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brandView} onChange={setBrandView} />
-        <Select value={ym} onChange={setYm} options={months.map(v => ({ value: v, label: `${v.slice(0, 4)}년 ${Number(v.slice(5))}월` }))} />
-        <button className="btn no-print" onClick={() => window.print()}>🖨 인쇄 / PDF</button>
-      </PageHeader>
-
-      <div className="grid grid-kpi">
-        {brands.map(b => {
-          const s = sumRows(brandRows(b));
-          const p = sumRows(prevRows.filter(r => r.brand === b));
-          const ratio = (a, n) => (n ? a / n : null);
-          return (
-            <React.Fragment key={b}>
-              <Kpi label={`${b} 주문건`} value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count />} />
-              <Kpi label={`${b} 반품·교환율`} value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratio(returnsExchanges(s), s.orders)} prev={ratio(returnsExchanges(p), p.orders)} />} />
-              <Kpi label={`${b} 과실률`} value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} />} />
-              <Kpi label={`${b} 부정 리뷰율`} value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} />} />
-            </React.Fragment>
-          );
-        })}
-      </div>
-
-      <div className="section-title">주간 주문 · 반품교환 · 과실 · 리뷰 현황 <small className="muted">빨간 칸 = 그달 가장 높았던 주</small></div>
-      <div className={pairClass}>
-        {brands.map(b => <BrandWeekTable key={b} brand={b} rows={brandRows(b)} weeks={weeks} />)}
-      </div>
-
-      <div className="section-title">채널별 현황</div>
-      <div className={pairClass}>
-        {brands.map(b => <ChannelTable key={b} brand={b} rows={brandRows(b).filter(r => r.platform !== BRAND_TOTAL)} />)}
-      </div>
-
-      <div className="section-title">VOC · 주요 이슈</div>
-      <div className={pairClass}>
-        {brands.map(b => <MonthNotes key={b} ym={ym} brand={b} />)}
-      </div>
-    </>
-  );
+  return <span className={good ? 'delta-good' : 'delta-bad'}>{diff > 0 ? '▲' : '▼'} {vs} 대비 {text}</span>;
 }

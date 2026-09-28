@@ -3,9 +3,8 @@
 const NAV = [
   { group: '📊 한눈에 보기', items: [
     { key: 'home', label: '메인 요약', icon: '🏠' },
-    { key: 'monthly', label: '월간 보고', icon: '📈' },
+    { key: 'monthly', label: '보고서 (주간·월간)', icon: '📈' },
     { key: 'report', label: 'VOC 현황', icon: '📉' },
-    { key: 'actions', label: '후속 조치 보드', icon: '🎯' },
   ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
@@ -85,7 +84,7 @@ function Shell({ session }) {
   else if (SOON_PAGES[route]) page = <><PageHeader title={ALL_NAV.find(n => n.key === route).label} /><ComingSoon {...SOON_PAGES[route]} /></>;
   else page = {
     home: <HomePage />,
-    monthly: <MonthlyReportPage />,
+    monthly: <ReportsPage />,
     report: <ReportPage go={go} />,
     daily: <DailyEntryPage />,
     'upload-reviews': <ReviewUploadPage />,

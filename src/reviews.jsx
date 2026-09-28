@@ -82,14 +82,13 @@ function ReviewAnalysisPage() {
   const [reviews, setReviews] = useReviews();
   const { productById, products } = useApp();
   const toast = useToast();
-  const [brand, setBrand] = useState('');
+  const [brand, setBrand] = useState('핀카');   // 한 브랜드씩 보기 (핀카 먼저)
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [period, setPeriod] = useState('all');
   const [negMax, setNegMax] = useState(loadNegMax);
   const [theme, setTheme] = useState(null);     // { name, side }
   const [product, setProduct] = useState('');
-  const [listMode, setListMode] = useState('unhandled');
 
   useEffect(() => { try { localStorage.setItem('reviewNegMax', String(negMax)); } catch {} }, [negMax]);
 
@@ -121,7 +120,7 @@ function ReviewAnalysisPage() {
 
   const listRows = (theme ? enriched.filter(r => r.themes.includes(theme.name) && (theme.side === 'neg' ? r.neg : !r.neg))
     : product ? enriched.filter(r => r.name === product && r.neg)
-    : neg.filter(r => listMode === 'all' || !r.handled));
+    : neg);
 
   const updateReview = async (id, patch) => {
     const { error } = await db.from('review_items').update(patch).eq('id', id);
@@ -132,7 +131,7 @@ function ReviewAnalysisPage() {
   return (
     <>
       <PageHeader title="리뷰 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준 · 부정 = ${negMax}점 이하`}>
-        <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
+        <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
         <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
         <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="대분류 전체" />
         <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
@@ -144,7 +143,6 @@ function ReviewAnalysisPage() {
         <Kpi label="평균 별점" value={avg} sub="5점 만점" />
         <Kpi label="긍정 비중" value={pct(pos.length, enriched.length)} sub={`${pos.length.toLocaleString()}건 · ${negMax + 1}~5점`} />
         <Kpi label="부정 비중" value={pct(neg.length, enriched.length)} sub={`${neg.length.toLocaleString()}건 · 1~${negMax}점`} alert={neg.length > 0} />
-        <Kpi label="처리 안 된 부정 리뷰" value={neg.filter(r => !r.handled).length} sub="아래 목록에서 처리" alert={neg.some(r => !r.handled)} />
       </div>
 
       <div className="grid grid-2">
@@ -207,15 +205,12 @@ function ReviewAnalysisPage() {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-title">
           <span>
-            {theme ? `${theme.side === 'neg' ? '👎 부정' : '👍 긍정'} 리뷰 · "${theme.name}"` : product ? `부정 리뷰 · ${product}` : '부정 리뷰 관리'}
+            {theme ? `${theme.side === 'neg' ? '👎 부정' : '👍 긍정'} 리뷰 · "${theme.name}"` : product ? `부정 리뷰 · ${product}` : '부정 리뷰'}
             <small> {listRows.length.toLocaleString()}건</small>
           </span>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {(theme || product) ? <button className="btn btn-sm" onClick={() => { setTheme(null); setProduct(''); }}>← 부정 리뷰 관리로</button>
-              : <Segmented options={[{ key: 'unhandled', label: '처리 안 됨' }, { key: 'all', label: '전체' }]} value={listMode} onChange={setListMode} />}
-          </span>
+          {(theme || product) && <button className="btn btn-sm" onClick={() => { setTheme(null); setProduct(''); }}>← 부정 리뷰 전체로</button>}
         </div>
-        <Paged items={listRows} resetKey={`${theme?.name}|${theme?.side}|${product}|${listMode}|${brand}|${platform}|${period}|${negMax}`}
+        <Paged items={listRows} resetKey={`${theme?.name}|${theme?.side}|${product}|${brand}|${platform}|${category}|${period}|${negMax}`}
           empty="해당하는 리뷰가 없어요" render={r => <ReviewCard key={r.id} r={r} onUpdate={updateReview} />} />
       </div>
     </>
@@ -248,11 +243,6 @@ function ReviewCard({ r, onUpdate }) {
         <span className="chip">{r.platform}</span>
         <span className="muted">{fmtDate(r.written_at.slice(0, 10))}</span>
         <span className="review-product" title={r.name}>{r.name}</span>
-        {r.neg && (
-          <label className="handled">
-            <input type="checkbox" checked={r.handled} onChange={e => onUpdate(r.id, { handled: e.target.checked })} /> 처리 완료
-          </label>
-        )}
       </div>
       <div className="review-body">{r.content}</div>
       <div className="review-foot">

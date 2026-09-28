@@ -90,7 +90,7 @@ function ReportPage({ go }) {
       </div>
 
       <div className="card" style={{ marginTop: 16, padding: 0 }}>
-        <div className="card-title" style={{ padding: '18px 20px 0' }}>과실 이슈 상품 TOP 10 <button className="btn-link" onClick={() => go('actions')}>후속 조치 보드로 →</button></div>
+        <div className="card-title" style={{ padding: '18px 20px 0' }}>과실 이슈 상품 TOP 10</div>
         <div className="table-wrap">
           <table className="table">
             <thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th className="num">과실 건수</th><th>주요 사유</th><th>지정된 후속 조치</th></tr></thead>
