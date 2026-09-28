@@ -215,17 +215,21 @@ const WEEK_METRICS = [
   { label: '전화 발신', fn: (s) => s.call_out, phone: true },
 ];
 
-function BrandWeekTable({ brand, rows, weeks }) {
+// 브랜드 색 (기존 보고 시트와 같게: 핀카 남색, 하타 주황)
+const BRAND_COLOR = { '핀카': '#1F6A8A', '하타': '#E8792F' };
+
+// 기간(주차 또는 월)별 지표 표. periods: [{ from, to, short, range }]
+function BrandWeekTable({ brand, rows, weeks, totalLabel = '합계·평균', worstLabel = '가장 높은 주' }) {
   const cols = weeks.map(w => sumRows(rows.filter(r => r.report_date >= w.from && r.report_date <= w.to)));
   const month = sumRows(rows);
   const hasPhone = month.call_in + month.call_out > 0;
   return (
-    <div className="card" style={{ padding: 0 }}>
-      <div className="card-title" style={{ padding: '18px 20px 4px' }}>{brand}</div>
+    <div className="card brand-card" style={{ padding: 0, '--brand': BRAND_COLOR[brand] }}>
+      <div className="brand-bar">{brand}</div>
       <div className="table-wrap">
         <table className="table report-table">
           <thead>
-            <tr><th>구분</th>{weeks.map(w => <th key={w.label} className="num" title={w.range}>{w.label.split(' ')[1]}<div className="th-sub">{w.range}</div></th>)}<th className="num">합계·평균</th></tr>
+            <tr><th>구분</th>{weeks.map(w => <th key={w.from} className="num" title={w.range}>{w.short || w.label.split(' ')[1]}<div className="th-sub">{w.range}</div></th>)}<th className="num">{totalLabel}</th></tr>
           </thead>
           <tbody>
             {WEEK_METRICS.filter(m => !m.phone || hasPhone).map(m => {
@@ -235,7 +239,7 @@ function BrandWeekTable({ brand, rows, weeks }) {
               return (
               <tr key={m.label} className={m.key ? 'key-row' : ''}>
                 <td>{m.label}</td>
-                {cols.map((c, i) => <td key={i} className={`num${i === worst ? ' worst' : ''}`} title={i === worst ? '이달 중 가장 높은 주' : ''}>{c.orders || c.reviews_total || c.ht_total ? m.fn(c) : <span className="muted">-</span>}</td>)}
+                {cols.map((c, i) => <td key={i} className={`num${i === worst ? ' worst' : ''}`} title={i === worst ? worstLabel : ''}>{c.orders || c.reviews_total || c.ht_total ? m.fn(c) : <span className="muted">-</span>}</td>)}
                 <td className="num total">{m.fn(month)}</td>
               </tr>
               );
@@ -251,8 +255,8 @@ function ChannelTable({ brand, rows }) {
   const byPlatform = countBy(rows, r => r.platform).map(p => ({ platform: p.label, s: sumRows(rows.filter(r => r.platform === p.label)) }))
     .sort((a, b) => b.s.orders - a.s.orders);
   return (
-    <div className="card" style={{ padding: 0 }}>
-      <div className="card-title" style={{ padding: '18px 20px 4px' }}>{brand} 채널별 현황</div>
+    <div className="card brand-card" style={{ padding: 0, '--brand': BRAND_COLOR[brand] }}>
+      <div className="brand-bar">{brand} 채널별 현황</div>
       <div className="table-wrap">
         <table className="table">
           <thead><tr><th>채널</th><th className="num">주문건</th><th className="num">반품·교환</th><th className="num">발생률</th><th className="num">과실건</th><th className="num">과실률</th></tr></thead>
