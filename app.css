@@ -236,6 +236,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .review-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
 .review-card.neg { border-left: 3px solid var(--danger); }
 .review-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+.review-head .input { width: auto; padding: 3px 8px; font-size: 12px; }
 .review-head .stars { color: #E5A200; letter-spacing: 1px; }
 .review-product { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
 .review-head .handled { margin-left: auto; display: flex; gap: 4px; align-items: center; color: var(--muted); cursor: pointer; }

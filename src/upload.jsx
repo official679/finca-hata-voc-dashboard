@@ -13,7 +13,11 @@ const normBrand = (b) => {
 function parseWhen(v) {
   let y, mo, d, h = 0, mi = 0, s = 0, hasTime = false;
   if (typeof v === 'string' && /^\s*\d{5}(\.\d+)?\s*$/.test(v)) v = Number(v);   // CSV에 문자로 들어온 엑셀 날짜
-  if (typeof v === 'number' && v > 20000) {
+  if (v instanceof Date) {
+    if (isNaN(v)) return null;
+    [y, mo, d, h, mi, s] = [v.getFullYear(), v.getMonth() + 1, v.getDate(), v.getHours(), v.getMinutes(), v.getSeconds()];
+    hasTime = h + mi + s > 0;
+  } else if (typeof v === 'number' && v > 20000) {
     const totalSec = Math.round(v * 86400);
     const dt = new Date(Date.UTC(1899, 11, 30) + totalSec * 1000);
     [y, mo, d, h, mi, s] = [dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate(), dt.getUTCHours(), dt.getUTCMinutes(), dt.getUTCSeconds()];
@@ -24,6 +28,7 @@ function parseWhen(v) {
     [y, mo, d] = [+m[1], +m[2], +m[3]];
     if (m[4] !== undefined) { [h, mi, s] = [+m[4], +m[5], +(m[6] || 0)]; hasTime = true; }
   }
+  if (![y, mo, d, h, mi, s].every(Number.isFinite) || y < 2000 || mo < 1 || mo > 12 || d < 1 || d > 31) return null;
   const date = `${y}-${pad(mo)}-${pad(d)}`;
   return {
     iso: `${date}T${pad(h)}:${pad(mi)}:${pad(s)}+09:00`,
@@ -78,7 +83,8 @@ const FILE_FORMATS = [
 
 // 파일 → 시트별 { name, format, rows(정리된 값) }
 async function readUploadFile(file, kind) {
-  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false, codepage: 65001 });
+  // raw: CSV의 날짜 모양 글자를 멋대로 바꾸지 않고 글자 그대로 읽음 (엑셀 파일에는 영향 없음)
+  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false, codepage: 65001, raw: /\.csv$/i.test(file.name) });
   return wb.SheetNames.map(name => {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
     for (let h = 0; h < Math.min(10, grid.length); h++) {

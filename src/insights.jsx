@@ -156,8 +156,28 @@ function ActionCard({ group, children, onOpenCase }) {
   );
 }
 
+// 리오더 칸 위에 보이는 게시판 재입고 문의 TOP 5
+function RestockHint({ rows, brand, days }) {
+  const { productById } = useApp();
+  if (!rows) return null;
+  const since = toISODate(addDays(new Date(), -Number(days)));
+  const top = restockRanking(rows.filter(r => !brand || r.brand === brand), productById, since).slice(0, 5);
+  return (
+    <div className="board-card" style={{ background: 'var(--warn-soft)', borderColor: 'transparent' }}>
+      <div className="board-card-title">💬 게시판 재입고 문의 TOP 5 <span className="muted" style={{ fontWeight: 400 }}>· 최근 {days}일</span></div>
+      {top.length === 0 ? <div className="hint">최근 재입고 문의가 없어요</div> : top.map(p => (
+        <div key={p.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, marginTop: 6 }}>
+          <span className="ellipsis" style={{ maxWidth: 200 }} title={p.name}>{p.name}</span><b>{p.count}건</b>
+        </div>
+      ))}
+      <div style={{ marginTop: 8 }}><a className="btn-link" href="#/board">게시판 분석에서 보기 →</a></div>
+    </div>
+  );
+}
+
 function ActionsPage() {
   const { cases, setCases, codeOptions, productById } = useApp();
+  const [boardRows] = useBoard();
   const toast = useToast();
   const [brand, setBrand] = useState('');
   const [windowDays, setWindowDays] = useState('30');
@@ -214,7 +234,7 @@ function ActionsPage() {
         {columns.map(col => (
           <div className="board-col" key={col.action}>
             <div className="board-col-title"><span>{col.action}</span><span className="chip">{col.groups.length}개 상품</span></div>
-            {col.action === '리오더' && <div className="hint" style={{ margin: '-4px 4px 10px' }}>게시판 재입고 문의 집계는 게시판 업로드가 열리면 여기에 함께 표시돼요.</div>}
+            {col.action === '리오더' && <RestockHint rows={boardRows} brand={brand} days={windowDays} />}
             {col.groups.length === 0 && <div className="empty" style={{ padding: 16 }}>없음</div>}
             {col.groups.map(g => (
               <ActionCard key={g.name} group={g} onOpenCase={setEditing}>

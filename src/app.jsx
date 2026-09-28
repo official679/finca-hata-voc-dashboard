@@ -12,12 +12,12 @@ const NAV = [
   ] },
   { group: '📥 데이터 업로드', items: [
     { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐' },
-    { key: 'upload-board', label: '게시판 업로드', icon: '💬', soon: '준비중' },
+    { key: 'upload-board', label: '게시판 업로드', icon: '💬' },
   ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
     { key: 'reviews', label: '리뷰 분석', icon: '📊' },
-    { key: 'board', label: '게시판 분석', icon: '🔎', soon: '준비중' },
+    { key: 'board', label: '게시판 분석', icon: '🔎' },
   ] },
   { group: '⚙️ 기준 관리', items: [
     { key: 'codes', label: '기준 관리', icon: '🧩' },
@@ -55,8 +55,6 @@ function LoginPage() {
 }
 
 const SOON_PAGES = {
-  'upload-board': { icon: '💬', title: '게시판 업로드는 곧 열려요', desc: '29CM·무신사·자사몰 게시판 파일을 그대로 올리면 문의 유형이 자동 분류돼요.', items: ['재입고 · 배송 · 교환/반품 · 사이즈/상품정보 등 자동 분류', '상반기 핀카 게시판 분석 결과: 재입고 문의가 전체의 약 29%', '재입고 문의 많은 상품 → 후속 조치 보드 리오더 검토로 연결'] },
-  board: { icon: '🔎', title: '게시판 분석은 곧 열려요', desc: '문의 유형 비중과 재입고 문의가 많은 상품 순위를 보여줘요.' },
 };
 
 function currentRoute() {
@@ -91,6 +89,8 @@ function Shell({ session }) {
     daily: <DailyEntryPage />,
     'upload-reviews': <ReviewUploadPage />,
     reviews: <ReviewAnalysisPage />,
+    'upload-board': <BoardUploadPage />,
+    board: <BoardAnalysisPage />,
     actions: <ActionsPage />,
     'voc-new': <VocEntryPage />,
     'voc-list': <VocListPage />,
