@@ -134,7 +134,7 @@ function ReviewAnalysisPage() {
       <PageHeader title="리뷰 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준 · 부정 = ${negMax}점 이하`}>
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
         <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
-        <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="카테고리 전체" />
+        <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="대분류 전체" />
         <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
         <Select value={String(negMax)} onChange={v => setNegMax(Number(v))} options={[{ value: '3', label: '부정: 3점 이하' }, { value: '2', label: '부정: 2점 이하' }]} />
       </PageHeader>

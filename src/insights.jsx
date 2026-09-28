@@ -76,7 +76,7 @@ function ReportPage({ go }) {
           <Bars items={countBy(faults, c => c.reason_category).slice(0, 8)} />
         </div>
         <div className="card">
-          <div className="card-title">카테고리별 과실 VOC <small>상품 마스터 카테고리</small></div>
+          <div className="card-title">대분류별 과실 VOC <small>상품 마스터 기준</small></div>
           <Bars items={countBy(faults, c => categoryOf(c.product_id, productById))} color="var(--danger)" />
         </div>
         <div className="card">

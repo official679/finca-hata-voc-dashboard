@@ -182,7 +182,7 @@ function VocForm({ initial, onSaved, onCancel }) {
           </datalist>
           <div className="hint">
             {form.product_name.trim() === '' ? `${form.brand} 상품 ${brandProducts.length.toLocaleString()}개에서 검색돼요`
-              : matchedProduct ? `✓ 상품 마스터와 연결됨 (${matchedProduct.category || '분류 없음'})`
+              : matchedProduct ? `✓ 상품 마스터와 연결됨 (대분류 ${matchedProduct.category || '-'} · 중분류 ${matchedProduct.size_gender || '-'})`
               : '상품 마스터에 없는 이름이에요. 그대로 저장되지만 상품별 집계가 정확하지 않을 수 있어요.'}
           </div>
         </div>
@@ -276,9 +276,9 @@ function VocListPage({ initialFilter }) {
   }, [cases, f, productById]);
 
   const exportCsv = () => downloadCsv(`VOC목록_${today()}.csv`,
-    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', 'VOC구분', '상담방법', '진행상황', '사유카테고리', '상세사유', '처리메모', '후속조치', '사진수'],
+    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', '중분류', 'VOC구분', '상담방법', '진행상황', '사유카테고리', '상세사유', '처리메모', '후속조치', '사진수'],
     rows.map(c => [c.received_date, c.brand, c.handler, c.platform, c.order_no, c.orderer, c.receiver, caseProductName(c, productById),
-      productById.get(c.product_id)?.category, c.voc_type, c.consult_method, c.status, c.reason_category, c.reason_detail, c.note, c.action_required, (c.photos || []).length]));
+      productById.get(c.product_id)?.category, productById.get(c.product_id)?.size_gender, c.voc_type, c.consult_method, c.status, c.reason_category, c.reason_detail, c.note, c.action_required, (c.photos || []).length]));
 
   const hasFilter = Object.values(f).some(Boolean);
 
@@ -295,7 +295,7 @@ function VocListPage({ initialFilter }) {
           <Select value={f.brand} onChange={set('brand')} options={codeOptions('brand', true)} placeholder="브랜드 전체" />
           <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
           <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
-          <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="카테고리 전체" />
+          <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
           <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
           <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />
@@ -307,7 +307,7 @@ function VocListPage({ initialFilter }) {
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>카테고리</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>VOC 구분</th><th>사유</th><th>상세 사유</th><th>진행</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
               {rows.slice(0, 500).map(c => (
@@ -318,6 +318,7 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{c.order_no || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{categoryOf(c.product_id, productById)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{subCategoryOf(c.product_id, productById)}</td>
                   <td className="ellipsis" title={caseProductName(c, productById)}>{caseProductName(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.voc_type || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>

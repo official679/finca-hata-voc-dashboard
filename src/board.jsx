@@ -103,7 +103,7 @@ function BoardAnalysisPage() {
       <PageHeader title="게시판 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준`}>
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
         <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
-        <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="카테고리 전체" />
+        <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="대분류 전체" />
         <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
       </PageHeader>
 

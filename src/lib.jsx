@@ -110,7 +110,7 @@ function useAppData(session) {
     (async () => {
       try {
         const [prods] = await Promise.all([
-          fetchAll(() => db.from('products').select('id,product_name,brand,category').order('id')),
+          fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender').order('id')),
           loadCodes(),
           loadCases(),
         ]);
@@ -133,6 +133,7 @@ function useAppData(session) {
 // 상품 카테고리 (상품 마스터 기준). 상품이 연결 안 된 건은 '(미분류)'
 const NO_CATEGORY = '(미분류)';
 const categoryOf = (productId, productById) => (productId && productById.get(productId)?.category) || NO_CATEGORY;
+const subCategoryOf = (productId, productById) => (productId && productById.get(productId)?.size_gender) || '-';
 const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(Boolean))].sort(), NO_CATEGORY];
 
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';
