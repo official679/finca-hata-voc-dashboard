@@ -1,29 +1,43 @@
 // 리뷰 업로드 · 리뷰 분석
 
-// 리뷰에서 자주 나오는 이야기 (정규식으로 찾음). 긍정·부정 리뷰 각각에서 몇 건씩 나오는지 셈
-const REVIEW_THEMES = [
-  ['색감·색상', /색감|색상|컬러|색이|색깔|색도/],
-  ['디자인·예쁨', /예뻐|예쁘|예쁜|이뻐|이쁘|이쁜|디자인|귀여/],
-  ['촉감·부드러움', /부드럽|촉감|보들|감촉|매끈|까슬|거칠/],
-  ['두께·무게', /두께|두껍|두꺼|얇|무게|가볍|가벼|묵직/],
-  ['사이즈·핏', /사이즈|크기|핏이|작아|작네|커요|크네|넉넉|길이|짧/],
-  ['시원함', /시원|냉감|쿨링/],
+// 리뷰에서 자주 나오는 이야기 (정규식으로 찾음)
+// 긍정 리뷰에는 '좋았던 점', 부정 리뷰에는 '불만 사항' 목록을 따로 적용
+// (같은 주제어라도 "예뻐요"는 칭찬이라 부정 리뷰에 섞이면 안 됨)
+const POSITIVE_THEMES = [
+  ['디자인·예쁨', /예뻐|예쁘|예쁜|이뻐|이쁘|이쁜|귀여|디자인.{0,4}(좋|맘|마음)/],
+  ['색감 만족', /(색감|색상|색깔|컬러|색이).{0,6}(예뻐|예쁘|이뻐|이쁘|좋|맘|마음|고와|곱)/],
+  ['촉감·부드러움', /부드럽|부드러|보들|포근|매끈|촉감.{0,4}(좋|최고)/],
+  ['시원함', /시원(해|하고|합|한|했)|냉감.{0,4}(좋|최고)/],
   ['따뜻함', /따뜻|따듯|보온/],
-  ['품질·재질', /품질|퀄리티|재질|소재|원단|마감이 좋/],
-  ['구김', /구김|구겨/],
-  ['보풀·먼지·털', /보풀|먼지|털빠|털 빠|털날|털이/],
-  ['이염·얼룩·물빠짐', /이염|물빠|물 빠|색빠|번짐|얼룩|오염/],
-  ['봉제·박음질', /봉제|박음질|실밥|뜯어|터졌|터짐|올이|올 나/],
-  ['냄새', /냄새|악취/],
-  ['세탁', /세탁|빨래|건조기/],
-  ['흡수력', /흡수/],
-  ['상세페이지와 다름', /상세|사진이랑|사진과|사진보다|화면이랑|화면과|실물/],
-  ['배송', /배송|도착|늦게 와|빨리 와|빠르게 와/],
-  ['포장·선물', /포장|박스|패키지|선물/],
-  ['가격·가성비', /가격|가성비|비싸|저렴|할인/],
-  ['재구매·추천', /재구매|또 ?살|또 ?구매|추천|쟁여|깔별/],
+  ['두께감·무게 만족', /두께감.{0,4}(좋|적당|딱)|적당한 ?두께|가벼워서|가볍고|묵직/],
+  ['사이즈 만족', /사이즈.{0,6}(딱|잘 ?맞|적당|좋)|넉넉|핏.{0,4}(좋|예뻐|이뻐)/],
+  ['품질 만족', /(품질|퀄리티|재질|소재|원단|마감).{0,6}(좋|훌륭|최고|만족|괜찮|탄탄)/],
+  ['세탁 후에도 좋음', /세탁.{0,12}(괜찮|문제 ?없|멀쩡|그대로)/],
+  ['배송 빠름', /배송.{0,6}(빨|빠르|빠른)|빨리 ?(와|왔|도착)|빠르게 ?(와|왔|도착)/],
+  ['포장·선물', /포장|선물/],
+  ['가성비', /가성비|가격.{0,6}(대비|비해).{0,6}(좋|훌륭|괜찮)|저렴/],
+  ['재구매·추천', /재구매|또 ?(살|구매)|추천|쟁여|깔별/],
 ];
-const reviewThemes = (text) => REVIEW_THEMES.filter(([, re]) => re.test(text || '')).map(([name]) => name);
+const NEGATIVE_THEMES = [
+  ['색상이 사진과 다름', /색(이|상|감|깔)?.{0,8}(다르|달라|차이|탁|칙칙|어둡|진해|연해)|사진(이랑|과|보다).{0,8}(다르|달라|별로)/],
+  ['상세페이지와 다름', /상세.{0,10}(다르|달라|차이|과장)|실물.{0,6}(별로|다르|달라)|기대.{0,4}(이하|와 ?달)/],
+  ['얇음·비침', /얇아|얇고|얇네|얇은|비쳐|비침|비치/],
+  ['사이즈 안 맞음', /작아|작네|작고|작은 ?편|커요|크네|커서|너무 ?커|길어|짧아|안 ?맞/],
+  ['보풀·먼지·털빠짐', /보풀|먼지|털 ?빠|털날|털이 ?(많|날)/],
+  ['구김', /구김|구겨/],
+  ['이염·얼룩·물빠짐', /이염|물 ?빠|색 ?빠|번짐|얼룩|오염/],
+  ['봉제·마감 불량', /봉제|박음질|실밥|뜯어|뜯겨|터졌|터짐|올이|올 ?나|마감.{0,4}(별로|아쉽|엉망|불량)/],
+  ['촉감 불만 (까슬·뻣뻣)', /까슬|거칠|뻣뻣|따가|간지러/],
+  ['시원하지 않음', /(안|덜) ?시원|시원하지|더워|덥다|덥고/],
+  ['냄새', /냄새|악취/],
+  ['흡수 안 됨', /흡수.{0,6}(안|않|못)/],
+  ['세탁 후 변형', /줄어|늘어나|늘어났|수축|변형|세탁.{0,10}(망가|이상)/],
+  ['품질 실망', /(품질|퀄리티).{0,6}(별로|아쉽|실망|떨어|낮)|싸구려|허접|저렴해 ?보/],
+  ['가격 대비 아쉬움', /가격.{0,8}(비해|대비|치고).{0,6}(아쉽|별로|실망)|비싸/],
+  ['배송 지연·문제', /배송.{0,8}(늦|지연|오래|느려)|늦게 ?(와|왔|도착)|오배송|안 ?와/],
+  ['불량·파손', /불량|하자|파손|깨져|깨졌|찢어|구멍/],
+];
+const reviewThemes = (text, negative) => (negative ? NEGATIVE_THEMES : POSITIVE_THEMES).filter(([, re]) => re.test(text || '')).map(([name]) => name);
 
 function useReviews() {
   const [rows, setRows] = useState(null);
@@ -70,7 +84,7 @@ function ReviewAnalysisPage() {
   const toast = useToast();
   const [brand, setBrand] = useState('');
   const [platform, setPlatform] = useState('');
-  const [period, setPeriod] = useState('3');
+  const [period, setPeriod] = useState('all');
   const [negMax, setNegMax] = useState(loadNegMax);
   const [theme, setTheme] = useState(null);     // { name, side }
   const [product, setProduct] = useState('');
@@ -83,7 +97,7 @@ function ReviewAnalysisPage() {
     (!brand || r.brand === brand) && (!platform || r.platform === platform) &&
     r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to), [reviews, brand, platform, from, to]);
   const isNeg = (r) => r.rating !== null && r.rating <= negMax;
-  const enriched = useMemo(() => scoped.map(r => ({ ...r, neg: isNeg(r), themes: reviewThemes(r.content), name: (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)' })), [scoped, negMax, productById]);
+  const enriched = useMemo(() => scoped.map(r => ({ ...r, neg: isNeg(r), themes: reviewThemes(r.content, isNeg(r)), name: (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)' })), [scoped, negMax, productById]);
 
   if (!reviews) return <div className="loading-screen">리뷰 불러오는 중...</div>;
   if (!reviews.length) return <><PageHeader title="리뷰 분석" /><div className="card empty">아직 올린 리뷰가 없어요. <a href="#/upload-reviews">리뷰 업로드</a>에서 파일을 올려주세요.</div></>;
@@ -91,7 +105,7 @@ function ReviewAnalysisPage() {
   const neg = enriched.filter(r => r.neg);
   const pos = enriched.filter(r => !r.neg);
   const avg = enriched.length ? (enriched.reduce((a, r) => a + (r.rating || 0), 0) / enriched.filter(r => r.rating).length).toFixed(2) : '-';
-  const themeCount = (rows) => REVIEW_THEMES.map(([name]) => ({ label: name, count: rows.filter(r => r.themes.includes(name)).length })).filter(t => t.count).sort((a, b) => b.count - a.count);
+  const themeCount = (rows) => [...POSITIVE_THEMES, ...NEGATIVE_THEMES].map(([name]) => ({ label: name, count: rows.filter(r => r.themes.includes(name)).length })).filter(t => t.count).sort((a, b) => b.count - a.count);
   const platforms = [...new Set(reviews.map(r => r.platform))].sort();
 
   // 월별 추이 (최근 12개월)
@@ -156,11 +170,11 @@ function ReviewAnalysisPage() {
 
       <div className="grid grid-2w" style={{ marginTop: 16 }}>
         <div className="card">
-          <div className="card-title">👍 긍정 리뷰에서 많이 나온 이야기 <small>누르면 리뷰를 볼 수 있어요</small></div>
+          <div className="card-title">👍 좋았던 점 <small>긍정 리뷰 기준 · 누르면 리뷰를 볼 수 있어요</small></div>
           <ThemeBars items={themeCount(pos).slice(0, 10)} total={pos.length} color="var(--accent)" onPick={name => { setTheme({ name, side: 'pos' }); setProduct(''); }} />
         </div>
         <div className="card">
-          <div className="card-title">👎 부정 리뷰에서 많이 나온 이야기 <small>누르면 리뷰를 볼 수 있어요</small></div>
+          <div className="card-title">👎 불만 사항 <small>부정 리뷰 기준 · 누르면 리뷰를 볼 수 있어요</small></div>
           <ThemeBars items={themeCount(neg).slice(0, 10)} total={neg.length} color="var(--danger)" onPick={name => { setTheme({ name, side: 'neg' }); setProduct(''); }} />
         </div>
       </div>
@@ -169,7 +183,7 @@ function ReviewAnalysisPage() {
         <div className="card-title" style={{ padding: '18px 20px 0' }}>부정 리뷰가 많은 상품 <small>누르면 해당 상품의 부정 리뷰를 볼 수 있어요</small></div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>상품명</th><th>브랜드</th><th className="num">리뷰</th><th className="num">부정</th><th className="num">부정 비중</th><th className="num">평균 별점</th><th>부정 리뷰 주요 이야기</th></tr></thead>
+            <thead><tr><th>상품명</th><th>브랜드</th><th className="num">리뷰</th><th className="num">부정</th><th className="num">부정 비중</th><th className="num">평균 별점</th><th>주요 불만</th></tr></thead>
             <tbody>
               {byProduct.map(p => (
                 <tr key={p.name} className="clickable" onClick={() => { setProduct(p.name); setTheme(null); }}>

@@ -64,7 +64,7 @@ function BoardAnalysisPage() {
   const toast = useToast();
   const [brand, setBrand] = useState('');
   const [platform, setPlatform] = useState('');
-  const [period, setPeriod] = useState('3');
+  const [period, setPeriod] = useState('all');
   const [type, setType] = useState('');
   const [q, setQ] = useState('');
   const [product, setProduct] = useState('');

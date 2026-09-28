@@ -48,7 +48,8 @@ button { font-family: inherit; }
   display: flex;
   flex-direction: column;
 }
-.sidebar-brand { padding: 22px 20px 16px; color: #fff; font-weight: 700; font-size: 16px; }
+.sidebar-brand { display: block; padding: 22px 20px 16px; color: #fff; font-weight: 700; font-size: 16px; text-decoration: none; }
+.sidebar-brand:hover { opacity: 0.85; }
 .sidebar-brand small { display: block; color: var(--sidebar-muted); font-weight: 500; font-size: 12px; margin-top: 2px; }
 .nav-group { padding: 10px 0 4px; }
 .nav-group-title { padding: 6px 20px; font-size: 11px; font-weight: 600; color: var(--sidebar-muted); letter-spacing: 0.02em; }
@@ -242,6 +243,15 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .review-head .handled { margin-left: auto; display: flex; gap: 4px; align-items: center; color: var(--muted); cursor: pointer; }
 .review-body { margin-top: 8px; line-height: 1.6; white-space: pre-wrap; }
 .review-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+
+/* 매뉴얼 */
+.manual-card { padding: 0; }
+.manual-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; cursor: pointer; }
+.manual-head:hover { background: #FAFBFC; border-radius: var(--radius); }
+.manual-card .manual-body, .manual-card > div:not(.manual-head) { padding: 0 20px; }
+.manual-card .form-actions { padding-bottom: 16px; }
+.manual-body { white-space: pre-wrap; line-height: 1.8; border-top: 1px solid var(--border); padding-top: 14px !important; }
+.manual-body a { color: var(--primary); word-break: break-all; }
 
 @media print {
   .sidebar, .mobile-bar, .no-print, .filters .input, .toast { display: none !important; }

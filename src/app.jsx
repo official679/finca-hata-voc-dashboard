@@ -6,22 +6,21 @@ const NAV = [
     { key: 'report', label: 'VOC 현황', icon: '📉' },
     { key: 'actions', label: '후속 조치 보드', icon: '🎯' },
   ] },
-  { group: '✏️ 입력', items: [
-    { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
-    { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
-  ] },
-  { group: '📥 데이터 업로드', items: [
-    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐' },
-    { key: 'upload-board', label: '게시판 업로드', icon: '💬' },
-  ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
     { key: 'reviews', label: '리뷰 분석', icon: '📊' },
     { key: 'board', label: '게시판 분석', icon: '🔎' },
   ] },
-  { group: '⚙️ 기준 관리', items: [
-    { key: 'codes', label: '기준 관리', icon: '🧩' },
+  { group: '✏️ 입력·업로드', items: [
+    { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
+    { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
+    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐' },
+    { key: 'upload-board', label: '게시판 업로드', icon: '💬' },
+  ] },
+  { group: '⚙️ 기준·매뉴얼', items: [
+    { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
     { key: 'guides', label: 'CX 응대 주의사항', icon: '⚠️' },
+    { key: 'codes', label: '기준 관리', icon: '🧩' },
   ] },
 ];
 const ALL_NAV = NAV.flatMap(g => g.items);
@@ -96,6 +95,7 @@ function Shell({ session }) {
     'voc-list': <VocListPage />,
     codes: <CodesPage />,
     guides: <GuidesPage />,
+    manuals: <ManualsPage />,
   }[route];
 
   const pendingActions = data.cases.filter(c => c.action_required && !c.action_done).length;
@@ -109,7 +109,7 @@ function Shell({ session }) {
       {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
       <div className="layout">
         <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
-          <div className="sidebar-brand">FINCA·HaTA CX<small>VOC · 리뷰 · 게시판 관리</small></div>
+          <a className="sidebar-brand" href="#/monthly" title="메인(월간 보고)으로">FINCA·HaTA CX<small>VOC · 리뷰 · 게시판 관리</small></a>
           {NAV.map(g => (
             <div className="nav-group" key={g.group}>
               <div className="nav-group-title">{g.group}</div>
