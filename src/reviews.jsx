@@ -48,7 +48,46 @@ function useReviews() {
   return [rows, setRows, load];
 }
 
+// 부정 리뷰 불만 키워드 → VOC 구분 (먼저 걸리는 것)
+const THEME_TO_VOC_TYPE = {
+  '색상이 사진과 다름': '색상 차이', '상세페이지와 다름': '상품 정보', '사이즈 안 맞음': '사이즈·핏',
+  '이염·얼룩·물빠짐': '세탁·이염', '세탁 후 변형': '세탁·이염', '보풀·먼지·털빠짐': '내구성',
+  '봉제·마감 불량': '품질', '불량·파손': '품질', '품질 실망': '품질', '구김': '품질', '냄새': '품질', '촉감 불만 (까슬·뻣뻣)': '품질',
+  '얇음·비침': '상품 정보', '시원하지 않음': '상품 정보', '흡수 안 됨': '상품 정보', '배송 지연·문제': '배송',
+};
+const REVIEW_PLATFORM_TO_VOC = { '아임웹': '자사몰', '카페24': '자사몰' };
+const REVIEW_VOC_NOTE = '리뷰 자동 등록';
+
+// 새로 올라온 부정 리뷰(1~3점)를 VOC 접수로 등록 → 담당자는 VOC 목록에서 사진·처리 내용만 채움
+async function negativeReviewsToVoc(newReviews) {
+  const rows = newReviews.filter(r => r.rating !== null && r.rating <= 3).map(r => {
+    const theme = reviewThemes(r.content, true).find(t => THEME_TO_VOC_TYPE[t]);
+    return {
+      received_date: (r.written_at || '').slice(0, 10) || today(),
+      brand: r.brand,
+      platform: REVIEW_PLATFORM_TO_VOC[r.platform] || r.platform,
+      order_no: r.order_no,
+      product_id: r.product_id,
+      product_name: r.product_name,
+      voc_type: theme ? THEME_TO_VOC_TYPE[theme] : '기타',
+      consult_method: '리뷰',
+      status: '접수',
+      reason_detail: `[리뷰 ★${r.rating}] ${r.content || ''}`,
+      note: REVIEW_VOC_NOTE,
+    };
+  });
+  if (!rows.length) return null;
+  const created = [];
+  for (let i = 0; i < rows.length; i += 200) {
+    const { data, error } = await db.from('voc_cases').insert(rows.slice(i, i + 200)).select();
+    if (error) throw new Error('부정 리뷰 VOC 등록 실패: ' + error.message);
+    created.push(...data);
+  }
+  return created;
+}
+
 function ReviewUploadPage() {
+  const { setCases } = useApp();
   const [count, setCount] = useState(null);
   const refresh = () => db.from('review_items').select('id', { count: 'exact', head: true }).then(({ count }) => setCount(count));
   useEffect(() => { refresh(); }, []);
@@ -58,9 +97,15 @@ function ReviewUploadPage() {
       <UploadPanel
         kind="review"
         table="review_items"
-        guide="29CM · 아임웹 · 무신사 리뷰 다운로드 파일과 기존 시트의 '리뷰 low' 형식을 알아봐요. 같은 리뷰를 다시 올려도 중복으로 저장되지 않아요. 고객 이름·아이디는 저장하지 않아요."
+        guide="29CM · 아임웹 · 무신사 리뷰 다운로드 파일과 기존 시트의 '리뷰 low' 형식을 알아봐요. 같은 리뷰를 다시 올려도 중복으로 저장되지 않아요. 새로 들어온 1~3점 리뷰는 VOC 접수로 자동 등록돼요. 고객 이름·아이디는 저장하지 않아요."
         toRow={(r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no) })}
         onDone={refresh}
+        afterInsert={async (newRows) => {
+          const created = await negativeReviewsToVoc(newRows);
+          if (!created) return null;
+          setCases(prev => [...created, ...prev]);
+          return <>📝 새 부정 리뷰(1~3점) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
+        }}
       />
     </>
   );
@@ -233,9 +278,8 @@ function ThemeBars({ items, total, color, onPick }) {
   );
 }
 
-function ReviewCard({ r, onUpdate }) {
-  const [note, setNote] = useState(r.note || '');
-  const [editing, setEditing] = useState(false);
+// 리뷰 분석은 보기 전용 (부정 리뷰 처리는 VOC 목록에서)
+function ReviewCard({ r }) {
   return (
     <div className={`review-card${r.neg ? ' neg' : ''}`}>
       <div className="review-head">
@@ -247,14 +291,6 @@ function ReviewCard({ r, onUpdate }) {
       <div className="review-body">{r.content}</div>
       <div className="review-foot">
         {r.themes.map(t => <span key={t} className="chip">{t}</span>)}
-        {r.neg && !editing && <button className="btn-link" onClick={() => setEditing(true)}>{r.note ? `처리 내용: ${r.note}` : '+ 처리 내용 입력'}</button>}
-        {editing && (
-          <span style={{ display: 'flex', gap: 6, flex: 1 }}>
-            <input className="input" value={note} onChange={e => setNote(e.target.value)} placeholder="예: 상품팀 전달, 교환 안내 완료" autoFocus />
-            <button className="btn btn-sm btn-primary" onClick={async () => { await onUpdate(r.id, { note: note.trim() || null }); setEditing(false); }}>저장</button>
-            <button className="btn btn-sm" onClick={() => setEditing(false)}>취소</button>
-          </span>
-        )}
       </div>
     </div>
   );

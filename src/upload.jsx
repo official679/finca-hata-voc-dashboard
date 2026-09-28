@@ -119,7 +119,7 @@ function productMatcher(products) {
 }
 
 // 업로드 화면 (리뷰·게시판 공통)
-function UploadPanel({ kind, table, toRow, onDone, guide }) {
+function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert }) {
   const { products } = useApp();
   const toast = useToast();
   const [brand, setBrand] = useState('');
@@ -157,14 +157,19 @@ function UploadPanel({ kind, table, toRow, onDone, guide }) {
     // 같은 파일 안의 중복 제거
     const unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
     let inserted = 0;
+    const newRows = [];
     try {
       for (let i = 0; i < unique.length; i += 500) {
         setBusy(`올리는 중... ${Math.min(i + 500, unique.length).toLocaleString()} / ${unique.length.toLocaleString()}`);
-        const { data, error } = await db.from(table).upsert(unique.slice(i, i + 500), { onConflict: 'platform,source_key', ignoreDuplicates: true }).select('id');
+        // 이번에 새로 저장된 줄만 돌아옴 (이미 있던 줄은 건너뜀)
+        const { data, error } = await db.from(table).upsert(unique.slice(i, i + 500), { onConflict: 'platform,source_key', ignoreDuplicates: true }).select();
         if (error) throw error;
         inserted += data.length;
+        newRows.push(...data);
       }
-      setResult({ total: unique.length, inserted, dup: rows.length - unique.length, skipped: unique.length - inserted });
+      let extra = null;
+      if (afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await afterInsert(newRows); }
+      setResult({ total: unique.length, inserted, dup: rows.length - unique.length, skipped: unique.length - inserted, extra });
       setSheets(null);
       toast(`✅ 새 ${kind === 'review' ? '리뷰' : '문의'} ${inserted.toLocaleString()}건 저장`);
       if (onDone) onDone();
@@ -227,6 +232,7 @@ function UploadPanel({ kind, table, toRow, onDone, guide }) {
           ✅ 업로드 완료 — 새로 저장 <b>{result.inserted.toLocaleString()}건</b>
           {result.skipped > 0 && <> · 이미 있던 {result.skipped.toLocaleString()}건은 건너뜀</>}
           {result.dup > 0 && <> · 파일 안 중복 {result.dup.toLocaleString()}건 제외</>}
+          {result.extra && <div style={{ marginTop: 6 }}>{result.extra}</div>}
         </div>
       )}
     </div>
