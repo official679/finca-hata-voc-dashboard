@@ -1,11 +1,12 @@
 // VOC 현황 · 후속 조치 보드
 
-const BRAND_FILTER = [{ key: '', label: '전체' }, { key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }];
+// 브랜드는 한 번에 하나씩 (핀카 먼저). '전체' 보기는 쓰지 않음
+const BRAND_FILTER = [{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }];
 
 function ReportPage({ go }) {
   const { cases, productById } = useApp();
   const [period, setPeriod] = useState('thisMonth');
-  const [brand, setBrand] = useState('');
+  const [brand, setBrand] = useState('핀카');
 
   const [from, to] = periodRange(period);
   const brandCases = useMemo(() => cases.filter(c => !brand || c.brand === brand), [cases, brand]);
@@ -183,7 +184,7 @@ function ActionsPage() {
   const { cases, setCases, codeOptions, productById } = useApp();
   const [boardRows] = useBoard();
   const toast = useToast();
-  const [brand, setBrand] = useState('');
+  const [brand, setBrand] = useState('핀카');
   const [windowDays, setWindowDays] = useState('30');
   const [editing, setEditing] = useState(null);
   const [showDone, setShowDone] = useState(false);

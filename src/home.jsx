@@ -38,7 +38,7 @@ function HomePage() {
   const daily = useDaily();
   const reviews = useLight('review_items', 'brand,rating,written_at');
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id');
-  const [brand, setBrand] = useState('');
+  const [brand, setBrand] = useState('핀카');
 
   if (!daily || !reviews || !board) return <div className="loading-screen">요약 불러오는 중...</div>;
 
@@ -74,7 +74,7 @@ function HomePage() {
   const neg30 = rv.filter(r => r.rating <= 3 && r.written_at.slice(0, 10) >= since30).length;
 
   // 게시판
-  const bd = byBrand(board).filter(r => r.written_at);
+  const bd = byBrand(board).filter(r => r.written_at && isInquiry(r));
   const bdRecent = bd.filter(r => r.written_at.slice(0, 10) >= toISODate(addDays(now, -90)));
   const bdScope = bdRecent.length ? bdRecent : bd;
   const restock30 = bd.filter(r => r.inquiry_type === '재입고' && r.written_at.slice(0, 10) >= since30).length;

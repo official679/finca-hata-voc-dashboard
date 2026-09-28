@@ -140,7 +140,7 @@ function useAppData(session) {
 const NO_CATEGORY = '(미분류)';
 const categoryOf = (productId, productById) => (productId && productById.get(productId)?.category) || NO_CATEGORY;
 const subCategoryOf = (productId, productById) => (productId && productById.get(productId)?.size_gender) || '-';
-const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(Boolean))].sort(), NO_CATEGORY];
+const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(c => c && c !== 'null'))].sort(), NO_CATEGORY];
 
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';
 
