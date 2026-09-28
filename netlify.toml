@@ -1,0 +1,49 @@
+# Netlify Configuration for VOC Dashboard
+
+[build]
+  command = "echo 'Static site - no build needed'"
+  publish = "."
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/styles.css"
+  [headers.values]
+    Cache-Control = "max-age=31536000"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "max-age=31536000"
+
+[context.production]
+  command = "echo 'Production build'"
+  environment = { NODE_ENV = "production" }
+
+[context.deploy-preview]
+  command = "echo 'Preview build'"
+
+[context.branch-deploy]
+  command = "echo 'Branch preview build'"
+
+# Environment Variables (set in Netlify UI)
+[env]
+  REACT_APP_SUPABASE_URL = "https://kevibkvgledpcyqhlxtl.supabase.co"
+  REACT_APP_SUPABASE_KEY = "sb_publishable_tDSpF5YKm-oRqoLc7BqelQ_4YF_mRwS"

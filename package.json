@@ -1,0 +1,32 @@
+{
+  "name": "finca-hata-voc-dashboard",
+  "version": "1.0.0",
+  "description": "FINCA·HaTA VOC 대시보드 - 실시간 고객의 목소리 및 리뷰 관리 시스템",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server -p 8080 -c-1",
+    "dev": "http-server -p 8080 -c-1 --cors",
+    "build": "echo 'Static site - no build needed'",
+    "serve": "http-server"
+  },
+  "keywords": [
+    "VOC",
+    "customer-voice",
+    "dashboard",
+    "react",
+    "supabase"
+  ],
+  "author": "FINCA Team",
+  "license": "INTERNAL",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
