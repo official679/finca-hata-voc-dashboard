@@ -54,7 +54,7 @@
 
       useEffect(() => {
         const loadData = async () => {
-          const vocs = await fetchData('voc_entries');
+          const vocs = await fetchData('daily_voc');
           const revs = await fetchData('reviews');
           const prods = await fetchData('products');
           setVocEntries(vocs || []);
@@ -90,7 +90,7 @@
           setLoading(true);
           try {
             const response = await fetch(
-              `${SUPABASE_URL}/rest/v1/voc_entries`,
+              `${SUPABASE_URL}/rest/v1/daily_voc`,
               {
                 method: 'POST',
                 headers: {
@@ -112,7 +112,7 @@
                 quantity: 1,
                 notes: ''
               });
-              const updatedVocs = await fetchData('voc_entries');
+              const updatedVocs = await fetchData('daily_voc');
               setVocEntries(updatedVocs || []);
             }
           } catch (error) {
