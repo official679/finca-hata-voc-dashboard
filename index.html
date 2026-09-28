@@ -257,6 +257,13 @@
         }
       };
 
+      // 성공 알림은 3초 뒤 자동으로 닫힘 (실패 알림은 클릭해서 닫을 때까지 유지)
+      useEffect(() => {
+        if (!message.includes('✅')) return;
+        const timer = setTimeout(() => setMessage(''), 3000);
+        return () => clearTimeout(timer);
+      }, [message]);
+
       useEffect(() => {
         const loadData = async () => {
           const vocs = await fetchData('daily_voc');
@@ -497,8 +504,12 @@
             <p style={{ fontSize: '16px', opacity: '0.95' }}>실시간 고객의 목소리(VOC) 및 리뷰 관리 시스템</p>
           </header>
 
+          {/* 스크롤 위치와 상관없이 보이도록 화면 상단에 고정 */}
           {message && (
-            <div style={{ padding: '15px 20px', borderRadius: '8px', marginBottom: '20px', fontWeight: '500', background: message.includes('✅') ? '#d4edda' : '#f8d7da', color: message.includes('✅') ? '#155724' : '#721c24', borderLeft: `4px solid ${message.includes('✅') ? '#28a745' : '#f5222d'}` }}>
+            <div
+              onClick={() => setMessage('')}
+              style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1001, maxWidth: 'calc(100% - 32px)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)', padding: '15px 20px', borderRadius: '8px', fontWeight: '500', background: message.includes('✅') ? '#d4edda' : '#f8d7da', color: message.includes('✅') ? '#155724' : '#721c24', borderLeft: `4px solid ${message.includes('✅') ? '#28a745' : '#f5222d'}` }}
+            >
               {message}
             </div>
           )}
