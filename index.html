@@ -114,6 +114,9 @@
               });
               const updatedVocs = await fetchData('daily_voc');
               setVocEntries(updatedVocs || []);
+            } else {
+              const errorBody = await response.json().catch(() => ({}));
+              setMessage(`❌ 저장 실패 (${response.status}): ${errorBody.message || response.statusText}`);
             }
           } catch (error) {
             setMessage('❌ 저장 실패: ' + error.message);
