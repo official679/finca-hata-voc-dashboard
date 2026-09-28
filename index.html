@@ -16,6 +16,185 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    // Supabase 설정
+    const SUPABASE_URL = 'https://hbudvjnqzejqbvkqfklz.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_oT83_czOzbwphv05dPVAiQ_5_Vby312';
+
+    // Supabase는 한 번에 최대 1000행만 돌려주므로 나눠서 전부 가져옴
+    const fetchAllRows = async (path) => {
+      const pageSize = 1000;
+      let rows = [];
+      for (let from = 0; ; from += pageSize) {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Range': `${from}-${from + pageSize - 1}`,
+          }
+        });
+        if (!response.ok) throw new Error(`${path} 로드 실패 (${response.status})`);
+        const page = await response.json();
+        rows = rows.concat(page);
+        if (page.length < pageSize) return rows;
+      }
+    };
+
+    const emptyForm = () => ({
+      brand: 'FINCA',
+      date: new Date().toISOString().split('T')[0],
+      channel: '29CM',
+      inquiry_type: '(반품)브랜드과실',
+      product_query: '',
+      quantity: 1,
+      notes: ''
+    });
+
+    // 데일리 입력 폼
+    // VOCDashboard 밖에 정의해야 대시보드가 다시 그려져도 입력값이 유지됨
+    const DailyForm = ({ products, setMessage, onSaved }) => {
+      const [formData, setFormData] = useState(emptyForm);
+      const [saving, setSaving] = useState(false);
+
+      const brandProducts = products.filter(p => p.brand === formData.brand);
+
+      const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      };
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        const query = formData.product_query.trim();
+        const product = query ? brandProducts.find(p => p.product_name === query) : null;
+        if (query && !product) {
+          setMessage('❌ 상품을 목록에서 선택해주세요');
+          return;
+        }
+
+        setSaving(true);
+        try {
+          const response = await fetch(
+            `${SUPABASE_URL}/rest/v1/daily_voc`,
+            {
+              method: 'POST',
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                brand: formData.brand,
+                date: formData.date,
+                channel: formData.channel,
+                inquiry_type: formData.inquiry_type,
+                product_id: product ? product.id : null,
+                quantity: Number(formData.quantity) || 1,
+                notes: formData.notes
+              })
+            }
+          );
+          if (response.ok) {
+            setMessage('✅ VOC 입력 완료!');
+            setFormData(emptyForm());
+            onSaved();
+          } else {
+            const errorBody = await response.json().catch(() => ({}));
+            setMessage(`❌ 저장 실패 (${response.status}): ${errorBody.message || response.statusText}`);
+          }
+        } catch (error) {
+          setMessage('❌ 저장 실패: ' + error.message);
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      return (
+        <div style={{ maxWidth: '800px' }}>
+          <h2>📝 데일리 VOC 입력</h2>
+          <form onSubmit={handleSubmit}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+              <div>
+                <label>날짜</label>
+                <input
+                  type="date"
+                  name="date"
+                  value={formData.date}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+              <div>
+                <label>브랜드</label>
+                <select name="brand" value={formData.brand} onChange={handleChange}>
+                  <option>FINCA</option>
+                  <option>HaTA</option>
+                </select>
+              </div>
+              <div>
+                <label>플랫폼</label>
+                <select name="channel" value={formData.channel} onChange={handleChange}>
+                  <option>29CM</option>
+                  <option>자사몰</option>
+                  <option>무신사</option>
+                  <option>W컨셉</option>
+                  <option>EQL</option>
+                </select>
+              </div>
+              <div>
+                <label>문의유형</label>
+                <select name="inquiry_type" value={formData.inquiry_type} onChange={handleChange}>
+                  <option>(반품)브랜드과실</option>
+                  <option>(교환)브랜드과실</option>
+                  <option>기타</option>
+                </select>
+              </div>
+              <div>
+                <label>수량</label>
+                <input
+                  type="number"
+                  name="quantity"
+                  value={formData.quantity}
+                  onChange={handleChange}
+                  min="1"
+                />
+              </div>
+              <div>
+                <label>상품명</label>
+                <input
+                  type="text"
+                  name="product_query"
+                  list="product-options"
+                  value={formData.product_query}
+                  onChange={handleChange}
+                  placeholder="상품명 검색 후 선택"
+                />
+                <datalist id="product-options">
+                  {brandProducts.map(p => (
+                    <option key={p.id} value={p.product_name} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label>비고</label>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="추가 사항 입력"
+                rows="3"
+              />
+            </div>
+            <button type="submit" style={{ padding: '12px 30px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }} disabled={saving}>
+              {saving ? '저장 중...' : '💾 저장'}
+            </button>
+          </form>
+        </div>
+      );
+    };
+
     const VOCDashboard = () => {
       const [activeTab, setActiveTab] = useState('daily');
       const [vocEntries, setVocEntries] = useState([]);
@@ -24,25 +203,13 @@
       const [loading, setLoading] = useState(false);
       const [message, setMessage] = useState('');
 
-      // Supabase 설정
-      const SUPABASE_URL = 'https://hbudvjnqzejqbvkqfklz.supabase.co';
-      const SUPABASE_KEY = 'sb_publishable_oT83_czOzbwphv05dPVAiQ_5_Vby312';
+      const productName = (productId) => products.find(p => p.id === productId)?.product_name || '-';
 
       // API 호출 함수
-      const fetchData = async (table) => {
+      const fetchData = async (table, query = '') => {
         setLoading(true);
         try {
-          const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/${table}`,
-            {
-              headers: {
-                'apikey': SUPABASE_KEY,
-                'Content-Type': 'application/json',
-              }
-            }
-          );
-          const data = await response.json();
-          return data;
+          return await fetchAllRows(`${table}${query}`);
         } catch (error) {
           console.error(`Error fetching ${table}:`, error);
           setMessage(`❌ ${table} 데이터 로드 실패`);
@@ -56,153 +223,13 @@
         const loadData = async () => {
           const vocs = await fetchData('daily_voc');
           const revs = await fetchData('reviews');
-          const prods = await fetchData('products');
+          const prods = await fetchData('products', '?select=id,product_name,brand');
           setVocEntries(vocs || []);
           setReviews(revs || []);
           setProducts(prods || []);
         };
         loadData();
       }, []);
-
-      // 데일리 입력 폼
-      const DailyForm = () => {
-        const [formData, setFormData] = useState({
-          brand: 'FINCA',
-          date: new Date().toISOString().split('T')[0],
-          platform: '29CM',
-          voc_type: '(반품)브랜드과실',
-          category_id: '',
-          product_name: '',
-          quantity: 1,
-          notes: ''
-        });
-
-        const handleChange = (e) => {
-          const { name, value } = e.target;
-          setFormData(prev => ({
-            ...prev,
-            [name]: value
-          }));
-        };
-
-        const handleSubmit = async (e) => {
-          e.preventDefault();
-          setLoading(true);
-          try {
-            const response = await fetch(
-              `${SUPABASE_URL}/rest/v1/daily_voc`,
-              {
-                method: 'POST',
-                headers: {
-                  'apikey': SUPABASE_KEY,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData)
-              }
-            );
-            if (response.ok) {
-              setMessage('✅ VOC 입력 완료!');
-              setFormData({
-                brand: 'FINCA',
-                date: new Date().toISOString().split('T')[0],
-                platform: '29CM',
-                voc_type: '(반품)브랜드과실',
-                category_id: '',
-                product_name: '',
-                quantity: 1,
-                notes: ''
-              });
-              const updatedVocs = await fetchData('daily_voc');
-              setVocEntries(updatedVocs || []);
-            } else {
-              const errorBody = await response.json().catch(() => ({}));
-              setMessage(`❌ 저장 실패 (${response.status}): ${errorBody.message || response.statusText}`);
-            }
-          } catch (error) {
-            setMessage('❌ 저장 실패: ' + error.message);
-          } finally {
-            setLoading(false);
-          }
-        };
-
-        return (
-          <div style={{ maxWidth: '800px' }}>
-            <h2>📝 데일리 VOC 입력</h2>
-            <form onSubmit={handleSubmit}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                <div>
-                  <label>날짜</label>
-                  <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div>
-                  <label>브랜드</label>
-                  <select name="brand" value={formData.brand} onChange={handleChange}>
-                    <option>FINCA</option>
-                    <option>HaTA</option>
-                  </select>
-                </div>
-                <div>
-                  <label>플랫폼</label>
-                  <select name="platform" value={formData.platform} onChange={handleChange}>
-                    <option>29CM</option>
-                    <option>자사몰</option>
-                    <option>무신사</option>
-                    <option>W컨셉</option>
-                    <option>EQL</option>
-                  </select>
-                </div>
-                <div>
-                  <label>문의유형</label>
-                  <select name="voc_type" value={formData.voc_type} onChange={handleChange}>
-                    <option>(반품)브랜드과실</option>
-                    <option>(교환)브랜드과실</option>
-                    <option>기타</option>
-                  </select>
-                </div>
-                <div>
-                  <label>수량</label>
-                  <input
-                    type="number"
-                    name="quantity"
-                    value={formData.quantity}
-                    onChange={handleChange}
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label>상품명</label>
-                  <input
-                    type="text"
-                    name="product_name"
-                    value={formData.product_name}
-                    onChange={handleChange}
-                    placeholder="상품명 입력"
-                  />
-                </div>
-              </div>
-              <div style={{ marginBottom: '20px' }}>
-                <label>비고</label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  placeholder="추가 사항 입력"
-                  rows="3"
-                />
-              </div>
-              <button type="submit" style={{ padding: '12px 30px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }} disabled={loading}>
-                {loading ? '저장 중...' : '💾 저장'}
-              </button>
-            </form>
-          </div>
-        );
-      };
 
       // 리포트 탭
       const ReportTab = () => {
@@ -250,9 +277,9 @@
                       <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
                         <td style={{ padding: '12px', fontSize: '14px' }}>{new Date(voc.date).toLocaleDateString('ko-KR')}</td>
                         <td style={{ padding: '12px', fontSize: '14px' }}>{voc.brand}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{voc.platform}</td>
-                        <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#667eea' }}>{voc.product_name}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{voc.voc_type}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{voc.channel}</td>
+                        <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#667eea' }}>{productName(voc.product_id)}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{voc.inquiry_type}</td>
                         <td style={{ padding: '12px', fontSize: '14px' }}>{voc.quantity}</td>
                       </tr>
                     ))}
@@ -299,9 +326,9 @@
                   {vocEntries.map((voc, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '12px', fontSize: '14px' }}>{new Date(voc.date).toLocaleDateString('ko-KR')}</td>
-                      <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#667eea' }}>{voc.product_name}</td>
+                      <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500', color: '#667eea' }}>{productName(voc.product_id)}</td>
                       <td style={{ padding: '12px', fontSize: '14px' }}>{voc.brand}</td>
-                      <td style={{ padding: '12px', fontSize: '14px' }}>{voc.voc_type}</td>
+                      <td style={{ padding: '12px', fontSize: '14px' }}>{voc.inquiry_type}</td>
                       <td style={{ padding: '12px', fontSize: '14px' }}><span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: '#e7f3ff', color: '#0050b3' }}>{voc.status || '접수'}</span></td>
                       <td style={{ padding: '12px', fontSize: '14px', color: '#d4380d', fontWeight: '600' }}>{voc.action_required || '-'}</td>
                     </tr>
@@ -406,8 +433,8 @@
             <div style={{ background: '#f0f5ff', padding: '25px', borderRadius: '12px', borderLeft: '4px solid #667eea', marginTop: '30px' }}>
               <h3 style={{ marginBottom: '15px', color: '#333' }}>💡 주요 인사이트</h3>
               <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <li style={{ color: '#333', fontSize: '14px', lineHeight: '1.6' }}>🔴 긴급: 박음질 불량 {vocEntries.filter(v => v.voc_type?.includes('박음')).length}건</li>
-                <li style={{ color: '#333', fontSize: '14px', lineHeight: '1.6' }}>🟡 주의: 이염/물빠짐 {vocEntries.filter(v => v.voc_type?.includes('이염')).length}건</li>
+                <li style={{ color: '#333', fontSize: '14px', lineHeight: '1.6' }}>🔴 긴급: 박음질 불량 {vocEntries.filter(v => v.inquiry_type?.includes('박음')).length}건</li>
+                <li style={{ color: '#333', fontSize: '14px', lineHeight: '1.6' }}>🟡 주의: 이염/물빠짐 {vocEntries.filter(v => v.inquiry_type?.includes('이염')).length}건</li>
                 <li style={{ color: '#333', fontSize: '14px', lineHeight: '1.6' }}>🟢 긍정: 디자인 만족도 {positiveReviews}건</li>
                 <li style={{ color: '#333', fontSize: '14px', lineHeight: '1.6' }}>📈 이번 주 평가 평균: {reviews.length > 0 ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1) : 0}점</li>
               </ul>
@@ -461,7 +488,7 @@
           </div>
 
           <div style={{ background: 'white', borderRadius: '12px', padding: '30px', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-            {activeTab === 'daily' && <DailyForm />}
+            {activeTab === 'daily' && <DailyForm products={products} setMessage={setMessage} onSaved={async () => setVocEntries(await fetchData('daily_voc'))} />}
             {activeTab === 'report' && <ReportTab />}
             {activeTab === 'voc' && <VocTab />}
             {activeTab === 'review' && <ReviewTab />}
