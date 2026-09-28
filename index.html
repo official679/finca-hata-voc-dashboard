@@ -45,8 +45,11 @@
       inquiry_type: '(반품)브랜드과실',
       product_query: '',
       quantity: 1,
+      action_required: '',
       notes: ''
     });
+
+    const ACTION_OPTIONS = ['상품개선', '재입고'];
 
     // 데일리 입력 폼
     // VOCDashboard 밖에 정의해야 대시보드가 다시 그려져도 입력값이 유지됨
@@ -91,6 +94,7 @@
                 inquiry_type: formData.inquiry_type,
                 product_id: product ? product.id : null,
                 quantity: Number(formData.quantity) || 1,
+                action_required: formData.action_required || null,
                 notes: formData.notes
               })
             }
@@ -176,6 +180,13 @@
                   ))}
                 </datalist>
               </div>
+              <div>
+                <label>필요 액션</label>
+                <select name="action_required" value={formData.action_required} onChange={handleChange}>
+                  <option value="">없음</option>
+                  {ACTION_OPTIONS.map(a => <option key={a}>{a}</option>)}
+                </select>
+              </div>
             </div>
             <div style={{ marginBottom: '20px' }}>
               <label>비고</label>
@@ -216,6 +227,33 @@
           return [];
         } finally {
           setLoading(false);
+        }
+      };
+
+      const updateAction = async (id, action) => {
+        try {
+          const response = await fetch(
+            `${SUPABASE_URL}/rest/v1/daily_voc?id=eq.${id}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'apikey': SUPABASE_KEY,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation',
+              },
+              body: JSON.stringify({ action_required: action || null })
+            }
+          );
+          const body = await response.json().catch(() => ({}));
+          // 수정 권한이 없으면 오류 없이 빈 결과가 오므로 행이 실제로 바뀌었는지 확인
+          if (response.ok && body.length > 0) {
+            setVocEntries(prev => prev.map(v => v.id === id ? body[0] : v));
+            setMessage('✅ 액션 변경 완료');
+          } else {
+            setMessage(`❌ 액션 변경 실패: ${body.message || '수정 권한이 없습니다'}`);
+          }
+        } catch (error) {
+          setMessage('❌ 액션 변경 실패: ' + error.message);
         }
       };
 
@@ -330,7 +368,16 @@
                       <td style={{ padding: '12px', fontSize: '14px' }}>{voc.brand}</td>
                       <td style={{ padding: '12px', fontSize: '14px' }}>{voc.inquiry_type}</td>
                       <td style={{ padding: '12px', fontSize: '14px' }}><span style={{ display: 'inline-block', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: '#e7f3ff', color: '#0050b3' }}>{voc.status || '접수'}</span></td>
-                      <td style={{ padding: '12px', fontSize: '14px', color: '#d4380d', fontWeight: '600' }}>{voc.action_required || '-'}</td>
+                      <td style={{ padding: '12px', fontSize: '14px' }}>
+                        <select
+                          value={voc.action_required || ''}
+                          onChange={(e) => updateAction(voc.id, e.target.value)}
+                          style={{ padding: '6px 10px', color: voc.action_required ? '#d4380d' : '#666', fontWeight: '600' }}
+                        >
+                          <option value="">-</option>
+                          {ACTION_OPTIONS.map(a => <option key={a}>{a}</option>)}
+                        </select>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
