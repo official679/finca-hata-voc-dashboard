@@ -7,11 +7,14 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const PHOTO_BUCKET = 'voc-photos';
 
+// 후속 조치(상품개선·리오더 지정) 기능은 아직 쓰지 않아 모든 화면에서 숨김. 다시 쓰려면 true로
+const SHOW_FOLLOWUP = false;
+
 // 기준 코드 그룹 → voc_cases 컬럼 (기준 이름을 바꾸면 기존 VOC도 같이 바꿈)
 const CODE_GROUPS = [
   { key: 'voc_type', label: 'VOC 구분', column: 'voc_type' },
   { key: 'reason', label: '사유 카테고리', column: 'reason_category' },
-  { key: 'action', label: '후속 조치', column: 'action_required' },
+  ...(SHOW_FOLLOWUP ? [{ key: 'action', label: '후속 조치', column: 'action_required' }] : []),
   { key: 'status', label: '진행상황', column: 'status' },
   { key: 'consult_method', label: '문의 채널', column: 'consult_method' },
   { key: 'handling', label: '처리 구분', column: 'handling' },

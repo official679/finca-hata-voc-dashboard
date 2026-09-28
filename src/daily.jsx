@@ -278,35 +278,44 @@ function ChannelTable({ brand, rows }) {
   );
 }
 
+// 월별 메모: '주요 VOC'와 '주요 이슈'를 각각 따로 적고 저장
 function MonthNotes({ ym, brand }) {
-  const toast = useToast();
   const [note, setNote] = useState({ voc_memo: '', issue_memo: '' });
-  const [editing, setEditing] = useState(false);
   useEffect(() => {
     db.from('report_notes').select('*').eq('month', ym).eq('brand', brand).maybeSingle()
       .then(({ data }) => setNote(data || { voc_memo: '', issue_memo: '' }));
-    setEditing(false);
   }, [ym, brand]);
-  const save = async () => {
-    const { error } = await db.from('report_notes').upsert({ month: ym, brand, voc_memo: note.voc_memo, issue_memo: note.issue_memo, updated_at: new Date().toISOString() }, { onConflict: 'month,brand' });
-    if (error) { toast('❌ ' + error.message, 'err'); return; }
-    setEditing(false);
-    toast('✅ 메모 저장');
+  const save = async (field, value) => {
+    const next = { ...note, [field]: value };
+    const { error } = await db.from('report_notes').upsert({ month: ym, brand, voc_memo: next.voc_memo, issue_memo: next.issue_memo, updated_at: new Date().toISOString() }, { onConflict: 'month,brand' });
+    if (!error) setNote(next);
+    return error;
   };
   return (
+    <>
+      <MemoCard key={`v-${ym}-${brand}`} title={`${brand} 주요 VOC`} value={note.voc_memo} onSave={v => save('voc_memo', v)} placeholder="예: 블랙 어글리도트 베개커버 이염·얼룩 9월 누적 6건 → 잔여 재고 전수 검수" />
+      <MemoCard key={`i-${ym}-${brand}`} title={`${brand} 주요 이슈`} value={note.issue_memo} onSave={v => save('issue_memo', v)} placeholder="예: 베딩 예약배송 입고 지연 → 지연 고객 안내" />
+    </>
+  );
+}
+
+function MemoCard({ title, value, onSave, placeholder }) {
+  const toast = useToast();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  return (
     <div className="card">
-      <div className="card-title">{brand} VOC · 주요 이슈 {!editing && <button className="btn btn-sm no-print" onClick={() => setEditing(true)}>수정</button>}</div>
+      <div className="card-title">{title} {!editing && <button className="btn btn-sm no-print" onClick={() => { setDraft(value || ''); setEditing(true); }}>수정</button>}</div>
       {editing ? (
         <>
-          <div className="field"><label>VOC</label><textarea rows="4" value={note.voc_memo || ''} onChange={e => setNote({ ...note, voc_memo: e.target.value })} /></div>
-          <div className="field" style={{ marginTop: 10 }}><label>주요 이슈</label><textarea rows="4" value={note.issue_memo || ''} onChange={e => setNote({ ...note, issue_memo: e.target.value })} /></div>
-          <div className="form-actions"><button className="btn" onClick={() => setEditing(false)}>취소</button><button className="btn btn-primary" onClick={save}>저장</button></div>
+          <textarea className="input" rows="6" value={draft} onChange={e => setDraft(e.target.value)} placeholder={placeholder} />
+          <div className="form-actions">
+            <button className="btn" onClick={() => setEditing(false)}>취소</button>
+            <button className="btn btn-primary" onClick={async () => { const err = await onSave(draft); if (err) toast('❌ ' + err.message, 'err'); else { setEditing(false); toast('✅ 저장했어요'); } }}>저장</button>
+          </div>
         </>
       ) : (
-        <div className="memo">
-          <div><b>VOC</b><p>{note.voc_memo || <span className="muted">입력된 내용이 없어요</span>}</p></div>
-          <div><b>주요 이슈</b><p>{note.issue_memo || <span className="muted">입력된 내용이 없어요</span>}</p></div>
-        </div>
+        <div className="memo"><p>{value || <span className="muted">입력된 내용이 없어요. '수정'을 눌러 적어주세요.</span>}</p></div>
       )}
     </div>
   );

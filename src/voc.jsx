@@ -209,12 +209,12 @@ function VocForm({ initial, onSaved, onCancel }) {
         </div>
       </div>
 
-      <div className="form-section">처리 · 후속 조치</div>
+      <div className="form-section">처리</div>
       <div className="form-grid">
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
         {field('담당 부서', <Select className="" value={form.department} onChange={set('department')} options={withCurrent(codeOptions('department'), form.department)} placeholder="선택" />)}
         {field('완료일', <input type="date" value={form.completed_at} onChange={onInput('completed_at')} />)}
-        {field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
+        {SHOW_FOLLOWUP && field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>처리 메모</label>
           <textarea value={form.note} onChange={onInput('note')} rows="2" placeholder="회수 송장, 처리 결과 등" />
@@ -304,7 +304,7 @@ function VocListPage({ initialFilter }) {
           <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
           <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
-          <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />
+          {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
           <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·내용 검색" />
           {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', q: '' })}>필터 초기화</button>}
         </div>
@@ -313,7 +313,7 @@ function VocListPage({ initialFilter }) {
         <div className="table-wrap">
           <table className="table table-wide">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>사유</th><th>상세 사유</th><th>진행</th><th>담당 부서</th><th>완료일</th><th>후속 조치</th><th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>사유</th><th>진행</th><th>담당 부서</th><th>완료일</th>{SHOW_FOLLOWUP && <th>후속 조치</th>}<th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
               {rows.slice(0, 500).map(c => (
@@ -327,11 +327,10 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{subCategoryOf(c.product_id, productById)}</td>
                   <td className="ellipsis" title={caseProductName(c, productById)}>{caseProductName(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
-                  <td className="ellipsis" title={c.reason_detail || ''}>{c.reason_detail || '-'}</td>
                   <td><StatusChip status={c.status} /></td>
                   <td>{c.department || '-'}</td>
                   <td>{c.completed_at ? fmtDate(c.completed_at) : '-'}</td>
-                  <td>{c.action_required ? <span className="chip chip-red">{c.action_required}</span> : <span className="muted">-</span>}</td>
+                  {SHOW_FOLLOWUP && <td>{c.action_required ? <span className="chip chip-red">{c.action_required}</span> : <span className="muted">-</span>}</td>}
                   <td style={{ whiteSpace: 'nowrap' }}>{c.handler || '-'}</td>
                   <td className="num">{(c.photos || []).length || ''}</td>
                 </tr>

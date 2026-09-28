@@ -8,23 +8,24 @@ const prevMonthOf = (ym) => toISODate(new Date(Number(ym.slice(0, 4)), Number(ym
 
 // 막대(주문건) + 꺾은선(반품·교환율) 그래프
 function ComboChart({ items, color, lineColor = '#E5484D', title }) {
-  const W = 640, H = 260, L = 48, R = 48, T = 28, B = 36;
+  // 숫자가 겹치지 않도록 막대는 아래 62%, 꺾은선은 위쪽 띠(72~100%)에 따로 그림
+  const W = 640, H = 280, L = 48, R = 24, T = 30, B = 36;
   const iw = W - L - R, ih = H - T - B;
   const maxBar = Math.max(1, ...items.map(i => i.bar || 0));
-  const maxLine = Math.max(0.01, ...items.map(i => i.line || 0)) * 1.25;
+  const lines = items.map(i => i.line).filter(v => v !== null && v !== undefined);
+  const minLine = Math.min(...lines, 0), maxLine = Math.max(...lines, 0.001);
   const step = iw / Math.max(1, items.length);
   const bw = Math.min(64, step * 0.55);
   const x = (i) => L + step * i + step / 2;
-  const yb = (v) => T + ih - (v / maxBar) * ih;
-  const yl = (v) => T + ih - (v / maxLine) * ih;
+  const yb = (v) => T + ih - (v / maxBar) * ih * 0.62;
+  const yl = (v) => T + ih * (1 - 0.72 - 0.28 * ((v - minLine) / ((maxLine - minLine) || 1)));
   const pts = items.map((it, i) => (it.line === null ? null : [x(i), yl(it.line)])).filter(Boolean);
   return (
     <div className="card">
       <div className="card-title">{title} <small><span className="legend" style={{ background: color }} />주문건 <span className="legend line" style={{ background: lineColor }} />반품·교환율</small></div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }} role="img" aria-label={title}>
-        {[0, 0.5, 1].map(f => <line key={f} x1={L} x2={W - R} y1={T + ih * (1 - f)} y2={T + ih * (1 - f)} stroke="#E5E7EB" />)}
-        {[0, 0.5, 1].map(f => <text key={'b' + f} x={L - 8} y={T + ih * (1 - f) + 4} textAnchor="end" fontSize="11" fill="#9CA3AF">{Math.round(maxBar * f).toLocaleString()}</text>)}
-        {[0, 0.5, 1].map(f => <text key={'l' + f} x={W - R + 8} y={T + ih * (1 - f) + 4} fontSize="11" fill="#9CA3AF">{(maxLine * f * 100).toFixed(1)}%</text>)}
+        {[0, 0.5, 1].map(f => <line key={f} x1={L} x2={W - R} y1={T + ih - ih * 0.62 * f} y2={T + ih - ih * 0.62 * f} stroke="#E5E7EB" />)}
+        {[0, 0.5, 1].map(f => <text key={'b' + f} x={L - 8} y={T + ih - ih * 0.62 * f + 4} textAnchor="end" fontSize="11" fill="#9CA3AF">{Math.round(maxBar * f).toLocaleString()}</text>)}
         {items.map((it, i) => it.bar ? (
           <g key={i}>
             <rect x={x(i) - bw / 2} y={yb(it.bar)} width={bw} height={T + ih - yb(it.bar)} fill={color} rx="3" />

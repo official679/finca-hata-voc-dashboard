@@ -53,7 +53,7 @@ function ReportPage({ go }) {
         <Kpi label="브랜드 과실 (반품·교환)" value={faults.length} sub={inPeriod.length ? `VOC의 ${Math.round(faults.length / inPeriod.length * 100)}%` : ' '} />
         <Kpi label="재입고 문의 (개별 접수)" value={inPeriod.filter(c => c.voc_type === '재입고 문의').length} sub="게시판 집계는 게시판 업로드 후 추가" />
         <Kpi label="처리 대기" value={open.length} sub="접수·확인중" alert={open.length > 0} />
-        <Kpi label="진행 중인 조치" value={pendingActions.length} sub="기간 무관 · 후속 조치 보드" alert={pendingActions.length > 0} />
+        {SHOW_FOLLOWUP && <Kpi label="진행 중인 조치" value={pendingActions.length} sub="기간 무관 · 후속 조치 보드" alert={pendingActions.length > 0} />}
       </div>
 
       <div className="grid grid-2">
@@ -94,7 +94,7 @@ function ReportPage({ go }) {
         <div className="card-title" style={{ padding: '18px 20px 0' }}>과실 이슈 상품 TOP 10</div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th className="num">과실 건수</th><th>주요 사유</th><th>지정된 후속 조치</th></tr></thead>
+            <thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th className="num">과실 건수</th><th>주요 사유</th>{SHOW_FOLLOWUP && <th>지정된 후속 조치</th>}</tr></thead>
             <tbody>
               {topProducts.map((p, i) => (
                 <tr key={p.name}>
@@ -103,7 +103,7 @@ function ReportPage({ go }) {
                   <td>{p.brand}</td>
                   <td className="num"><b>{p.count}</b></td>
                   <td>{[...p.reasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([r, n]) => <span key={r} className="chip" style={{ marginRight: 4 }}>{r} {n}</span>)}</td>
-                  <td>{p.actions.size ? [...p.actions].map(a => <span key={a} className="chip chip-red" style={{ marginRight: 4 }}>{a}</span>) : <span className="muted">-</span>}</td>
+                  {SHOW_FOLLOWUP && <td>{p.actions.size ? [...p.actions].map(a => <span key={a} className="chip chip-red" style={{ marginRight: 4 }}>{a}</span>) : <span className="muted">-</span>}</td>}
                 </tr>
               ))}
             </tbody>
