@@ -259,7 +259,9 @@ function PreorderOrderTable({ orders, onOpen, empty, todo }) {
                     {[...o.preLines, ...o.lines.filter(x => !x.prod)].map(x => (
                       <div key={x.id || x.line_key} className="preorder-line" style={x.prod ? null : { color: 'var(--muted)' }}>
                         {x.product_name}{x.size && x.size !== '0' ? ` (${x.size})` : ''}{x.qty > 1 ? ` ×${x.qty}` : ''}
-                        {x.prod ? (x.stage && x.stage !== o.stage ? <span className="muted"> · {x.stage}</span> : null) : <span> · 일반</span>}
+                        {x.prod
+                          ? (!x.stage ? <span className="muted"> · {x.prod.status === '종료' ? '예판 종료' : '일정 없음'}</span> : x.stage !== o.stage ? <span className="muted"> · {x.stage}</span> : null)
+                          : <span> · 일반</span>}
                         {x.low && <span className="chip chip-amber" style={{ marginLeft: 4, fontSize: 11 }}>재고 {x.avail}</span>}
                       </div>
                     ))}
