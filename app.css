@@ -393,3 +393,5 @@ tr.row-selected td { background: #EEF4FE !important; }
 .detail-section { font-size: 14px; font-weight: 700; margin: 20px 0 10px; color: var(--muted); }
 .grid-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 800px) { .grid-pair { grid-template-columns: 1fr; } }
+/* 전사플랜 시트 */
+.plan-frame { width: 100%; height: calc(100vh - 190px); min-height: 520px; border: 0; display: block; background: #fff; }

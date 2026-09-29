@@ -7,6 +7,7 @@ const NAV = [
     { key: 'report', label: 'VOC 현황', icon: '📉' },
     { key: 'meetings', label: 'CX 미팅 로그', icon: '📒' },
     { key: 'tasks', label: '업무 보드', icon: '📌' },
+    { key: 'plan', label: '전사플랜', icon: '🗓️' },
   ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
@@ -97,6 +98,7 @@ function Shell({ session }) {
     preorder: <PreorderPage />,
     meetings: <MeetingsPage />,
     tasks: <TasksPage />,
+    plan: <PlanPage />,
     upload: <DataUploadPage />,
     'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
