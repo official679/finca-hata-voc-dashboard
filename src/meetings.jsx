@@ -173,7 +173,7 @@ function MeetingsPage() {
 function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried, compact }) {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
-  const [f, setF] = useState({ title: item.title, detail: item.detail || '', owner: item.owner || '' });
+  const [f, setF] = useState({ title: item.title, detail: item.detail || '', owner: item.owner || '', result: item.result || '' });
   const done = item.status === '완료';
   const toggle = async () => {
     const { error } = await db.from('meeting_items').update(done ? { status: '진행중', done_at: null } : { status: '완료', done_at: today() }).eq('id', item.id);
@@ -182,7 +182,7 @@ function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried, compact }
   };
   const save = async () => {
     if (!f.title.trim()) return;
-    const { error } = await db.from('meeting_items').update({ title: f.title.trim(), detail: str(f.detail), owner: str(f.owner) }).eq('id', item.id);
+    const { error } = await db.from('meeting_items').update({ title: f.title.trim(), detail: str(f.detail), owner: str(f.owner), result: str(f.result) }).eq('id', item.id);
     if (error) { toast('❌ ' + error.message, 'err'); return; }
     setEditing(false); reload();
   };
@@ -196,7 +196,8 @@ function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried, compact }
     <div className="meeting-item">
       <div style={{ flex: 1, display: 'grid', gap: 6 }}>
         <input className="input" value={f.title} onChange={e => setF({ ...f, title: e.target.value })} placeholder="논의사항" />
-        <textarea className="input" rows="3" value={f.detail} onChange={e => setF({ ...f, detail: e.target.value })} placeholder="진행 내용 · 결정 사항 (회의마다 이어서 적어요)" />
+        <textarea className="input" rows="3" value={f.detail} onChange={e => setF({ ...f, detail: e.target.value })} placeholder="논의 내용 · 현황" />
+        <textarea className="input" rows="3" value={f.result} onChange={e => setF({ ...f, result: e.target.value })} placeholder="✅ 결과 · 어떻게 처리하기로 했는지 (예: 기존 구매 고객 문자 안내, 잔여 재고 라벨 교체 후 판매 재개)" style={{ borderColor: 'var(--success)' }} />
         <input className="input" style={{ maxWidth: 200 }} value={f.owner} onChange={e => setF({ ...f, owner: e.target.value })} placeholder="담당자" />
         <div style={{ display: 'flex', gap: 6 }}>
           <button className="btn btn-sm btn-primary" onClick={save}>저장</button>
@@ -216,6 +217,9 @@ function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried, compact }
           {done && item.done_at && <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>{fmtDate(item.done_at)} 완료</span>}
         </div>
         {item.detail && !compact && <div className="meeting-item-detail">{item.detail}</div>}
+        {!compact && (item.result
+          ? <div className="meeting-item-result"><b>✅ 결과</b> {item.result}</div>
+          : <button className="btn-link" style={{ fontSize: 12, display: 'block' }} onClick={() => setEditing(true)}>+ 결과 적기</button>)}
         {origin && <button className="btn-link" style={{ fontSize: 12 }} onClick={onOpenOrigin}>{fmtDate(origin.meeting_date)} {origin.title}</button>}
       </div>
       <button className="btn btn-sm" onClick={() => setEditing(true)}>수정</button>
