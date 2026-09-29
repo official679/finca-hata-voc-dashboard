@@ -291,6 +291,7 @@ const WEEK_METRICS = [
   { label: '작성 리뷰', fn: (s) => s.reviews_total },
   // 긍정 = 4~5점 = 작성 - 부정 (예전 데이터에 긍정 칸이 비어 있어도 같은 기준으로 계산)
   { label: '긍정 리뷰', fn: (s) => Math.max(0, s.reviews_total - s.reviews_negative) },
+  { label: '긍정 리뷰율', fn: (s) => pct(Math.max(0, s.reviews_total - s.reviews_negative), s.reviews_total), rate: true },
   { label: '부정 리뷰', fn: (s) => s.reviews_negative },
   { label: '부정 리뷰율', fn: (s) => pct(s.reviews_negative, s.reviews_total), val: (s) => s.reviews_total ? s.reviews_negative / s.reviews_total : null, key: true },
   { label: '게시판', fn: (s) => s.board_total },
