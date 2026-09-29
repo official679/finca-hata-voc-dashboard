@@ -59,6 +59,28 @@ function PhotoPicker({ existing, onRemoveExisting, files, onAddFiles, onRemoveFi
   );
 }
 
+// 상품명 검색: 단어 일부만 넣어도 (띄어 써도) 목록에서 찾아 고르기
+function ProductSearchInput({ value, onChange, products }) {
+  const [open, setOpen] = useState(false);
+  const hits = value.trim() ? products.filter(p => matchQuery(value, p.product_name)).slice(0, 12) : [];
+  const exact = products.some(p => p.product_name === value.trim());
+  return (
+    <div style={{ position: 'relative' }}>
+      <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="상품명 단어 일부를 입력하고 목록에서 선택 (예: 블랙 차렵)" autoComplete="off" />
+      {open && !exact && hits.length > 0 && (
+        <div className="product-suggest">
+          {hits.map(p => (
+            <button type="button" key={p.id} onMouseDown={e => e.preventDefault()} onClick={() => { onChange(p.product_name); setOpen(false); }}>
+              {p.product_name}<span className="muted"> · {p.category || '-'} · {p.size_gender || '-'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const emptyCase = () => ({
   received_date: today(), brand: '핀카', handler: '', platform: '', order_no: '', orderer: '', receiver: '',
   product_name: '', voc_type: '', consult_method: '', status: '접수', reason_category: '', reason_detail: '',
@@ -184,10 +206,7 @@ function VocForm({ initial, onSaved, onCancel }) {
       <div className="form-grid">
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>상품명</label>
-          <input list="voc-product-options" value={form.product_name} onChange={onInput('product_name')} placeholder="상품명 일부를 입력하고 목록에서 선택" />
-          <datalist id="voc-product-options">
-            {brandProducts.map(p => <option key={p.id} value={p.product_name} />)}
-          </datalist>
+          <ProductSearchInput value={form.product_name} onChange={set('product_name')} products={brandProducts} />
           <div className="hint">
             {form.product_name.trim() === '' ? `${form.brand} 상품 ${brandProducts.length.toLocaleString()}개에서 검색돼요`
               : matchedProduct ? `✓ 상품 마스터와 연결됨 (대분류 ${matchedProduct.category || '-'} · 중분류 ${matchedProduct.size_gender || '-'})`
@@ -287,7 +306,7 @@ function VocListPage({ initialFilter }) {
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
       (!f.reason || c.reason_category === f.reason) && (!f.category || caseCategory(c, productById) === f.category) &&
       (!f.action || (f.action === '__any' ? !!c.action_required : c.action_required === f.action)) &&
-      (!q || [caseProductName(c, productById), c.order_no, c.orderer, c.receiver, c.reason_detail, c.note].some(v => (v || '').toLowerCase().includes(q))));
+      matchQuery(q, caseProductName(c, productById), c.order_no, c.orderer, c.receiver, c.reason_detail, c.note, c.voc_type, c.reason_category));
   }, [cases, f, productById]);
 
   const exportCsv = () => downloadCsv(`VOC목록_${today()}.csv`,

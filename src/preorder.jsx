@@ -343,20 +343,22 @@ function PreorderAllOrders({ orders, onOpen, reload, todo }) {
   const [outFrom, setOutFrom] = useState('');
   const [outTo, setOutTo] = useState('');
   const [q, setQ] = useState('');
+  const [lowOnly, setLowOnly] = useState(false);   // 가용재고 0~10 상품이 든 주문만 (분리배송 검토)
   const [selected, setSelected] = useState(() => new Set());
   const [method, setMethod] = useState('문자');
   const [busy, setBusy] = useState(false);
 
   // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
   const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
-  const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) &&
+  const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) &&
     (!product || o.preLines.some(l => l.product_name === product)) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
-    (!q.trim() || [o.order_no, o.seller_order_no, o.orderer, ...o.lines.map(l => l.product_name), ...o.lines.map(l => l.barcode)].some(v => String(v || '').toLowerCase().includes(q.trim().toLowerCase()))));
-  const filterKey = [status, stage, product, outFrom, outTo, q].join('|');
+    matchQuery(q, o.order_no, o.seller_order_no, o.orderer, o.lines.map(l => l.product_name), o.lines.map(l => l.barcode)));
+  const filterKey = [status, stage, product, outFrom, outTo, q, lowOnly].join('|');
   useEffect(() => { setSelected(new Set()); }, [filterKey]);
   const picked = rows.filter(o => selected.has(o.order_no));
-  const hasFilter = !!(stage || product || outFrom || outTo || q || (todo ? status : status !== '출고대기'));
+  const lowCount = orders.filter(o => o.low && o.status === '출고대기').length;
+  const hasFilter = !!(stage || product || outFrom || outTo || q || lowOnly || (todo ? status : status !== '출고대기'));
 
   const run = async (label, fn) => {
     if (!picked.length) return;
@@ -402,7 +404,10 @@ function PreorderAllOrders({ orders, onOpen, reload, todo }) {
           <span className="muted">~</span>
           <input className="input" type="date" value={outTo} onChange={e => setOutTo(e.target.value)} title="주문 최종 출고예정일 (까지)" />
           <input className="input" style={{ minWidth: 200 }} value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호·주문자·상품명·바코드" />
-          {hasFilter && <button className="btn-link" onClick={() => { setStatus(todo ? '' : '출고대기'); setStage(''); setProduct(''); setOutFrom(''); setOutTo(''); setQ(''); }}>초기화</button>}
+          <label className={`chip ${lowOnly ? 'chip-amber' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="가용재고 0~10 상품이 들어 있는 주문 (분리배송 검토)">
+            <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} style={{ width: 'auto' }} /> 저재고 주문만{lowCount ? ` ${lowCount}` : ''}
+          </label>
+          {hasFilter && <button className="btn-link" onClick={() => { setStatus(todo ? '' : '출고대기'); setStage(''); setProduct(''); setOutFrom(''); setOutTo(''); setQ(''); setLowOnly(false); }}>초기화</button>}
           <span className="muted">{rows.length.toLocaleString()}건{todo ? '' : ' · 출고완은 최근 60일'}</span>
         </div>
       </div>

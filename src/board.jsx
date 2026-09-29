@@ -162,7 +162,7 @@ function BoardAnalysisPage() {
   const query = q.trim().toLowerCase();
   const nameOf = (r) => { const full = (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name; return full ? coreName(full) : '(상품 미지정)'; };
   const list = scoped.filter(r => (!type || r.inquiry_type === type) && (!product || nameOf(r) === product) &&
-    (!query || [r.product_name, r.title, r.content].some(v => (v || '').toLowerCase().includes(query))));
+    matchQuery(query, r.product_name, r.title, r.content));
 
   const setInquiryType = async (id, t) => {
     const { error } = await db.from('board_items').update({ inquiry_type: t }).eq('id', id);

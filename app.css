@@ -420,6 +420,10 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .sched-title small { font-weight: 400; color: var(--muted); }
 .sched-no { width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
 .sched-add { justify-self: start; border-style: dashed; }
+/* 상품명 검색 목록 */
+.product-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(15,23,42,.12); max-height: 320px; overflow-y: auto; margin-top: 4px; }
+.product-suggest button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+.product-suggest button:hover { background: var(--accent-soft); }
 .pager-size { width: auto; margin-left: 12px; padding: 4px 8px; font-size: 13px; }
 /* 전사플랜 시트 */
 .plan-frame { width: 100%; height: calc(100vh - 190px); border: 0; display: block; background: #fff; }

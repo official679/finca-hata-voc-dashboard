@@ -50,7 +50,7 @@ function ReviewListPage() {
       (!check || (check === '미확인' ? !r.check_status : r.check_status === check)) &&
       (!theme || reviewThemes(r.content, true).includes(theme) || reviewThemes(r.content, false).includes(theme)) &&
       (!product || nameOf(r) === product) &&
-      (!t || [nameOf(r), r.content, r.order_no].some(v => String(v || '').toLowerCase().includes(t))));
+      matchQuery(t, nameOf(r), r.content, r.order_no));
     const by = {
       date: (a, b) => String(b.written_at).localeCompare(String(a.written_at)),
       rating_asc: (a, b) => (a.rating ?? 9) - (b.rating ?? 9) || String(b.written_at).localeCompare(String(a.written_at)),

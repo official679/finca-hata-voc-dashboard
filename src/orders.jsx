@@ -72,8 +72,56 @@ function DataUploadPage() {
         onDone={() => setVersion(v => v + 1)}
       />
       <ProductMasterUpload />
+      <BackupCard />
       <OrderCategorySummary key={version} />
     </>
+  );
+}
+
+// ---------- 백업: 주요 표를 엑셀 한 파일(표마다 시트)로 받기 · 마지막 백업일은 code_items('backup_log')에 기록 ----------
+const BACKUP_TABLES = [
+  ['voc_cases', 'VOC'], ['cs_daily', 'CS데일리'], ['report_notes', '월간메모'], ['review_items', '리뷰'], ['board_items', '게시판'],
+  ['order_items', '주문'], ['preorder_products', '예약상품'], ['preorder_lines', '예약주문'], ['preorder_uploads', '예약업로드기록'],
+  ['meetings', '회의록'], ['meeting_items', '논의사항'], ['tasks', '업무'], ['task_comments', '업무댓글'],
+  ['manuals', '업무매뉴얼'], ['cx_guides', '응대주의사항'], ['code_items', '기준목록'], ['products', '상품마스터'],
+];
+const lastBackupOf = (codes) => ((codes || []).find(c => c.group_key === 'backup_log') || {}).label || '';
+
+function BackupCard() {
+  const { codes, loadCodes } = useApp();
+  const toast = useToast();
+  const [busy, setBusy] = useState('');
+  const last = lastBackupOf(codes);
+  const run = async () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      const counts = [];
+      for (const [table, sheet] of BACKUP_TABLES) {
+        setBusy(`${sheet} 받는 중...`);
+        let rows = [];
+        try { rows = await fetchAll(() => db.from(table).select('*').order('id')); } catch { continue; }   // 없는 표는 건너뜀
+        // 엑셀 한 칸은 32,767자까지 · 목록·객체는 글자로
+        const clean = rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v === null ? '' : typeof v === 'object' ? JSON.stringify(v).slice(0, 32000) : String(v).length > 32000 ? String(v).slice(0, 32000) : v])));
+        XLSX.utils.book_append_sheet(wb, clean.length ? XLSX.utils.json_to_sheet(clean) : XLSX.utils.aoa_to_sheet([['(비어 있음)']]), sheet);
+        counts.push(`${sheet} ${rows.length}`);
+      }
+      setBusy('파일 만드는 중...');
+      XLSX.writeFile(wb, `CX대시보드_백업_${today()}.xlsx`);
+      const item = (codes || []).find(c => c.group_key === 'backup_log');
+      if (item) await db.from('code_items').update({ label: today() }).eq('id', item.id);
+      else await db.from('code_items').insert({ group_key: 'backup_log', label: today(), sort_order: 1 });
+      await loadCodes();
+      toast(`✅ 백업 파일을 받았어요 (${counts.length}개 표) · 회사 드라이브 비공개 폴더에 보관해 주세요`);
+    } catch (e) { toast('❌ 백업 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
+  };
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-title">📦 백업 받기 <small>한 달에 한 번 · 마지막 백업 {last ? fmtDate(last) : '없음'}</small></div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={run} disabled={!!busy}>{busy || '📦 전체 백업 받기 (엑셀)'}</button>
+        <span className="hint">VOC·CS 데일리·리뷰·게시판·주문·예약배송·회의록·업무·매뉴얼·기준 목록을 엑셀 한 파일로 받아요. <b>고객 이름이 들어 있어서 회사 드라이브 비공개 폴더에만</b> 보관하세요 (GitHub·메신저 X). 사진은 포함되지 않아요.</span>
+      </div>
+    </div>
   );
 }
 

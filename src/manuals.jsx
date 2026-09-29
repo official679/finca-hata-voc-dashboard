@@ -169,7 +169,7 @@ function ManualsPage() {
   if (!items) return <div className="loading-screen">불러오는 중...</div>;
   const categories = [...new Set(items.map(m => m.category).filter(Boolean))].sort();
   const query = q.trim().toLowerCase();
-  const list = items.filter(m => (!category || m.category === category) && (!query || [m.title, m.body, m.category].some(v => (v || '').toLowerCase().includes(query))));
+  const list = items.filter(m => (!category || m.category === category) && matchQuery(query, m.title, m.body, m.category));
 
   return (
     <>

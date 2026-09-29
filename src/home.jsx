@@ -44,7 +44,7 @@ function useReviewCheckCount(brand) {
 
 // 메인: ① 오늘 챙길 것 ② 이번 달 핵심 지표 ③ 주간 그래프 ④ 과실 사유·재입고 상품
 function HomePage() {
-  const { cases, productById } = useApp();
+  const { cases, productById, codes } = useApp();
   const daily = useDaily();
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id,option_text', toISODate(addDays(new Date(), -90)));
   const [brand, setBrand] = useState('핀카');
@@ -92,6 +92,10 @@ function HomePage() {
     { label: '업무 마감 임박', value: !taskSum ? null : taskSum.error ? '-' : taskSum.due, to: 'tasks', sub: taskSum && !taskSum.error ? `진행 전·중 ${taskSum.open}건${taskSum.mine !== null ? ` · 내 업무 ${taskSum.mine}` : ''}` : '업무 보드' },
     { label: '리뷰 체크필요', value: checkNeed === null ? null : checkNeed < 0 ? '-' : checkNeed, to: `review-list?period=all&check=${encodeURIComponent('체크필요')}&brand=${encodeURIComponent(brand)}`, sub: 'VOC로 안 보낸 것' },
   ];
+  // 한 달(30일)이 지나도록 백업을 안 받았으면 알림
+  const lastBackup = lastBackupOf(codes);
+  const backupDue = !lastBackup || lastBackup < toISODate(addDays(now, -30));
+  if (backupDue) todo.push({ label: '데이터 백업', value: '필요', alert: true, to: 'upload', sub: lastBackup ? `마지막 ${fmtDate(lastBackup)} · 한 달에 한 번` : '아직 한 번도 안 함' });
 
   return (
     <>
@@ -102,7 +106,7 @@ function HomePage() {
       <div className="detail-section" style={{ marginTop: 0 }}>🔔 오늘 챙길 것</div>
       <div className="grid grid-kpi">
         {todo.map(t => (
-          <a key={t.label} href={`#/${t.to}`} className={`kpi todo-kpi${typeof t.value === 'number' && t.value > 0 ? ' alert' : ''}`}>
+          <a key={t.label} href={`#/${t.to}`} className={`kpi todo-kpi${t.alert || (typeof t.value === 'number' && t.value > 0) ? ' alert' : ''}`}>
             <div className="kpi-label">{t.label}</div>
             <div className="kpi-value">{t.value === null ? '...' : typeof t.value === 'number' ? t.value.toLocaleString() : t.value}</div>
             <div className="kpi-sub">{t.sub} →</div>

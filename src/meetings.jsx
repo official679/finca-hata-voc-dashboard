@@ -182,7 +182,7 @@ function MeetingsPage() {
   }
 
   const openItems = items.filter(i => i.status !== '완료');
-  const rows = meetings.filter(m => (!kind || m.kind === kind) && (!q.trim() || m.title.toLowerCase().includes(q.trim().toLowerCase())));
+  const rows = meetings.filter(m => (!kind || m.kind === kind) && matchQuery(q, m.title, m.attendees));
   const pages = Math.max(1, Math.ceil(rows.length / SIZE)), cur = Math.min(page, pages);
   const counts = (m) => { const own = items.filter(i => i.meeting_id === m.id); return own.length ? `${own.filter(i => i.status === '완료').length}/${own.length}` : ''; };
   const dateOf = new Map(meetings.map(m => [m.id, m]));

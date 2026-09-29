@@ -271,6 +271,15 @@ function Paged({ items, render, size = 10, resetKey, empty }) {
   );
 }
 
+// 검색: 띄어쓴 단어가 모두 들어 있으면 찾음 (순서·띄어쓰기 상관없음). 예) '블랙 차렵' → '블랙 어글리도트 차렵이불'
+function matchQuery(q, ...fields) {
+  const toks = String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  if (!toks.length) return true;
+  const hay = fields.flat().map(f => String(f ?? '').toLowerCase()).join(' ');
+  const hayNS = hay.replace(/\s+/g, '');
+  return toks.every(t => hay.includes(t) || hayNS.includes(t));
+}
+
 // 한 페이지에 볼 개수 (목록마다 이 PC에 기억)
 const PAGE_SIZES = [15, 50, 100];
 function usePageSize(key, def = 15) {
