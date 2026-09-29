@@ -1,7 +1,9 @@
 // 예약배송 관리: 예약상품 일정 + 오클릭 미출고 파일 → 지연 단계·안내 대상 자동 계산
 // (구글시트 '예약배송 자동정리' 스크립트 v1.7의 계산 방식을 그대로 옮김)
 
-const PREORDER_GIFT_CODES = ['103306'];   // 저재고 판단에서 빼는 사은품 코드
+const PREORDER_GIFT_CODES = ['103306'];   // 저재고 판단에서 빼는 사은품 코드 (기준 관리 > 예약배송 사은품 목록의 코드도 함께 뺌)
+// 기준 관리의 사은품 목록("101088 단품) 상품명")에서 앞 숫자 = 오클릭 바코드
+const giftCodesFrom = (labels) => [...PREORDER_GIFT_CODES, ...labels.map(l => (String(l).match(/^\s*(\d{5,})/) || [])[1]).filter(Boolean)];
 const PREORDER_LOW_STOCK = [0, 10];       // 가용재고가 이 범위면 저재고 (분리배송 검토)
 const PREORDER_SHIP_SAFETY = 0.3;         // 오늘 파일 줄 수가 이전 대비 이 비율보다 적으면 출고완 처리 전에 확인
 
@@ -112,13 +114,14 @@ function preorderStage(line, prod) {
   return { stage: ['정상', '1차 지연', '2차 지연'][last - k], need: last - k, sameDay, seen, current };
 }
 
-function enrichPreorder(lines, productByCode) {
+function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
   const rows = lines.map(l => {
     const prod = productByCode.get(l.barcode);
     const s = preorderStage(l, prod);
     const done = (l.notice1_date ? 1 : 0) + (l.notice2_date ? 1 : 0);
-    const low = l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !PREORDER_GIFT_CODES.includes(l.barcode);
-    return { ...l, prod, ...s, done, low, pending: l.status === '출고대기' && s.need > done };
+    const isGift = giftCodes.includes(l.barcode);
+    const low = l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
+    return { ...l, prod, ...s, done, low, isGift, pending: l.status === '출고대기' && s.need > done };
   });
   const orders = new Map();
   rows.forEach(r => {
@@ -182,12 +185,16 @@ async function upsertChunks(table, rows, onConflict) {
 // ---------- 화면 ----------
 function PreorderPage() {
   const [{ products, lines, uploads, error }, reload] = usePreorder();
+  const { codeOptions } = useApp();
+  const giftOptions = codeOptions ? codeOptions('preorder_gift') : [];
+  const giftKey = codeOptions ? codeOptions('preorder_gift', true).join('\n') : '';
+  const giftCodes = useMemo(() => giftCodesFrom(giftKey.split('\n')), [giftKey]);
   const [tab, setTab] = useState('todo');
   const [openOrder, setOpenOrder] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
 
   const productByCode = useMemo(() => new Map((products || []).map(p => [p.code, p])), [products]);
-  const orders = useMemo(() => (lines ? enrichPreorder(lines, productByCode) : []), [lines, productByCode]);
+  const orders = useMemo(() => (lines ? enrichPreorder(lines, productByCode, giftCodes) : []), [lines, productByCode, giftCodes]);
 
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>예약배송 데이터를 불러오지 못했어요: {error}<div className="hint">DB 설정 SQL(08_preorder_schema.sql)을 실행했는지 확인해 주세요.</div></div>;
   if (!products || !lines) return <div className="loading-screen">예약배송 불러오는 중...</div>;
@@ -230,7 +237,7 @@ function PreorderPage() {
       {tab === 'upload' && <PreorderUpload lines={lines} products={products} uploads={uploads} reload={reload} />}
       {tab === 'guide' && <PreorderGuide />}
 
-      {current && <PreorderOrderPanel order={current} onClose={() => setOpenOrder(null)} reload={reload} />}
+      {current && <PreorderOrderPanel order={current} onClose={() => setOpenOrder(null)} reload={reload} giftOptions={giftOptions} />}
       {editProduct && <PreorderProductPanel product={editProduct} onClose={() => setEditProduct(null)} reload={reload} />}
     </>
   );
@@ -257,11 +264,11 @@ function PreorderOrderTable({ orders, onOpen, empty, todo }) {
                   <td>{o.orderer || '-'}</td>
                   <td style={{ whiteSpace: 'normal', minWidth: 320, maxWidth: 440 }}>
                     {[...o.preLines, ...o.lines.filter(x => !x.prod)].map(x => (
-                      <div key={x.id || x.line_key} className="preorder-line" style={x.prod ? null : { color: 'var(--muted)' }}>
+                      <div key={x.id || x.line_key} className="preorder-line" style={x.prod && x.stage ? { fontWeight: 700 } : { color: 'var(--muted)' }}>
                         {x.product_name}{x.size && x.size !== '0' ? ` (${x.size})` : ''}{x.qty > 1 ? ` ×${x.qty}` : ''}
                         {x.prod
                           ? (!x.stage ? <span className="muted"> · {x.prod.status === '종료' ? '예판 종료' : '일정 없음'}</span> : x.stage !== o.stage ? <span className="muted"> · {x.stage}</span> : null)
-                          : <span> · 일반</span>}
+                          : <span> · {x.isGift ? '🎁 사은품' : '일반'}</span>}
                         {x.low && <span className="chip chip-amber" style={{ marginLeft: 4, fontSize: 11 }}>재고 {x.avail}</span>}
                       </div>
                     ))}
@@ -306,7 +313,7 @@ function PreorderAllOrders({ orders, onOpen }) {
   );
 }
 
-function PreorderOrderPanel({ order, onClose, reload }) {
+function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   const toast = useToast();
   const [ls, setLs] = useState(() => order.lines.map(l => ({ ...l })));
   const [split, setSplit] = useState(order.split || '');
@@ -361,6 +368,7 @@ function PreorderOrderPanel({ order, onClose, reload }) {
             <button className="btn" onClick={() => copy(PREORDER_SMS.second(smsName, smsDate), '2차 지연')}>📋 2차 지연 문자</button>
             {order.low && <button className="btn" onClick={() => copy(PREORDER_SMS.split(smsName), '분리배송')}>📋 재고 소량·분리배송 문자</button>}
           </div>
+          <datalist id="preorder-gift-options">{giftOptions.map(g => <option key={g} value={g} />)}</datalist>
           <div className="field" style={{ maxWidth: 240, marginBottom: 14 }}>
             <label>배송구분 (주문 전체)</label>
             <Select className="" value={split} onChange={setSplit} options={['합배송', '분리배송']} placeholder="선택 안 함" />
@@ -379,7 +387,9 @@ function PreorderOrderPanel({ order, onClose, reload }) {
                     <div className="field"><label>1차 안내일</label><input type="date" value={l.notice1_date || ''} onChange={ev => setLine(i, 'notice1_date')(ev.target.value)} /></div>
                     <div className="field"><label>2차 안내</label><Select className="" value={l.notice2_method || ''} onChange={setLine(i, 'notice2_method')} options={['유선', '문자']} placeholder="-" /></div>
                     <div className="field"><label>2차 안내일</label><input type="date" value={l.notice2_date || ''} onChange={ev => setLine(i, 'notice2_date')(ev.target.value)} /></div>
-                    <div className="field"><label>사은품</label><input value={l.gift || ''} onChange={ev => setLine(i, 'gift')(ev.target.value)} /></div>
+                    <div className="field" style={{ gridColumn: 'span 2' }}><label>사은품</label>
+                      <input list="preorder-gift-options" value={l.gift || ''} onChange={ev => setLine(i, 'gift')(ev.target.value)} placeholder="눌러서 목록에서 고르거나 직접 입력" />
+                    </div>
                   </div>
                 )}
                 <div className="form-grid">
@@ -730,7 +740,7 @@ function PreorderGuide() {
           <li>예) 1차 공지 전에 산 고객: 1차 변경 → <b>1차 지연</b>, 2차 변경까지 → <b>2차 지연</b> · 1차 공지 후에 산 고객: 2차 변경 → <b>1차 지연</b></li>
           <li>구매일이 공지일과 같은 날이면 단계 옆에 <b>*</b> 표시 (공지 전·후 주문인지 시각 확인 필요)</li>
           <li><b>안내 필요</b> = 지연 횟수보다 안내 기록(1차·2차 안내일)이 적은 주문. 주문을 눌러 📞/💬 안내 완료를 누르면 목록에서 빠져요.</li>
-          <li><b>주문 최종 출고예정일</b> = 같은 주문 안 예약상품 중 가장 늦은 출고일 · 가용재고 {PREORDER_LOW_STOCK[0]}~{PREORDER_LOW_STOCK[1]}이면 <b>저재고</b> (사은품 {PREORDER_GIFT_CODES.join(', ')} 제외)</li>
+          <li><b>주문 최종 출고예정일</b> = 같은 주문 안 예약상품 중 가장 늦은 출고일 · 가용재고 {PREORDER_LOW_STOCK[0]}~{PREORDER_LOW_STOCK[1]}이면 <b>저재고</b> (기준 관리 &gt; 예약배송 사은품 목록의 상품은 제외 · 주문 상품 목록에 🎁 사은품으로 표시)</li>
           <li>예판 상태가 <b>종료</b>인 상품은 일정 계산에서 빠져요 (입고 완료).</li>
         </ul>
       </div>

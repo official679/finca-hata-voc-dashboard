@@ -311,3 +311,4 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 /* 예약배송: 주문 안 상품 목록 */
 .preorder-line { line-height: 1.5; padding: 1px 0; }
 .preorder-line + .preorder-line { border-top: 1px dashed var(--border); }
+.preorder-line .muted, .preorder-line .chip { font-weight: 400; }

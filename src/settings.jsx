@@ -11,8 +11,9 @@ function CodeGroupEditor({ group }) {
   // 이 기준을 쓰는 데이터: VOC(기본) 또는 CS 데일리
   const table = group.table || 'voc_cases';
   useEffect(() => { if (table === 'cs_daily' && !daily) loadDaily(); }, [table, daily, loadDaily]);
-  const rows = table === 'cs_daily' ? (daily || []) : cases;
-  const setRows = table === 'cs_daily' ? setDaily : setCases;
+  // table: 'none' = 목록만 관리 (예약배송 사은품처럼 이름을 바꿔도 지난 기록은 그대로 두는 것)
+  const rows = table === 'cs_daily' ? (daily || []) : table === 'voc_cases' ? cases : [];
+  const setRows = table === 'cs_daily' ? setDaily : table === 'voc_cases' ? setCases : () => {};
   const matches = (r) => Object.entries(group.match || {}).every(([k, v]) => r[k] === v);
   const usage = (label) => rows.filter(r => r[group.column] === label && matches(r)).length;
 

@@ -22,6 +22,7 @@ const CODE_GROUPS = [
   { key: 'platform', label: '플랫폼', column: 'platform' },
   { key: 'handler', label: '처리자', column: 'handler' },
   { key: 'brand', label: '브랜드', column: 'brand' },
+  { key: 'preorder_gift', label: '예약배송 사은품', table: 'none', column: 'gift' },   // "코드 단품) 상품명" 형식 · 앞 숫자 = 오클릭 바코드
   { key: 'daily_platform:핀카', label: '데일리 플랫폼(핀카)', table: 'cs_daily', column: 'platform', match: { brand: '핀카' } },
   { key: 'daily_platform:하타', label: '데일리 플랫폼(하타)', table: 'cs_daily', column: 'platform', match: { brand: '하타' } },
 ];
