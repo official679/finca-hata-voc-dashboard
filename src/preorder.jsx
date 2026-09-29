@@ -591,6 +591,85 @@ const PRODUCT_DATE_FIELDS = [
   ['actual_in', '실제 입고일', '실제로 들어온 날 (다 나가면 예판 상태를 종료로)'],
 ];
 
+// 일정 입력: ① 처음 일정 → ② 1차로 밀림 → ③ 또 밀림 → ④ 입고 완료 (단계별로, 필요한 단계만 펼쳐서)
+function ScheduleSteps({ f, set }) {
+  const [show2, setShow2] = useState(!!(f.change2_notice || f.change2_in || f.change2_out));
+  const [show1, setShow1] = useState(!!(f.change1_notice || f.change1_in || f.change1_out) || show2);
+  const date = (k, label, help) => (
+    <div className="field"><label>{label}</label><input type="date" value={f[k] || ''} onChange={e => set(k)(e.target.value)} />{help && <div className="hint">{help}</div>}</div>
+  );
+  const clear = (keys, hide) => { keys.forEach(k => set(k)('')); hide(false); };
+  return (
+    <div className="sched">
+      <div className="sched-step">
+        <div className="sched-title"><span className="sched-no">1</span>처음 일정 <small>상품페이지에 처음 안내한 일정</small></div>
+        <div className="form-grid">
+          {date('first_in', '입고 예정일')}
+          {date('first_out', '출고 예정일', '일반상품이 재고 부족으로 밀린 거면 원래 출고일(보통 주문 당일)')}
+        </div>
+      </div>
+
+      {show1 ? (
+        <div className="sched-step delayed">
+          <div className="sched-title"><span className="sched-no">2</span>일정이 밀렸어요 (1차)
+            <button type="button" className="btn-link" style={{ marginLeft: 'auto', fontSize: 12 }} onClick={() => clear(['change1_notice', 'change1_in', 'change1_out', 'change2_notice', 'change2_in', 'change2_out'], (v) => { setShow1(v); setShow2(v); })}>지우기</button></div>
+          <div className="form-grid">
+            {date('change1_notice', '고객 안내 시작한 날', '이날보다 먼저 산 고객 = 지연 안내 대상')}
+            {date('change1_in', '바뀐 입고 예정일')}
+            {date('change1_out', '바뀐 출고 예정일', '고객에게 안내한 새 출고일')}
+          </div>
+        </div>
+      ) : <button type="button" className="btn sched-add" onClick={() => setShow1(true)}>＋ 일정이 밀렸어요 (1차 변경 입력)</button>}
+
+      {show1 && (show2 ? (
+        <div className="sched-step delayed">
+          <div className="sched-title"><span className="sched-no">3</span>또 밀렸어요 (2차)
+            <button type="button" className="btn-link" style={{ marginLeft: 'auto', fontSize: 12 }} onClick={() => clear(['change2_notice', 'change2_in', 'change2_out'], setShow2)}>지우기</button></div>
+          <div className="form-grid">
+            {date('change2_notice', '다시 안내 시작한 날')}
+            {date('change2_in', '다시 바뀐 입고 예정일')}
+            {date('change2_out', '다시 바뀐 출고 예정일')}
+          </div>
+        </div>
+      ) : <button type="button" className="btn sched-add" onClick={() => setShow2(true)}>＋ 또 밀렸어요 (2차 변경 입력)</button>)}
+
+      <div className="sched-step">
+        <div className="sched-title"><span className="sched-no">✓</span>입고 완료</div>
+        <div className="form-grid">
+          {date('actual_in', '실제 입고일', '다 출고되면 위쪽 예판 상태를 “종료”로 바꿔주세요')}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 입력한 날짜로 어떻게 계산되는지 문장으로
+function ScheduleSummary({ f }) {
+  const md = (d) => (d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '?');
+  const lines = [];
+  if (!f.first_out) lines.push('처음 출고 예정일을 넣어주세요.');
+  else if (!f.change1_out && !f.change1_notice) lines.push(`지금은 ${md(f.first_out)} 출고 예정 그대로예요. 지연 안내 대상 없음.`);
+  else {
+    if (!f.change1_notice) lines.push('⚠️ 1차 "고객 안내 시작한 날"이 비어 있어서 누가 지연인지 계산할 수 없어요.');
+    else lines.push(`${md(f.change1_notice)} 전에 산 고객 → 1차 지연 (${md(f.first_out)} → ${md(f.change1_out)} 출고)`);
+    if (f.change2_out || f.change2_notice) {
+      if (!f.change2_notice) lines.push('⚠️ 2차 "다시 안내 시작한 날"이 비어 있어요.');
+      else {
+        lines.push(`${md(f.change1_notice)} 전에 산 고객 → 2차 지연까지 (${md(f.first_out)} → ${md(f.change2_out)})`);
+        lines.push(`${md(f.change1_notice)} ~ ${md(f.change2_notice)} 사이에 산 고객 → 1차 지연 (${md(f.change1_out)} → ${md(f.change2_out)})`);
+        lines.push(`${md(f.change2_notice)} 이후에 산 고객 → 정상 (${md(f.change2_out)} 출고를 보고 삼)`);
+      }
+    } else if (f.change1_notice) lines.push(`${md(f.change1_notice)} 이후에 산 고객 → 정상 (${md(f.change1_out)} 출고를 보고 삼)`);
+  }
+  return (
+    <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', marginTop: 12, lineHeight: 1.8 }}>
+      <b>이렇게 계산돼요</b>
+      {lines.map((l, i) => <div key={i}>· {l}</div>)}
+      <div className="muted" style={{ fontSize: 12 }}>안내 시작한 날 당일에 산 고객은 목록에 * 표시 (주문 시각 확인 필요)</div>
+    </div>
+  );
+}
+
 function PreorderProductPanel({ product, onClose, reload }) {
   const toast = useToast();
   const [f, setF] = useState(() => ({ code: '', product_name: '', option_text: '', note: '', status: '진행', ...Object.fromEntries(PRODUCT_DATE_FIELDS.map(([k]) => [k, ''])), ...Object.fromEntries(Object.entries(product).map(([k, v]) => [k, v ?? ''])) }));
@@ -619,17 +698,9 @@ function PreorderProductPanel({ product, onClose, reload }) {
             <div className="field"><label>옵션</label><input value={f.option_text} onChange={e => set('option_text')(e.target.value)} /></div>
             <div className="field"><label>예판 상태</label><Select className="" value={f.status} onChange={set('status')} options={['진행', '종료']} /></div>
           </div>
-          <div className="form-section">일정</div>
-          <div className="form-grid">
-            {PRODUCT_DATE_FIELDS.map(([k, label, help]) => (
-              <div className="field" key={k}><label>{label}</label><input type="date" value={f[k] || ''} onChange={e => set(k)(e.target.value)} /><div className="hint">{help}</div></div>
-            ))}
-          </div>
-          <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', marginTop: 12, lineHeight: 1.8 }}>
-            <b>예시</b> · 원래 9/28 당일 출고였는데 재고가 부족해서 9/28부터 고객 안내 시작, 11/2 입고 · 11/9 출고로 바뀐 경우<br />
-            최초 출고일 공지 <b>9/28</b> → 1차 공지일 <b>9/28</b> · 1차 변경 입고일 <b>11/2</b> · 1차 변경 출고일 <b>11/9</b><br />
-            <span className="muted">공지일보다 먼저 산 고객 = 지연 안내 대상 · 공지일 이후에 산 고객 = 바뀐 일정을 보고 산 고객 (지연 아님) · 공지일 당일 주문은 * 표시</span>
-          </div>
+          <div className="form-section">일정 <small className="muted" style={{ fontWeight: 400 }}>일이 생긴 순서대로 위에서부터 채워요</small></div>
+          <ScheduleSteps f={f} set={set} />
+          <ScheduleSummary f={f} />
           <div className="field" style={{ marginTop: 12 }}><label>비고</label><input value={f.note} onChange={e => set('note')(e.target.value)} /></div>
           <div className="form-actions">
             {product.id && <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }} onClick={async () => {
