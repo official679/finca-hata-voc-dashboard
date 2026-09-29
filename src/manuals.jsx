@@ -115,7 +115,7 @@ function ManualEditor({ initial, categories, onClose, onSaved }) {
             </div>
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>내용</label>
-              <textarea rows="14" value={form.body || ''} onChange={set('body')} placeholder="순서, 주의할 점, 참고 링크 등을 적어주세요. 링크(https://...)는 자동으로 누를 수 있게 바뀌어요." />
+              <textarea rows="14" value={form.body || ''} onChange={set('body')} placeholder={'순서, 주의할 점, 참고 링크 등을 적어주세요.\n**중요한 글자**는 별표 두 개로 감싸면 굵게(형광펜) 보여요.\n## 로 시작하면 소제목, - 로 시작하면 목록, > 로 시작하면 노란 주의 상자.\n링크(https://...)는 자동으로 누를 수 있게 바뀌어요.'} />
             </div>
             <div className="field" style={{ gridColumn: '1 / -1' }}>
               <label>첨부 (이미지·파일)</label>
@@ -203,7 +203,8 @@ function ManualsPage() {
             </div>
             {open && (
               <>
-                <div className="manual-body"><Linkify text={m.body} /></div>
+                {/* 본문은 마크다운: **굵게**, ## 제목, - 목록, 주소는 자동 링크 (예전 글은 줄바꿈 그대로 보임) */}
+                <div className="manual-body manual-md"><MarkdownView text={m.body} /></div>
                 <Attachments items={m.attachments || []} />
                 <div className="form-actions" style={{ marginTop: 16 }}>
                   <span className="muted" style={{ marginRight: 'auto', fontSize: 12 }}>{m.author ? `작성 ${m.author}` : ''}</span>

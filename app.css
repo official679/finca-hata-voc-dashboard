@@ -283,6 +283,14 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .manual-card .form-actions { padding-bottom: 16px; }
 .manual-body { white-space: pre-wrap; line-height: 1.8; border-top: 1px solid var(--border); padding-top: 14px !important; }
 .manual-body a { color: var(--primary); word-break: break-all; }
+/* 매뉴얼 본문(마크다운): 중요한 건 형광펜처럼 굵게 */
+.manual-body.manual-md { white-space: normal; }
+.manual-md strong { font-weight: 800; background: linear-gradient(transparent 58%, #FFEAA0 58%); }
+.manual-md h2, .manual-md h3 { margin-top: 26px; padding-top: 14px; border-top: 1px dashed var(--border); }
+.manual-md h2:first-child, .manual-md h3:first-child { border-top: none; padding-top: 0; }
+.manual-md blockquote { margin: 10px 0; padding: 10px 14px; background: var(--warn-soft); border-left: 4px solid var(--warn); border-radius: 6px; }
+.manual-md blockquote p { margin: 0; }
+.manual-md li { margin: 3px 0; }
 
 @media print {
   .sidebar, .mobile-bar, .no-print, .filters .input, .toast { display: none !important; }
