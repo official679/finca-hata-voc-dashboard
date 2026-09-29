@@ -114,7 +114,7 @@ function WeeklyReview({ daily, reviews, board, brand, ym, controls }) {
   const rows = daily.filter(r => r.brand === brand && r.report_date >= from && r.report_date <= to);
   const s = sumRows(rows);
   const p = sumRows(daily.filter(r => r.brand === brand && r.report_date >= pf && r.report_date <= pt));
-  const weekSums = weeks.map(w => ({ w, s: sumRows(rows.filter(r => r.report_date >= w.from && r.report_date <= w.to)) })).filter(x => x.s.orders > 0);
+  const weekSums = weeks.map(w => ({ w, s: sumRows(rows.filter(r => r.report_date >= w.from && r.report_date <= w.to)) }));   // 표와 같이 그달 주차 전부 (데이터 없는 주는 빈칸)
   const [y, mo] = ym.split('-');
 
   return (
@@ -135,7 +135,7 @@ function WeeklyReview({ daily, reviews, board, brand, ym, controls }) {
         <div className="report-side">
           <ComboChart title={`${brand} 주간 주문건 · 반품교환율`} color={BRAND_COLOR[brand]}
             items={weekSums.map(x => ({ label: `${Number(mo)}월 ${x.w.short}`, bar: x.s.orders, line: ratioOf(returnsExchanges(x.s), x.s.orders) }))} />
-          <ChannelTable brand={brand} rows={rows.filter(r => r.platform !== BRAND_TOTAL)} />
+          <ChannelTable brand={brand} rows={rows.filter(r => r.platform !== BRAND_TOTAL)} period={`${Number(mo)}월 합계 (1~${weeks.length}주차)`} />
         </div>
       </div>
 

@@ -333,12 +333,12 @@ function BrandWeekTable({ brand, rows, weeks, totalLabel = '합계·평균', wor
   );
 }
 
-function ChannelTable({ brand, rows }) {
+function ChannelTable({ brand, rows, period }) {
   const byPlatform = countBy(rows, r => r.platform).map(p => ({ platform: p.label, s: sumRows(rows.filter(r => r.platform === p.label)) }))
     .sort((a, b) => b.s.orders - a.s.orders);
   return (
     <div className="card brand-card" style={{ padding: 0, '--brand': BRAND_COLOR[brand] }}>
-      <div className="brand-bar">{brand} 채널별 현황</div>
+      <div className="brand-bar">{brand} 채널별 현황{period ? <span style={{ fontWeight: 400, opacity: 0.85 }}> · {period}</span> : null}</div>
       <div className="table-wrap">
         <table className="table">
           <thead><tr><th>채널</th><th className="num">주문건</th><th className="num">반품·교환</th><th className="num">발생률</th><th className="num">과실건</th><th className="num">과실률</th></tr></thead>
