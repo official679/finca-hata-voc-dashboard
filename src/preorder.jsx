@@ -515,7 +515,11 @@ function PreorderUpload({ lines, products, uploads, reload }) {
     } catch (e) { toast('❌ 파일을 읽지 못했어요: ' + e.message, 'err'); } finally { setBusy(''); }
   };
 
-  const lineSheets = (found || []).filter(s => s.format.kind === 'lines');
+  const allLineSheets = (found || []).filter(s => s.format.kind === 'lines');
+  // 예약주문 시트가 여러 장(구글시트 전체를 받은 파일)이면 오늘 것으로 쓸 시트를 직접 고름
+  const [linePick, setLinePick] = useState('');
+  useEffect(() => { setLinePick(''); }, [found]);
+  const lineSheets = allLineSheets.length === 1 ? allLineSheets : allLineSheets.filter(s => `${s.file}|${s.sheet}` === linePick);
   const productSheets = (found || []).filter(s => s.format.kind === 'products');
   const noticeSheets = (found || []).filter(s => s.format.kind === 'notices');
 
@@ -567,8 +571,8 @@ function PreorderUpload({ lines, products, uploads, reload }) {
         msgs.push(`📦 예약주문 ${fileLines.length}줄 (주문 ${fileOrders.size}건) 반영 · 새로 들어온 줄 ${newCount}`);
         msgs.push(gone.length ? (doShip ? `✅ 파일에서 빠진 주문 ${gone.length}건 → 출고완` : `⏸️ 파일에서 빠진 주문 ${gone.length}건은 출고완 처리 안 함`) : '출고완으로 바뀐 주문 없음');
         current = null;
-      } else if (lineSheets.length > 1) {
-        msgs.push(`⚠️ 예약주문 시트가 ${lineSheets.length}장이라 주문은 반영하지 않았어요. 오클릭에서 받은 하루치 파일 한 개만 올려주세요.`);
+      } else if (allLineSheets.length > 1) {
+        msgs.push(`⏭️ 예약주문 시트 ${allLineSheets.length}장 중 오늘 것을 고르지 않아서 주문은 반영하지 않았어요.`);
       }
       // 3) 지연안내리스트 → 안내 기록 채우기 (비어 있는 칸만)
       if (noticeSheets.length) {
@@ -630,8 +634,18 @@ function PreorderUpload({ lines, products, uploads, reload }) {
           <div style={{ marginTop: 12 }}>
             <table className="table">
               <thead><tr><th>파일 · 시트</th><th>알아본 형식</th><th className="num">줄 수</th></tr></thead>
-              <tbody>{found.map((s, i) => <tr key={i}><td>{s.file} · {s.sheet}</td><td>{s.format.label}{s.format.kind === 'lines' && lineSheets.length > 1 ? ' (여러 장 → 건너뜀)' : ''}</td><td className="num">{s.rows.length.toLocaleString()}</td></tr>)}</tbody>
+              <tbody>{found.map((s, i) => {
+                const skip = s.format.kind === 'lines' && allLineSheets.length > 1 && `${s.file}|${s.sheet}` !== linePick;
+                return <tr key={i} style={skip ? { opacity: 0.45 } : null}><td>{s.file} · {s.sheet}</td><td>{s.format.label}{skip ? ' (사용 안 함)' : ''}</td><td className="num">{s.rows.length.toLocaleString()}</td></tr>;
+              })}</tbody>
             </table>
+            {allLineSheets.length > 1 && (
+              <div className="field" style={{ marginTop: 12, maxWidth: 520 }}>
+                <label>예약주문 시트가 {allLineSheets.length}장 있어요. 오늘 주문으로 쓸 시트를 골라주세요 (보통 가장 최근 날짜)</label>
+                <Select className="" value={linePick} onChange={setLinePick} options={allLineSheets.map(s => ({ value: `${s.file}|${s.sheet}`, label: `${s.sheet} · ${s.rows.length}줄` }))} placeholder="주문은 반영하지 않음" />
+              </div>
+            )}
+            {noticeSheets.length > 0 && !lineSheets.length && !lines.length && <div className="hint" style={{ color: 'var(--danger)' }}>⚠️ 아직 대시보드에 예약주문이 없어서 안내 기록을 붙일 곳이 없어요. 위에서 오늘 주문 시트를 고르거나, 오클릭 파일을 같이 선택해 주세요.</div>}
             <div className="form-actions">
               <button className="btn" onClick={() => setFound(null)}>취소</button>
               <button className="btn btn-primary" onClick={apply}>저장하기</button>
