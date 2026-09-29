@@ -303,10 +303,10 @@ function BrandWeekTable({ brand, rows, weeks, totalLabel = '합계·평균', wor
   const month = sumRows(rows);
   const hasPhone = month.call_in + month.call_out > 0;
   return (
-    <div className="card brand-card" style={{ padding: 0, '--brand': BRAND_COLOR[brand] }}>
+    <div className="card brand-card brand-card-fit" style={{ padding: 0, '--brand': BRAND_COLOR[brand] }}>
       <div className="brand-bar">{brand}</div>
       <div className="table-wrap">
-        <table className="table report-table">
+        <table className="table report-table compact">
           <thead>
             <tr><th>구분</th>{weeks.map(w => <th key={w.from} className="num" title={w.range}>{w.short || w.label.split(' ')[1]}<div className="th-sub">{w.range}</div></th>)}<th className="num">{totalLabel}</th></tr>
           </thead>

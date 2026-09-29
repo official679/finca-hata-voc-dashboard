@@ -15,18 +15,17 @@ function ReportPage({ go }) {
   const open = inPeriod.filter(c => c.status === '접수' || c.status === '확인중');
   const pendingActions = brandCases.filter(c => c.action_required && !c.action_done);
 
-  // 최근 8주 추이
+  // 최근 5주 추이
   const weeks = useMemo(() => {
     const start = weekStart(new Date());
-    return Array.from({ length: 8 }, (_, i) => {
-      const ws = addDays(start, -7 * (7 - i));
+    return Array.from({ length: 5 }, (_, i) => {
+      const ws = addDays(start, -7 * (4 - i));
       const we = addDays(ws, 6);
       const a = toISODate(ws), b = toISODate(we);
       const rows = brandCases.filter(c => c.received_date >= a && c.received_date <= b);
       return { label: `${fmtMD(ws)}~`, total: rows.length, fault: rows.filter(c => isFault(c.voc_type)).length };
     });
   }, [brandCases]);
-  const weekMax = Math.max(1, ...weeks.map(w => w.total));
 
   const topProducts = useMemo(() => {
     const m = new Map();
@@ -58,26 +57,15 @@ function ReportPage({ go }) {
 
       <div className="grid grid-2">
         <div className="card">
-          <div className="card-title">주간 VOC 추이 <small>최근 8주 · 진한 색 = 브랜드 과실</small></div>
-          <div className="columns">
-            {weeks.map(w => (
-              <div className="column" key={w.label} title={`${w.label} 전체 ${w.total}건 / 과실 ${w.fault}건`}>
-                <div className="column-value">{w.total}</div>
-                <div style={{ width: '100%', maxWidth: 36, height: `${(w.total / weekMax) * 100}%`, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: 2 }}>
-                  <div style={{ flex: w.total - w.fault, background: '#BFD3F6', borderRadius: w.fault === w.total ? 0 : '4px 4px 0 0' }} />
-                  <div style={{ flex: w.fault, background: 'var(--accent)', borderRadius: w.fault === w.total ? '4px 4px 0 0' : 0 }} />
-                </div>
-                <div className="column-label">{w.label}</div>
-              </div>
-            ))}
-          </div>
+          <div className="card-title">주간 VOC 추이 <small>최근 5주</small></div>
+          <ColumnChart items={weeks.map(w => ({ label: w.label, value: w.total }))} />
         </div>
         <div className="card">
-          <div className="card-title">과실 사유 <small>브랜드 과실 {faults.length}건</small></div>
+          <div className="card-title">과실 사유</div>
           <Bars items={countBy(faults, c => c.reason_category).slice(0, 8)} />
         </div>
         <div className="card">
-          <div className="card-title">대분류별 과실 VOC <small>상품 마스터 기준</small></div>
+          <div className="card-title">대분류별 과실 VOC</div>
           <Bars items={countBy(faults, c => caseCategory(c, productById))} color="var(--danger)" />
         </div>
         <div className="card">

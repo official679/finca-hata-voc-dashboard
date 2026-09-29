@@ -312,3 +312,10 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .preorder-line { line-height: 1.5; padding: 1px 0; }
 .preorder-line + .preorder-line { border-top: 1px dashed var(--border); }
 .preorder-line .muted, .preorder-line .chip { font-weight: 400; }
+
+/* 주간·월간 표: 칸 폭을 내용만큼만 (화면 끝까지 늘어나지 않게) */
+.brand-card-fit { width: fit-content; max-width: 100%; }
+.report-table.compact { width: auto; }
+.report-table.compact th, .report-table.compact td { padding: 8px 14px; }
+.report-table.compact th.num, .report-table.compact td.num { min-width: 84px; }
+.report-table.compact td:first-child { min-width: 120px; }
