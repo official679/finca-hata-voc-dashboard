@@ -134,7 +134,7 @@ function MeetingsPage() {
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-title">⏳ 진행 중인 논의사항 <small>{openItems.length}건 · 체크하면 완료</small></div>
           {openItems.map(i => (
-            <MeetingItemRow key={i.id} item={i} reload={reload} origin={dateOf.get(i.meeting_id)} onOpenOrigin={() => setView({ id: i.meeting_id })} />
+            <MeetingItemRow key={i.id} item={i} reload={reload} compact origin={dateOf.get(i.meeting_id)} onOpenOrigin={() => setView({ id: i.meeting_id })} />
           ))}
         </div>
       )}
@@ -170,7 +170,7 @@ function MeetingsPage() {
   );
 }
 
-function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried }) {
+function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried, compact }) {
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState({ title: item.title, detail: item.detail || '', owner: item.owner || '' });
@@ -215,7 +215,7 @@ function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried }) {
           {carried && <span className="chip chip-amber" style={{ marginLeft: 6 }}>이전 회의에서 넘어옴</span>}
           {done && item.done_at && <span className="muted" style={{ marginLeft: 6, fontSize: 12 }}>{fmtDate(item.done_at)} 완료</span>}
         </div>
-        {item.detail && <div className="meeting-item-detail">{item.detail}</div>}
+        {item.detail && !compact && <div className="meeting-item-detail">{item.detail}</div>}
         {origin && <button className="btn-link" style={{ fontSize: 12 }} onClick={onOpenOrigin}>{fmtDate(origin.meeting_date)} {origin.title}</button>}
       </div>
       <button className="btn btn-sm" onClick={() => setEditing(true)}>수정</button>
