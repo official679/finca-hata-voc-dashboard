@@ -5,7 +5,8 @@ const MEETING_KINDS = ['CX 회의', 'PJ 회의'];
 // 회의 내용은 마크다운 (- 목록, ### 제목, **굵게**, 표). 노션에서 가져온 표(HTML)도 그대로 보임
 function MarkdownView({ text }) {
   const html = useMemo(() => {
-    const src = String(text || '').replace(/<empty-block\s*\/>/g, '').replace(/\\([~\-*_>#|])/g, '$1');
+    // '9/14~9/20'의 ~ 를 취소선으로 읽지 않도록 글자 그대로 표시
+    const src = String(text || '').replace(/<empty-block\s*\/>/g, '').replace(/\\([~\-*_>#|])/g, '$1').replace(/~/g, '&#126;');
     try { return DOMPurify.sanitize(marked.parse(src, { breaks: true })); } catch { return ''; }
   }, [text]);
   if (!String(text || '').trim()) return <div className="muted">내용이 없어요</div>;
@@ -41,7 +42,8 @@ function weeklyReportDraft(daily, meetingDate) {
   ];
   const table = ['| 항목 | 핀카 전주 → 금주 | 핀카 증감 | 하타 전주 → 금주 | 하타 증감 |', '| --- | --- | --- | --- | --- |',
     ...rows.map(([label, f]) => `| ${label} | ${[...f('핀카'), ...f('하타')].join(' | ')} |`)].join('\n');
-  return `### 1. 주간 CX 리포트\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. 리뷰 / VOC\n- 핀카: \n- 하타: \n\n### 3. 논의사항\n- 아래 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
+  // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
+  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. [리뷰](#/reviews) / [VOC](#/voc-list)\n- 핀카: \n- 하타: \n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
 }
 
 // ---------- 데이터 ----------
