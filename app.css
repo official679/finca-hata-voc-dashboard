@@ -365,3 +365,8 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .dr-meta { font-size: 11.5px; color: #6B7280; font-weight: 400; margin-top: 3px; }
 .dr-empty { font-size: 13px; color: #9CA3AF; padding: 12px 14px; border: 1px solid #E5E8EE; border-top: none; }
 .dr-voc-title + .dr-empty { border-top: 1px solid #E5E8EE; margin-top: 8px; border-radius: 6px; }
+/* 예약배송 일괄 처리 */
+.bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 16px; margin-bottom: 12px; position: sticky; top: 0; z-index: 5; }
+.bulk-bar.on { background: var(--accent-soft); border-color: var(--accent); }
+.bulk-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+tr.row-selected td { background: #EEF4FE !important; }

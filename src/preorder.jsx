@@ -251,8 +251,8 @@ function PreorderPage() {
         ]} value={tab} onChange={setTab} />
       </div>
 
-      {tab === 'todo' && <PreorderOrderTable orders={pending} onOpen={setOpenOrder} empty="지금 안내할 주문이 없어요 🎉" todo />}
-      {tab === 'orders' && <PreorderAllOrders orders={orders} onOpen={setOpenOrder} />}
+      {tab === 'todo' && <PreorderAllOrders key="todo" orders={pending} onOpen={setOpenOrder} reload={reload} todo />}
+      {tab === 'orders' && <PreorderAllOrders key="orders" orders={orders} onOpen={setOpenOrder} reload={reload} />}
       {tab === 'products' && <PreorderProducts products={products} lines={lines} productByCode={productByCode} onEdit={setEditProduct} />}
       {tab === 'upload' && <PreorderUpload lines={lines} products={products} uploads={uploads} reload={reload} />}
       {tab === 'guide' && <PreorderGuide />}
@@ -263,21 +263,27 @@ function PreorderPage() {
   );
 }
 
-function PreorderOrderTable({ orders, onOpen, empty, todo }) {
+function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected }) {
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [orders.length]);
   const SIZE = 15, pages = Math.max(1, Math.ceil(orders.length / SIZE)), cur = Math.min(page, pages);
   if (!orders.length) return <div className="card empty">{empty}</div>;
+  const shown = orders.slice((cur - 1) * SIZE, cur * SIZE);
+  const toggle = (no) => setSelected(prev => { const n = new Set(prev); n.has(no) ? n.delete(no) : n.add(no); return n; });
+  const pageAll = shown.every(o => selected.has(o.order_no));
   return (
     <div className="card" style={{ padding: 0 }}>
       <div className="table-wrap">
         <table className="table table-wide">
-          <thead><tr><th>구매일</th><th>판매처</th><th>판매처주문번호</th><th>주문자</th><th>예약상품</th><th>단계</th><th>주문 당시 안내</th><th>현재 출고예정</th><th>주문 최종 출고</th><th>안내</th><th>배송구분</th><th>저재고</th>{!todo && <th>상태</th>}</tr></thead>
+          <thead><tr>
+            {setSelected && <th style={{ width: 36 }}><input type="checkbox" checked={pageAll} title="이 페이지 전체 선택" onChange={() => setSelected(prev => { const n = new Set(prev); shown.forEach(o => (pageAll ? n.delete(o.order_no) : n.add(o.order_no))); return n; })} /></th>}
+            <th>구매일</th><th>판매처</th><th>판매처주문번호</th><th>주문자</th><th>예약상품</th><th>단계</th><th>주문 당시 안내</th><th>현재 출고예정</th><th>주문 최종 출고</th><th>안내</th><th>배송구분</th><th>저재고</th>{!todo && <th>상태</th>}</tr></thead>
           <tbody>
-            {orders.slice((cur - 1) * SIZE, cur * SIZE).map(o => {
+            {shown.map(o => {
               const l = o.preLines.find(x => x.stage === o.stage) || o.preLines[0] || o.lines[0];
               return (
-                <tr key={o.order_no} className="clickable" onClick={() => onOpen(o.order_no)}>
+                <tr key={o.order_no} className={`clickable${selected && selected.has(o.order_no) ? ' row-selected' : ''}`} onClick={() => onOpen(o.order_no)}>
+                  {setSelected && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(o.order_no)} onChange={() => toggle(o.order_no)} /></td>}
                   <td>{fmtDate(o.purchase_date)}</td>
                   <td>{sellerLabel(o.seller)}</td>
                   <td>{o.seller_order_no || o.order_no}</td>
@@ -312,23 +318,94 @@ function PreorderOrderTable({ orders, onOpen, empty, todo }) {
   );
 }
 
-function PreorderAllOrders({ orders, onOpen }) {
-  const [status, setStatus] = useState('출고대기');
+// 주문 목록 + 조회(상태·단계·출고예정일·예약상품·검색) + 선택한 주문 일괄 처리
+function PreorderAllOrders({ orders, onOpen, reload, todo }) {
+  const toast = useToast();
+  const [status, setStatus] = useState(todo ? '' : '출고대기');
   const [stage, setStage] = useState('');
+  const [product, setProduct] = useState('');
+  const [outFrom, setOutFrom] = useState('');
+  const [outTo, setOutTo] = useState('');
   const [q, setQ] = useState('');
+  const [selected, setSelected] = useState(() => new Set());
+  const [method, setMethod] = useState('문자');
+  const [busy, setBusy] = useState(false);
+
+  // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
+  const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
   const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) &&
+    (!product || o.preLines.some(l => l.product_name === product)) &&
+    (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     (!q.trim() || [o.order_no, o.seller_order_no, o.orderer, ...o.lines.map(l => l.product_name), ...o.lines.map(l => l.barcode)].some(v => String(v || '').toLowerCase().includes(q.trim().toLowerCase()))));
+  const filterKey = [status, stage, product, outFrom, outTo, q].join('|');
+  useEffect(() => { setSelected(new Set()); }, [filterKey]);
+  const picked = rows.filter(o => selected.has(o.order_no));
+  const hasFilter = !!(stage || product || outFrom || outTo || q || (todo ? status : status !== '출고대기'));
+
+  const run = async (label, fn) => {
+    if (!picked.length) return;
+    if (!confirm(`선택한 주문 ${picked.length}건을 '${label}' 처리할까요?`)) return;
+    setBusy(true);
+    try { const n = await fn(); toast(`✅ ${picked.length}건 ${label}${n !== undefined ? ` (${n}줄)` : ''}`); setSelected(new Set()); await reload(); }
+    catch (e) { toast('❌ 처리 실패: ' + (e.message || e), 'err'); }
+    finally { setBusy(false); }
+  };
+  const updateIds = async (ids, patch) => {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await db.from('preorder_lines').update(patch).in('id', ids.slice(i, i + 200));
+      if (error) throw error;
+    }
+  };
+  // 안내 완료: 지연된 예약상품 줄에 안내 기록 (1차가 비었으면 1차, 아니면 2차 · 지연 횟수만큼 채움)
+  const markNotice = () => run(`${method} 안내 완료`, async () => {
+    const d = today(), n1 = [], n2 = [];
+    picked.forEach(o => o.lines.forEach(l => {
+      if (!l.prod || !(l.need > 0) || l.status !== '출고대기') return;
+      if (!l.notice1_date) { n1.push(l.id); if (l.need > 1 && !l.notice2_date) n2.push(l.id); }
+      else if (!l.notice2_date && l.need > 1) n2.push(l.id);
+    }));
+    await updateIds(n1, { notice1_method: method, notice1_date: d });
+    await updateIds(n2, { notice2_method: method, notice2_date: d });
+    return new Set([...n1, ...n2]).size;
+  });
+  const setStatusAll = (to) => run(to === '출고완' ? '출고완' : to === '취소' ? '취소' : '출고대기로 되돌리기', async () => {
+    const ids = picked.flatMap(o => o.lines.map(l => l.id));
+    await updateIds(ids, { status: to, shipped_on: to === '출고완' ? today() : null });
+    return ids.length;
+  });
+
   return (
     <>
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: 12 }}>
         <div className="filters">
-          <Select value={status} onChange={setStatus} options={['출고대기', '출고완', '취소']} placeholder="상태 전체" />
+          {!todo && <Select value={status} onChange={setStatus} options={['출고대기', '출고완', '취소']} placeholder="상태 전체" />}
           <Select value={stage} onChange={setStage} options={['정상', '1차 지연', '2차 지연', '공지일 확인']} placeholder="단계 전체" />
-          <input className="input" style={{ minWidth: 220 }} value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호·주문자·상품명·바코드 검색" />
-          <span className="muted">{rows.length.toLocaleString()}건 · 출고완은 최근 60일</span>
+          <Select value={product} onChange={setProduct} options={productNames} placeholder="예약상품 전체" />
+          <span className="muted" style={{ whiteSpace: 'nowrap' }}>출고예정일</span>
+          <input className="input" type="date" value={outFrom} onChange={e => setOutFrom(e.target.value)} title="주문 최종 출고예정일 (부터)" />
+          <span className="muted">~</span>
+          <input className="input" type="date" value={outTo} onChange={e => setOutTo(e.target.value)} title="주문 최종 출고예정일 (까지)" />
+          <input className="input" style={{ minWidth: 200 }} value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호·주문자·상품명·바코드" />
+          {hasFilter && <button className="btn-link" onClick={() => { setStatus(todo ? '' : '출고대기'); setStage(''); setProduct(''); setOutFrom(''); setOutTo(''); setQ(''); }}>초기화</button>}
+          <span className="muted">{rows.length.toLocaleString()}건{todo ? '' : ' · 출고완은 최근 60일'}</span>
         </div>
       </div>
-      <PreorderOrderTable orders={rows} onOpen={onOpen} empty="조건에 맞는 주문이 없어요" />
+      <div className={`card bulk-bar${picked.length ? ' on' : ''}`}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+          <input type="checkbox" checked={rows.length > 0 && picked.length === rows.length} onChange={() => setSelected(picked.length === rows.length ? new Set() : new Set(rows.map(o => o.order_no)))} />
+          {picked.length ? `${picked.length}건 선택됨` : `조회된 ${rows.length}건 전체 선택`}
+        </label>
+        <span className="bulk-sep" />
+        <select className="input" style={{ width: 'auto' }} value={method} onChange={e => setMethod(e.target.value)}><option>문자</option><option>유선</option></select>
+        <button className="btn btn-primary btn-sm" disabled={!picked.length || busy} onClick={markNotice} title="지연된 예약상품에 오늘 날짜로 안내 기록 (1차·2차는 자동)">{method === '문자' ? '💬' : '📞'} 안내 완료</button>
+        <span className="bulk-sep" />
+        <button className="btn btn-sm" disabled={!picked.length || busy} onClick={() => setStatusAll('출고완')}>📦 출고완</button>
+        <button className="btn btn-sm" disabled={!picked.length || busy} onClick={() => setStatusAll('출고대기')}>↩ 출고대기로</button>
+        <button className="btn btn-sm btn-danger" disabled={!picked.length || busy} onClick={() => setStatusAll('취소')}>취소 처리</button>
+        {picked.length > 0 && <button className="btn-link" onClick={() => setSelected(new Set())}>선택 해제</button>}
+      </div>
+      <PreorderOrderTable orders={rows} onOpen={onOpen} todo={todo} selected={selected} setSelected={setSelected}
+        empty={todo && !hasFilter ? '지금 안내할 주문이 없어요 🎉' : '조건에 맞는 주문이 없어요'} />
     </>
   );
 }
