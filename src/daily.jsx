@@ -141,6 +141,7 @@ function DailyEntryPage() {
   const setVal = (p, f) => (n) => { setValues(prev => ({ ...prev, [p]: { ...prev[p], [f]: n } })); setDirty(true); };
   const [filling, setFilling] = useState(false);
   const [fillNote, setFillNote] = useState('');
+  const [showReport, setShowReport] = useState(false);
   useEffect(() => { setFillNote(''); }, [date, brand]);
 
   // 업로드한 주문·리뷰·게시판으로 이 보고일 칸을 채움 (저장은 사람이 확인 후)
@@ -214,7 +215,9 @@ function DailyEntryPage() {
         <button className="btn btn-primary" onClick={fillFromUploads} disabled={filling} title="업로드한 주문·리뷰·게시판 파일로 주문건·취소·리뷰·게시판 칸을 채워요">
           {filling ? '불러오는 중...' : '📥 업로드 데이터로 채우기'}
         </button>
+        <button className="btn" onClick={() => (dirty && !confirm('저장하지 않은 숫자가 있어요. 리포트는 저장된 숫자로 만들어져요. 그래도 열까요?') ? null : setShowReport(true))} title="핀카·하타 숫자와 그날 VOC를 슬랙용 이미지로">📸 데일리 리포트</button>
       </PageHeader>
+      {showReport && <DailyReportPanel date={date} onClose={() => setShowReport(false)} />}
       {fillNote && <div className="card" style={{ marginBottom: 16, background: 'var(--accent-soft)', border: 'none', whiteSpace: 'pre-line', lineHeight: 1.7 }}>{fillNote}</div>}
 
       <div className="grid grid-2" style={{ alignItems: 'start' }}>

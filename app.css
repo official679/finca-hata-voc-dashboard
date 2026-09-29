@@ -334,3 +334,34 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .md table.md-week .md-split { border-left: 2px solid #C9D1DC; }
 .md table.md-week tbody tr:first-child td { background: none; font-weight: 400; }
 .md table.md-week tbody tr:first-child td:first-child { font-weight: 600; }
+
+/* CS 데일리 리포트 (슬랙 이미지) */
+.panel-wide { width: min(1180px, 100%); }
+.dr { width: 1080px; background: #fff; padding: 28px; font-family: inherit; color: #1F2430; }
+.dr-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1E2433; padding-bottom: 14px; margin-bottom: 18px; }
+.dr-title { font-size: 22px; font-weight: 800; }
+.dr-sub { font-size: 14px; color: #6B7280; margin-top: 4px; }
+.dr-brand { margin-bottom: 26px; }
+.dr-brand-bar { background: var(--c); color: #fff; font-weight: 800; font-size: 16px; padding: 8px 14px; border-radius: 8px 8px 0 0; }
+.dr-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); border: 1px solid #E5E8EE; border-top: none; }
+.dr-tile { padding: 12px 14px; border-right: 1px solid #E5E8EE; }
+.dr-tile:last-child { border-right: none; }
+.dr-tile-label { font-size: 12.5px; color: #6B7280; font-weight: 600; }
+.dr-tile-value { font-size: 24px; font-weight: 800; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.dr-tile-sub { font-size: 12.5px; color: #6B7280; font-weight: 600; }
+.dr-tile.warn .dr-tile-value, .dr-tile.warn .dr-tile-sub { color: #C0392B; }
+.dr-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.dr-table th { background: #F3F5F9; color: #4B5563; font-weight: 700; padding: 7px 10px; border: 1px solid #E5E8EE; text-align: center; }
+.dr-table td { padding: 7px 10px; border: 1px solid #E5E8EE; text-align: center; font-variant-numeric: tabular-nums; }
+.dr-table td:first-child { font-weight: 700; }
+.dr-table .bad { color: #C0392B; font-weight: 700; }
+.dr-voc-title { font-size: 15px; font-weight: 800; margin: 16px 0 0; color: var(--c); }
+.dr-voc-title span { font-size: 13px; color: #6B7280; font-weight: 600; margin-left: 4px; }
+.dr-voc td { vertical-align: top; }
+.dr-voc .dr-prod, .dr-voc .dr-text { text-align: left; }
+.dr-voc .dr-prod { width: 230px; }
+.dr-voc .dr-text { white-space: pre-line; line-height: 1.55; font-weight: 400; }
+.dr-voc img { width: 110px; height: 110px; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto; }
+.dr-meta { font-size: 11.5px; color: #6B7280; font-weight: 400; margin-top: 3px; }
+.dr-empty { font-size: 13px; color: #9CA3AF; padding: 12px 14px; border: 1px solid #E5E8EE; border-top: none; }
+.dr-voc-title + .dr-empty { border-top: 1px solid #E5E8EE; margin-top: 8px; border-radius: 6px; }
