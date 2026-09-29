@@ -35,7 +35,7 @@ function useLight(table, columns, since = monthsAgo(12)) {
 function HomePage() {
   const { cases, productById } = useApp();
   const daily = useDaily();
-  const reviews = useLight('review_items', 'brand,rating,written_at');
+  const reviews = useLight('review_items', 'brand,rating,written_at,content', monthsAgo(4));   // 최근 5개월 (코멘트 분석용 내용 포함)
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id');
   const [brand, setBrand] = useState('핀카');
 
@@ -56,8 +56,8 @@ function HomePage() {
   const p = sumRows(d.filter(r => r.report_date >= pw[0].from && r.report_date <= pw[pw.length - 1].to));
   const ratio = (a, n) => (n ? a / n : null);
 
-  // 주간 추이 (최근 10주)
-  const weeks = recentWeeks(10).map(w => ({ ...w, s: sumRows(d.filter(r => r.report_date >= w.from && r.report_date <= w.to)) }));
+  // 주간 추이 (최근 5주)
+  const weeks = recentWeeks(5).map(w => ({ ...w, s: sumRows(d.filter(r => r.report_date >= w.from && r.report_date <= w.to)) }));
 
   // VOC · 후속 조치
   const c = byBrand(cases);
@@ -66,10 +66,14 @@ function HomePage() {
   const pendingActions = c.filter(x => x.action_required && !x.action_done);
   const openCases = c.filter(x => x.status === '접수' || x.status === '확인중');
 
-  // 리뷰 월별 부정 비중 (최근 6개월, 1~3점 부정)
-  const rv = byBrand(reviews).filter(r => r.written_at);
-  const months = [...new Set(rv.map(r => r.written_at.slice(0, 7)))].sort().slice(-6);
-  const reviewMonthly = months.map(m => { const rs = rv.filter(r => r.written_at.startsWith(m)); return { label: `${Number(m.slice(5))}월`, value: rs.length ? rs.filter(r => r.rating <= 3).length / rs.length : null }; });
+  // 리뷰 월별 긍정·부정 비중 (최근 5개월, 1~3점 부정) + 많이 나온 코멘트
+  const rv = byBrand(reviews).filter(r => r.written_at && r.rating !== null);
+  const months = [...new Set(rv.map(r => r.written_at.slice(0, 7)))].sort().slice(-5);
+  const reviewMonthly = months.map(m => { const rs = rv.filter(r => r.written_at.startsWith(m)); return { label: `${Number(m.slice(5))}월`, total: rs.length, neg: rs.filter(r => r.rating <= 3).length }; });
+  const since3m = toISODate(new Date(now.getFullYear(), now.getMonth() - 2, 1));
+  const rv3 = rv.filter(r => r.written_at.slice(0, 10) >= since3m);
+  const posRv = rv3.filter(r => r.rating > 3), negRv = rv3.filter(r => r.rating <= 3);
+  const topThemes = (rows, negative) => countBy(rows.flatMap(r => reviewThemes(r.content, negative)), t => t).slice(0, 5);
   const neg30 = rv.filter(r => r.rating <= 3 && r.written_at.slice(0, 10) >= since30).length;
 
   // 게시판
@@ -102,16 +106,16 @@ function HomePage() {
 
       <div className="grid grid-2w">
         <div className="card">
-          <div className="card-title">주간 반품·교환율 <small>최근 10주 · 빨간 막대 = 가장 높은 주</small></div>
+          <div className="card-title">주간 반품·교환율 <small>최근 5주 · 빨간 막대 = 가장 높은 주</small></div>
           <ColumnChart items={weeks.map(w => ({ label: w.label, value: w.s.orders ? returnsExchanges(w.s) / w.s.orders : null }))} format={v => `${(v * 100).toFixed(1)}%`} highlightMax />
         </div>
         <div className="card">
-          <div className="card-title">주간 주문건 <small>최근 10주</small></div>
+          <div className="card-title">주간 주문건 <small>최근 5주</small></div>
           <ColumnChart items={weeks.map(w => ({ label: w.label, value: w.s.orders || null }))} format={v => v.toLocaleString()} color="#7FA7EF" />
         </div>
         <div className="card">
-          <div className="card-title">월별 부정 리뷰 비중 <small>업로드한 리뷰 · 1~3점 {link('reviews')}</small></div>
-          <ColumnChart items={reviewMonthly} format={v => `${(v * 100).toFixed(1)}%`} color="var(--danger)" />
+          <div className="card-title">월별 긍정·부정 리뷰 비중 <small>최근 5개월 · 부정 = 1~3점 {link('reviews')}</small></div>
+          <SplitColumns items={reviewMonthly} />
         </div>
         <div className="card">
           <div className="card-title">게시판 문의 유형 <small>{bdRecent.length ? '최근 90일' : '전체'} {link('board')}</small></div>
@@ -125,6 +129,44 @@ function HomePage() {
           <div className="card-title">재입고 문의 많은 상품 <small>{bdRecent.length ? '최근 90일' : '전체'} · 리오더 검토{unlinkedRestock ? ` · 상품 못 찾은 ${unlinkedRestock}건 제외` : ''} {link('board')}</small></div>
           <Bars items={restockRanking(bdScope, productById).slice(0, 7).map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" />
         </div>
+      </div>
+
+      <div className="grid grid-2" style={{ marginTop: 16 }}>
+        <div className="card">
+          <div className="card-title">😊 긍정 리뷰에서 많이 나온 말 <small>최근 3개월 · 긍정 {posRv.length.toLocaleString()}건 ({pct(posRv.length, rv3.length)}) {link('reviews')}</small></div>
+          <Bars items={topThemes(posRv, false)} color="var(--success)" />
+        </div>
+        <div className="card">
+          <div className="card-title">😟 부정 리뷰에서 많이 나온 불만 <small>최근 3개월 · 부정 {negRv.length.toLocaleString()}건 ({pct(negRv.length, rv3.length)}) {link('reviews')}</small></div>
+          <Bars items={topThemes(negRv, true)} color="var(--danger)" />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// 월별 긍정(초록)·부정(빨강) 비중을 100% 누적 막대로
+function SplitColumns({ items }) {
+  if (!items.length) return <div className="empty">데이터가 없습니다</div>;
+  return (
+    <>
+      <div className="columns">
+        {items.map(i => {
+          const negShare = i.total ? i.neg / i.total : 0;
+          return (
+            <div className="column" key={i.label} title={`${i.label}: 리뷰 ${i.total}건 · 긍정 ${i.total - i.neg} · 부정 ${i.neg}`}>
+              <div className="column-value" style={{ color: 'var(--danger)', fontWeight: 700 }}>{i.total ? `${(negShare * 100).toFixed(1)}%` : '-'}</div>
+              <div className="column-bar split-bar">
+                <div style={{ height: `${negShare * 100}%`, background: 'var(--danger)', minHeight: i.neg ? 3 : 0 }} />
+                <div style={{ flex: 1, background: 'var(--success)', opacity: 0.75 }} />
+              </div>
+              <div className="column-label">{i.label}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="hint" style={{ textAlign: 'center', marginTop: 8 }}>
+        <span style={{ color: 'var(--danger)' }}>■</span> 부정(숫자 = 부정 비중) · <span style={{ color: 'var(--success)' }}>■</span> 긍정
       </div>
     </>
   );

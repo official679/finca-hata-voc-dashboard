@@ -257,24 +257,29 @@ function Paged({ items, render, size = 10, resetKey, empty }) {
   const pages = Math.max(1, Math.ceil(items.length / size));
   const cur = Math.min(page, pages);
   if (!items.length) return <div className="empty">{empty || '해당하는 항목이 없어요'}</div>;
-  // 현재 페이지 주변 번호만 보여줌
-  const nums = [...new Set([1, cur - 2, cur - 1, cur, cur + 1, cur + 2, pages])].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b);
   return (
     <>
       {items.slice((cur - 1) * size, cur * size).map(render)}
-      {pages > 1 && (
-        <div className="pager">
-          <button className="btn btn-sm" disabled={cur === 1} onClick={() => setPage(cur - 1)}>‹ 이전</button>
-          {nums.map((n, i) => (
-            <React.Fragment key={n}>
-              {i > 0 && n - nums[i - 1] > 1 && <span className="muted">…</span>}
-              <button className={`btn btn-sm${n === cur ? ' btn-primary' : ''}`} onClick={() => setPage(n)}>{n}</button>
-            </React.Fragment>
-          ))}
-          <button className="btn btn-sm" disabled={cur === pages} onClick={() => setPage(cur + 1)}>다음 ›</button>
-        </div>
-      )}
+      <Pager page={cur} pages={pages} onChange={setPage} />
     </>
+  );
+}
+
+// 페이지 번호 버튼 (현재 페이지 주변 번호만 보여줌)
+function Pager({ page, pages, onChange }) {
+  if (pages <= 1) return null;
+  const nums = [...new Set([1, page - 2, page - 1, page, page + 1, page + 2, pages])].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b);
+  return (
+    <div className="pager">
+      <button className="btn btn-sm" disabled={page === 1} onClick={() => onChange(page - 1)}>‹ 이전</button>
+      {nums.map((n, i) => (
+        <React.Fragment key={n}>
+          {i > 0 && n - nums[i - 1] > 1 && <span className="muted">…</span>}
+          <button className={`btn btn-sm${n === page ? ' btn-primary' : ''}`} onClick={() => onChange(n)}>{n}</button>
+        </React.Fragment>
+      ))}
+      <button className="btn btn-sm" disabled={page === pages} onClick={() => onChange(page + 1)}>다음 ›</button>
+    </div>
   );
 }
 

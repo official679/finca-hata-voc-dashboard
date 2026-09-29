@@ -297,6 +297,13 @@ function VocListPage({ initialFilter }) {
 
   const hasFilter = Object.values(f).some(Boolean);
 
+  // 15건씩 페이지로 (필터를 바꾸면 1페이지로)
+  const PAGE_SIZE = 15;
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [f]);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const cur = Math.min(page, pages);
+
   return (
     <>
       <PageHeader title="VOC 목록" desc={`전체 ${cases.length.toLocaleString()}건 중 ${rows.length.toLocaleString()}건`}>
@@ -325,7 +332,7 @@ function VocListPage({ initialFilter }) {
               <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>사유</th><th>진행</th>{SHOW_FOLLOWUP && <th>후속 조치</th>}<th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
-              {rows.slice(0, 500).map(c => (
+              {rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE).map(c => (
                 <tr key={c.id} className="clickable" onClick={() => setEditing(c)}>
                   <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.received_date)}</td>
                   <td>{c.brand}</td>
@@ -345,8 +352,8 @@ function VocListPage({ initialFilter }) {
             </tbody>
           </table>
           {rows.length === 0 && <div className="empty">조건에 맞는 VOC가 없어요</div>}
-          {rows.length > 500 && <div className="empty">처음 500건만 표시돼요. 필터로 범위를 좁히거나 CSV로 받아보세요.</div>}
         </div>
+        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} /></div>
       </div>
       <VocEditPanel vocCase={editing} onClose={() => setEditing(null)} />
     </>
