@@ -1,4 +1,4 @@
-# CLAUDE.md — FINCA·HaTA CX 대시보드
+﻿# CLAUDE.md — FINCA·HaTA CX 대시보드
 
 Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 메모입니다. 사람용 안내는 README.md에 있습니다.
 작업을 마칠 때마다 커밋·푸시하고, 새로 정한 규칙·결정은 이 파일에 추가하세요 (대화 기록은 PC 사이에 넘어가지 않음).
@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~13 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~14 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -53,6 +53,10 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - PowerShell 5.1은 BOM 없는 UTF-8 스크립트의 한글을 깨뜨림 → .ps1은 BOM으로 저장.
 - 사용자에게 "Run 버튼" 명령을 줄 때: 사용자 터미널은 PowerShell 5.1 → `&&` 안 됨, `;`로 이어 쓰기. 가능하면 사용자에게 명령을 맡기지 말고 직접 실행.
 - 사용자에게는 항상 한국어로 답하기 (영어로 답했다가 지적받음).
+- **매뉴얼·안내 글을 만들거나 고치면 대시보드 업무 매뉴얼 + 노션(ONE BOOK > CX본부) 둘 다 반영** (사용자 필수 요청, 2026-09-30).
+- 백업: 데이터 업로드 > 📦 백업 받기(엑셀, 표마다 시트). 마지막 백업일 = code_items 'backup_log'. 30일 지나면 메인 '오늘 챙길 것'에 알림.
+- 검색은 lib.jsx `matchQuery` (띄어 쓴 단어가 모두 들어 있으면 찾음). 새 검색창도 이걸 쓰기.
+- 상품 추가분류(앵커/레귤러) = products.line_type (오클릭 카테고리 파일 '추가분류', 14 SQL). VOC 목록 칸·필터.
 - **README.md = 사용자용 안내서 겸 인수인계 자료**. 기능·메뉴·규칙을 바꾸면 README도 같이 고쳐서 항상 최신으로 유지 (계정·비밀번호는 넣지 않기).
 - 직원 이름 선택(공용 계정에서 "나는 누구", 직원 이름·부서·직급 등록): 사용자가 "아직"이라고 보류함.
 
