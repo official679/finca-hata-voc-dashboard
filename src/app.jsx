@@ -1,31 +1,36 @@
 // 로그인 · 메뉴 · 화면 전환
 
+// 하는 일 기준으로 묶음: 매일 하는 일 → VOC·리뷰 → 보고·회의 → 팀 → 기준·매뉴얼
 const NAV = [
-  { group: '📊 한눈에 보기', items: [
+  { group: '', items: [
     { key: 'home', label: '메인 요약', icon: '🏠' },
-    { key: 'monthly', label: '보고서 (주간·월간)', icon: '📈' },
-    { key: 'report', label: 'VOC 현황', icon: '📉' },
-    { key: 'meetings', label: 'CX 미팅 로그', icon: '📒' },
-    { key: 'tasks', label: '업무 보드', icon: '📌' },
-    { key: 'plan', label: '전사플랜', icon: '🗓️' },
   ] },
-  { group: '🔍 조회·분석', items: [
-    { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
-    { key: 'reviews', label: '리뷰 분석', icon: '📊' },
-    { key: 'review-list', label: '리뷰 목록', icon: '💬' },
-    { key: 'board', label: '게시판 분석', icon: '🔎' },
-  ] },
-  { group: '✏️ 입력·업로드', items: [
-    { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
-    { key: 'preorder', label: '예약배송 관리', icon: '📦' },
-    { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
+  { group: '📅 매일 하는 일', items: [
     { key: 'upload', label: '데이터 업로드', icon: '📤' },
+    { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
+    { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
+    { key: 'preorder', label: '예약배송 관리', icon: '📦' },
     // 예전 주소(#/upload-reviews 등)로 들어와도 데이터 업로드 화면으로 (메뉴에는 안 보임)
     { key: 'upload-reviews', label: '데이터 업로드', hidden: true },
     { key: 'upload-board', label: '데이터 업로드', hidden: true },
     { key: 'upload-orders', label: '데이터 업로드', hidden: true },
   ] },
-  { group: '⚙️ 기준·매뉴얼', items: [
+  { group: '🔍 VOC · 리뷰', items: [
+    { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
+    { key: 'report', label: 'VOC 현황', icon: '📉' },
+    { key: 'review-list', label: '리뷰 목록', icon: '💬' },
+    { key: 'reviews', label: '리뷰 분석', icon: '📊' },
+    { key: 'board', label: '게시판 분석', icon: '🔎' },
+  ] },
+  { group: '📊 보고 · 회의', items: [
+    { key: 'monthly', label: '보고서 (주간·월간)', icon: '📈' },
+    { key: 'meetings', label: 'CX 미팅 로그', icon: '📒' },
+  ] },
+  { group: '👥 팀', items: [
+    { key: 'tasks', label: '업무 보드', icon: '📌' },
+    { key: 'plan', label: '전사플랜', icon: '🗓️' },
+  ] },
+  { group: '⚙️ 기준 · 매뉴얼', items: [
     { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
     { key: 'guides', label: 'CX 응대 주의사항', icon: '⚠️' },
     { key: 'codes', label: '기준 관리', icon: '🧩' },
@@ -125,10 +130,10 @@ function Shell({ session }) {
       {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
       <div className="layout">
         <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
-          <a className="sidebar-brand" href="#/home" title="메인으로">FINCA·HaTA CX<small>VOC · 리뷰 · 게시판 관리</small></a>
+          <a className="sidebar-brand" href="#/home" title="메인으로">FINCA·HaTA CX<small>CX 운영 대시보드</small></a>
           {NAV.map(g => (
             <div className="nav-group" key={g.group}>
-              <div className="nav-group-title">{g.group}</div>
+              {g.group && <div className="nav-group-title">{g.group}</div>}
               {g.items.filter(item => !item.hidden).map(item => (
                 <button key={item.key} className={`nav-item${route === item.key ? ' active' : ''}`} onClick={() => go(item.key)}>
                   <span>{item.icon}</span>{item.label}

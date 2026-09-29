@@ -207,6 +207,7 @@ async function upsertChunks(table, rows, onConflict) {
 function PreorderPage() {
   const [{ products, lines, uploads, error }, reload] = usePreorder();
   const { codeOptions } = useApp();
+  const toast = useToast();
   const giftOptions = codeOptions ? codeOptions('preorder_gift') : [];
   const giftKey = codeOptions ? codeOptions('preorder_gift', true).join('\n') : '';
   const giftCodes = useMemo(() => giftCodesFrom(giftKey.split('\n')), [giftKey]);
@@ -215,6 +216,19 @@ function PreorderPage() {
   const [editProduct, setEditProduct] = useState(null);
 
   const productByCode = useMemo(() => new Map((products || []).map(p => [p.code, p])), [products]);
+
+  // 실제 입고일이 있고 기다리는 주문(출고대기)이 없는 예약상품은 자동으로 '종료'
+  useEffect(() => {
+    if (!products || !lines) return;
+    const waiting = new Set(lines.filter(l => l.status === '출고대기').map(l => l.barcode));
+    const done = products.filter(p => p.status !== '종료' && p.actual_in && !waiting.has(p.code));
+    if (!done.length) return;
+    db.from('preorder_products').update({ status: '종료' }).in('id', done.map(p => p.id)).then(({ error }) => {
+      if (error) return;
+      toast(`✅ 입고가 끝나고 기다리는 주문이 없는 예약상품 ${done.length}개를 자동으로 종료했어요`);
+      reload();
+    });
+  }, [products, lines]);
   const orders = useMemo(() => (lines ? enrichPreorder(lines, productByCode, giftCodes) : []), [lines, productByCode, giftCodes]);
 
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>예약배송 데이터를 불러오지 못했어요: {error}<div className="hint">DB 설정 SQL(08_preorder_schema.sql)을 실행했는지 확인해 주세요.</div></div>;
@@ -543,16 +557,8 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
     });
     return m;
   }, [lines, productByCode]);
-  // 입고 완료 상품: 기다리는 주문이 없으면 종료해도 됨 · 있으면 '입고됐는데 미출고'로 확인 필요
+  // 입고 완료 + 기다리는 주문 없음 → 화면을 열 때 자동 종료 (PreorderPage) · 주문이 남았으면 '입고됨 · 미출고'로 확인
   const waitingOf = (p) => (counts.get(p.code) || {}).total || 0;
-  const readyToClose = products.filter(p => p.status !== '종료' && p.actual_in && !waitingOf(p));
-  const closeAll = async () => {
-    if (!confirm(`입고가 끝났고 기다리는 주문이 없는 상품 ${readyToClose.length}개를 '종료'로 바꿀까요?\n(종료된 상품은 목록에서 숨겨지고, '종료된 상품도 보기'로 다시 볼 수 있어요)`)) return;
-    const { error } = await db.from('preorder_products').update({ status: '종료' }).in('id', readyToClose.map(p => p.id));
-    if (error) { toast('❌ ' + error.message, 'err'); return; }
-    toast(`✅ ${readyToClose.length}개 종료 처리했어요`);
-    reload();
-  };
   // 확인이 필요한 것(입고됐는데 미출고)을 위로
   const rank = (p) => (p.status === '종료' ? 3 : p.actual_in && waitingOf(p) ? 0 : p.actual_in ? 2 : 1);
   const rows = products.filter(p => showDone || p.status !== '종료').sort((a, b) => rank(a) - rank(b));
@@ -561,7 +567,6 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
     <div className="card" style={{ padding: 0 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '16px 20px', flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={() => onEdit({ status: '진행' })}>+ 예약상품 추가</button>
-        {readyToClose.length > 0 && <button className="btn" onClick={closeAll} title="실제 입고일이 있고 기다리는 주문이 없는 상품">✅ 입고 끝난 상품 {readyToClose.length}개 종료 처리</button>}
         <label className="muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} /> 종료된 상품도 보기</label>
         <span className="muted" style={{ marginLeft: 'auto' }}>행을 누르면 일정을 고칠 수 있어요 · 수량 = 출고대기 기준</span>
       </div>
@@ -582,7 +587,7 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
                   <td className="num">{c.total || ''}</td><td className="num">{c['1차 지연'] || ''}</td><td className="num">{c['2차 지연'] || ''}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{p.status === '종료' ? <span className="chip">종료</span>
                     : p.actual_in && c.total ? <span className="chip chip-amber" title="입고됐는데 아직 출고 안 된 주문이 있어요">입고됨 · 미출고 {c.total}</span>
-                    : p.actual_in ? <span className="chip chip-green" title="기다리는 주문이 없어요. 종료 처리해도 돼요">입고 완료 · 종료 가능</span>
+                    : p.actual_in ? <span className="chip chip-green">입고 완료</span>
                     : <span className="chip chip-blue">진행</span>}</td>
                 </tr>
               );
