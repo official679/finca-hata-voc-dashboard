@@ -18,7 +18,7 @@ const CODE_GROUPS = [
   { key: 'status', label: '진행상황', column: 'status' },
   { key: 'consult_method', label: '문의 채널', column: 'consult_method' },
   { key: 'handling', label: '처리 구분', column: 'handling' },
-  { key: 'department', label: '담당 부서', column: 'department' },
+  ...(SHOW_FOLLOWUP ? [{ key: 'department', label: '담당 부서', column: 'department' }] : []),
   { key: 'platform', label: '플랫폼', column: 'platform' },
   { key: 'handler', label: '처리자', column: 'handler' },
   { key: 'brand', label: '브랜드', column: 'brand' },
@@ -160,6 +160,9 @@ function useAppData(session) {
 const NO_CATEGORY = '(미분류)';
 const categoryOf = (productId, productById) => (productId && productById.get(productId)?.category) || NO_CATEGORY;
 const subCategoryOf = (productId, productById) => (productId && productById.get(productId)?.size_gender) || '-';
+// VOC는 상품 마스터에 없으면 직접 고른 대분류·중분류(category·sub_category)를 씀
+const caseCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.category) || c.category || NO_CATEGORY;
+const caseSubCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.size_gender) || c.sub_category || '-';
 const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(c => c && c !== 'null'))].sort(), NO_CATEGORY];
 
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';

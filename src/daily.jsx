@@ -76,6 +76,43 @@ function NumCell({ value, onChange }) {
   );
 }
 
+// ---------- 업로드 데이터 → CS 데일리 자동 계산 ----------
+// 업로드 데이터의 플랫폼 → CS 데일리 칸 (자사몰은 아임웹 칸으로. 카페24로 옮기면 여기만 바꾸면 됨)
+const UPLOAD_PLATFORM_TO_DAILY = { '29CM': '29CM', '아임웹': '아임웹', '카페24': '아임웹', '무신사': '무신사', 'W컨셉': 'W컨셉', 'EQL': 'EQL' };
+
+// 보고일 → 데이터 날짜 범위 (전일 기준, 월요일 보고일 = 금~일)
+function dataRangeOf(reportDate) {
+  const d = parseDate(reportDate);
+  return [toISODate(addDays(d, d.getDay() === 1 ? -3 : -1)), toISODate(addDays(d, -1))];
+}
+
+// 주문건 = 라인 수, 출고전 취소 = 상태에 '취소'가 들어간 라인, 부정 리뷰 = 1~3점, 게시판 = 우리 답변 글 제외
+async function countUploadsForReport(reportDate, brand) {
+  const [from, to] = dataRangeOf(reportDate);
+  const start = `${from}T00:00:00+09:00`, end = `${toISODate(addDays(parseDate(to), 1))}T00:00:00+09:00`;
+  const [orders, reviews, board] = await Promise.all([
+    fetchAll(() => db.from('order_items').select('platform,status').eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
+    fetchAll(() => db.from('review_items').select('platform,rating').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
+    fetchAll(() => db.from('board_items').select('platform,inquiry_type,content').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
+  ]);
+  const byPlatform = {}, others = new Set();
+  const bump = (platform, field, n = 1) => {
+    const p = UPLOAD_PLATFORM_TO_DAILY[platform];
+    if (!p) { others.add(platform); return; }
+    byPlatform[p] = byPlatform[p] || {};
+    byPlatform[p][field] = (byPlatform[p][field] || 0) + n;
+  };
+  orders.forEach(r => { bump(r.platform, 'orders'); if (/취소/.test(r.status || '')) bump(r.platform, 'cancels'); });
+  reviews.forEach(r => { bump(r.platform, 'reviews_total'); bump(r.platform, r.rating !== null && r.rating <= 3 ? 'reviews_negative' : 'reviews_positive'); });
+  const inquiries = board.filter(r => r.inquiry_type !== ANSWER_TYPE && !isStaffAnswer(r.content));
+  inquiries.forEach(r => bump(r.platform, 'board_total'));
+  return {
+    byPlatform, others: [...others],
+    has: { orders: orders.length > 0, reviews: reviews.length > 0, board: inquiries.length > 0 },
+    totals: { orders: orders.length, reviews: reviews.length, board: inquiries.length },
+  };
+}
+
 function DailyEntryPage() {
   const { codeOptions, setDaily } = useApp();
   const daily = useDaily();
@@ -102,6 +139,44 @@ function DailyEntryPage() {
 
   const exists = daily && daily.some(r => r.report_date === date && r.brand === brand);
   const setVal = (p, f) => (n) => { setValues(prev => ({ ...prev, [p]: { ...prev[p], [f]: n } })); setDirty(true); };
+  const [filling, setFilling] = useState(false);
+  const [fillNote, setFillNote] = useState('');
+  useEffect(() => { setFillNote(''); }, [date, brand]);
+
+  // 업로드한 주문·리뷰·게시판으로 이 보고일 칸을 채움 (저장은 사람이 확인 후)
+  const fillFromUploads = async () => {
+    setFilling(true);
+    try {
+      const got = await countUploadsForReport(date, brand);
+      const filled = [], skipped = [];
+      setValues(prev => {
+        const next = { ...prev };
+        platforms.forEach(p => {
+          const c = got.byPlatform[p] || {};
+          const v = { ...next[p] };
+          if (got.has.orders) { v.orders = c.orders || 0; v.cancels = c.cancels || 0; }
+          if (got.has.reviews) { v.reviews_total = c.reviews_total || 0; v.reviews_negative = c.reviews_negative || 0; v.reviews_positive = c.reviews_positive || 0; }
+          if (got.has.board) { v.board_total = c.board_total || 0; }
+          next[p] = v;
+        });
+        return next;
+      });
+      [['orders', '주문', '줄'], ['reviews', '리뷰', '건'], ['board', '게시판', '건']].forEach(([k, name, unit]) => {
+        if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}`); else skipped.push(name);
+      });
+      // 이 브랜드 CS 데일리에 칸이 없는 플랫폼(예: 핀카의 W컨셉)은 빠지므로 따로 알려줌
+      const left = Object.entries(got.byPlatform).filter(([p]) => !platforms.includes(p))
+        .map(([p, c]) => `${p}(주문 ${c.orders || 0}·리뷰 ${c.reviews_total || 0}·게시판 ${c.board_total || 0})`);
+      setFillNote([
+        filled.length ? `✅ ${dataLabel(date)} 데이터로 채웠어요: ${filled.join(' · ')}. 확인 후 저장을 눌러주세요.` : `${dataLabel(date)}에 해당하는 업로드 데이터가 없어요.`,
+        skipped.length ? `올린 데이터가 없어서 그대로 둔 항목: ${skipped.join(', ')}` : '',
+        left.length || got.others.length ? `이 화면에 칸이 없어 빠진 플랫폼: ${[...left, ...got.others].join(', ')} (기준 관리 → 데일리 플랫폼에서 추가 가능)` : '',
+      ].filter(Boolean).join('\n'));
+      if (filled.length) setDirty(true);
+    } catch (e) {
+      toast('❌ 불러오기 실패: ' + (e.message || e), 'err');
+    } finally { setFilling(false); }
+  };
   const total = sumRows(platforms.map(p => values[p] || {}));
 
   const save = async () => {
@@ -136,7 +211,11 @@ function DailyEntryPage() {
       <PageHeader title="CS 데일리" desc={`보고일 ${fmtDate(date)} → ${dataLabel(date)} 데이터 (전일 접수 기준) · 월요일 보고일에는 금~일 3일치를 합쳐서 입력해요`}>
         <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
+        <button className="btn btn-primary" onClick={fillFromUploads} disabled={filling} title="업로드한 주문·리뷰·게시판 파일로 주문건·취소·리뷰·게시판 칸을 채워요">
+          {filling ? '불러오는 중...' : '📥 업로드 데이터로 채우기'}
+        </button>
       </PageHeader>
+      {fillNote && <div className="card" style={{ marginBottom: 16, background: 'var(--accent-soft)', border: 'none', whiteSpace: 'pre-line', lineHeight: 1.7 }}>{fillNote}</div>}
 
       <div className="grid grid-2" style={{ alignItems: 'start' }}>
         <div className="card" style={{ padding: 0 }}>

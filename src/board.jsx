@@ -95,28 +95,16 @@ async function applyBoardPatches(patches, onProgress) {
   }
 }
 
-function BoardUploadPage() {
-  const [count, setCount] = useState(null);
-  const refresh = () => db.from('board_items').select('id', { count: 'exact', head: true }).then(({ count }) => setCount(count));
-  useEffect(() => { refresh(); }, []);
-  return (
-    <>
-      <PageHeader title="게시판 업로드" desc={`플랫폼 게시판 문의 파일을 그대로 올리세요. 지금까지 저장된 문의 ${count === null ? '...' : count.toLocaleString()}건`} />
-      <UploadPanel
-        kind="board"
-        table="board_items"
-        guide="29CM · 무신사 · 아임웹 · 카페24 게시판 다운로드 파일을 알아봐요. 올리면 재입고·배송·교환/반품 등 문의 유형이 자동으로 분류돼요. 작성자 이름·아이디는 저장하지 않아요."
-        toRow={(r) => ({
-          product_name: str(r.product_name), option_text: str(r.option_text), platform_category: str(r.platform_category),
-          title: str(r.title), content: str(r.content), written_at: r.when ? r.when.iso : null,
-          answer: str(r.answer), answered_at: r.answered ? r.answered.iso : null,
-          inquiry_type: isStaffAnswer(r.content) ? ANSWER_TYPE : classifyBoard(`${r.platform_category || ''} ${r.title || ''} ${r.content || ''}`),
-        })}
-        onDone={refresh}
-      />
-    </>
-  );
-}
+// 데이터 업로드 화면에서 쓰는 게시판 저장 설정
+const BOARD_UPLOAD = {
+  table: 'board_items',
+  toRow: (r) => ({
+    product_name: str(r.product_name), option_text: str(r.option_text), platform_category: str(r.platform_category),
+    title: str(r.title), content: str(r.content), written_at: r.when ? r.when.iso : null,
+    answer: str(r.answer), answered_at: r.answered ? r.answered.iso : null,
+    inquiry_type: isStaffAnswer(r.content) ? ANSWER_TYPE : classifyBoard(`${r.platform_category || ''} ${r.title || ''} ${r.content || ''}`),
+  }),
+};
 
 // 고른 기간의 문의만 불러옴 (since 없으면 전체)
 function useBoard(since) {
@@ -159,7 +147,7 @@ function BoardAnalysisPage() {
   const [tidyBusy, setTidyBusy] = useState('');
 
   if (!rows) return <div className="loading-screen">게시판 문의 불러오는 중...</div>;
-  if (!rows.length && period === 'all') return <><PageHeader title="게시판 분석" /><div className="card empty">아직 올린 게시판 문의가 없어요. <a href="#/upload-board">게시판 업로드</a>에서 파일을 올려주세요.</div></>;
+  if (!rows.length && period === 'all') return <><PageHeader title="게시판 분석" /><div className="card empty">아직 올린 게시판 문의가 없어요. <a href="#/upload">데이터 업로드</a>에서 파일을 올려주세요.</div></>;
 
   const types = BOARD_TYPE_NAMES.map(t => ({ label: t, count: scoped.filter(r => r.inquiry_type === t).length })).filter(t => t.count).sort((a, b) => b.count - a.count);
   const restock = scoped.filter(r => r.inquiry_type === '재입고');

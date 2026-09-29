@@ -78,7 +78,7 @@ function ReportPage({ go }) {
         </div>
         <div className="card">
           <div className="card-title">대분류별 과실 VOC <small>상품 마스터 기준</small></div>
-          <Bars items={countBy(faults, c => categoryOf(c.product_id, productById))} color="var(--danger)" />
+          <Bars items={countBy(faults, c => caseCategory(c, productById))} color="var(--danger)" />
         </div>
         <div className="card">
           <div className="card-title">플랫폼별 VOC</div>

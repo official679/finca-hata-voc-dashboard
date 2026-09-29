@@ -94,7 +94,7 @@ function CodeGroupEditor({ group }) {
                   <td>{it.active ? <span className="chip chip-green">사용</span> : <span className="chip">숨김</span>}</td>
                   <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
                     <button className="btn btn-sm" onClick={() => { setEditingId(it.id); setEditLabel(it.label); }}>이름 변경</button>{' '}
-                    <button className="btn btn-sm" onClick={() => run(db.from('code_items').update({ active: !it.active }).eq('id', it.id))}>{it.active ? '숨기기' : '다시 사용'}</button>{' '}
+                    <button className="btn btn-sm" style={{ minWidth: 76 }} onClick={() => run(db.from('code_items').update({ active: !it.active }).eq('id', it.id))}>{it.active ? '숨기기' : '다시 사용'}</button>{' '}
                     <button className="btn btn-sm btn-danger" disabled={n > 0} title={n > 0 ? '사용 중인 항목은 삭제 대신 숨기기를 사용하세요' : ''} onClick={() => remove(it)}>삭제</button>
                   </td>
                 </tr>

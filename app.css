@@ -221,8 +221,10 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .day-chip i { font-style: normal; display: inline-block; width: 18px; height: 18px; line-height: 18px; margin: 0 1px; border-radius: 50%; background: #EEF1F5; color: var(--faint); font-size: 10px; }
 .day-chip i.ok { background: var(--success); color: #fff; }
 .entry-table td { padding: 5px 10px; vertical-align: middle; }
-.entry-table .section-row td { background: #FAFBFC; font-weight: 700; font-size: 12px; color: var(--muted); padding: 8px 10px; }
-.entry-table .derived td { color: var(--muted); font-size: 12px; background: #FCFCFD; }
+.entry-table thead th { font-size: 13px; font-weight: 700; color: var(--text); }
+.entry-table .section-row td { background: var(--accent-soft); font-weight: 800; font-size: 13.5px; color: var(--primary); padding: 9px 12px; border-left: 4px solid var(--primary); }
+.entry-table .derived td { color: var(--text); font-weight: 700; font-size: 13px; background: var(--warn-soft); }
+.entry-table .derived td:first-child { border-left: 4px solid var(--warn); }
 .entry-table .total, .report-table .total { font-weight: 700; background: #F7F9FC; }
 .num-input { width: 72px; padding: 6px 8px; border: 1px solid #D5D9E0; border-radius: 6px; text-align: right; font-size: 14px; font-family: inherit; font-variant-numeric: tabular-nums; }
 .num-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -259,6 +261,11 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .review-body { margin-top: 8px; line-height: 1.6; white-space: pre-wrap; }
 .review-foot { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
 
+.upload-guide { margin-top: 14px; padding: 14px 16px; background: #F7F9FC; border-radius: 10px; font-size: 13px; }
+.upload-guide-rules ul { margin: 6px 0 8px 18px; color: var(--text); line-height: 1.8; }
+.upload-guide-kind { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+.upload-guide-title { font-weight: 700; margin-bottom: 4px; }
+.upload-guide-kind .table th, .upload-guide-kind .table td { padding: 6px 8px; font-size: 12px; }
 .pager { display: flex; justify-content: center; align-items: center; gap: 4px; margin-top: 14px; flex-wrap: wrap; }
 
 /* 매뉴얼 */

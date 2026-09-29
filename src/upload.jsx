@@ -86,14 +86,16 @@ const FILE_FORMATS = [
 ];
 
 // 파일 → 시트별 { name, format, rows(정리된 값) }
+// kind: 'review' 한 종류 또는 ['review', 'board', 'order'] 여러 종류 (시트마다 칸 이름을 보고 알아서 판단)
 async function readUploadFile(file, kind) {
+  const kinds = Array.isArray(kind) ? kind : [kind];
   // raw: CSV의 날짜 모양 글자를 멋대로 바꾸지 않고 글자 그대로 읽음 (엑셀 파일에는 영향 없음)
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false, codepage: 65001, raw: /\.csv$/i.test(file.name) });
   return wb.SheetNames.map(name => {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
     for (let h = 0; h < Math.min(10, grid.length); h++) {
       const header = grid[h].map(c => String(c).trim());
-      const format = FILE_FORMATS.find(f => f.kind === kind && f.headers.every(x => header.includes(x)));
+      const format = FILE_FORMATS.find(f => kinds.includes(f.kind) && f.headers.every(x => header.includes(x)));
       if (!format) continue;
       const rows = grid.slice(h + 1)
         .filter(r => r.some(c => String(c).trim() !== ''))
@@ -119,9 +121,58 @@ function productMatcher(products) {
   return (name) => map.get(normProductName(name)) || null;
 }
 
-// 업로드 화면 (리뷰·게시판 공통)
-function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel, linkProducts = true }) {
-  const { products } = useApp();
+const KIND_LABEL = { review: '리뷰', board: '게시판 문의', order: '주문 품목' };
+
+// 업로드 안내: 종류별로 무엇이 되는지 + 알아보는 파일 형식(필수 칸)은 FILE_FORMATS에서 자동으로 만듦
+const KIND_GUIDE = {
+  review: { icon: '⭐', title: '리뷰', does: '긍정·부정 자동 분류 · 새로 들어온 1~3점 리뷰는 VOC 접수로 자동 등록 · 고객 이름·아이디는 저장 안 함' },
+  board: { icon: '💬', title: '게시판 문의', does: '재입고·배송·교환/반품 등 문의 유형 자동 분류 · 우리 답변 글은 집계에서 제외 · 작성자 정보는 저장 안 함' },
+  order: { icon: '🛒', title: '주문', does: '대분류(베딩·러그·바스·홈데코·웨어·잡화·키친)와 세트 여부 자동 분류 · 주문자·수령자·연락처는 저장 안 함' },
+};
+
+function UploadGuide({ kinds }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="upload-guide">
+      <div className="upload-guide-rules">
+        <b>이렇게 올리면 돼요</b>
+        <ul>
+          <li>플랫폼에서 받은 <b>엑셀·CSV 파일을 그대로</b> 올리세요. 칸을 지우거나 순서를 바꿀 필요 없어요.</li>
+          <li>리뷰·게시판·주문 파일을 <b>한 번에 여러 개</b> 골라도 돼요. 시트마다 종류를 알아서 구분해요.</li>
+          <li>한 파일에 플랫폼별 시트가 여러 개 있어도 괜찮아요. <b>첫 줄(제목 줄)의 칸 이름</b>으로 형식을 알아봐요.</li>
+          <li>같은 파일·같은 기간을 다시 올려도 <b>중복 저장되지 않아요.</b></li>
+          <li>파일에 브랜드 칸이 없으면 위에서 고른 브랜드로 저장돼요. 파일 이름에 '핀카'·'하타'가 있으면 자동으로 골라져요.</li>
+        </ul>
+      </div>
+      <button className="btn-link" onClick={() => setOpen(!open)}>{open ? '▲ 알아보는 파일 형식 접기' : '▼ 알아보는 파일 형식 보기 (필수 칸 이름)'}</button>
+      {open && (
+        <div className="grid grid-2w" style={{ marginTop: 10 }}>
+          {kinds.map(k => (
+            <div key={k} className="upload-guide-kind">
+              <div className="upload-guide-title">{KIND_GUIDE[k].icon} {KIND_GUIDE[k].title}</div>
+              <div className="hint" style={{ marginTop: 0, marginBottom: 8 }}>{KIND_GUIDE[k].does}</div>
+              <table className="table">
+                <thead><tr><th>파일 형식</th><th>첫 줄에 꼭 있어야 하는 칸</th></tr></thead>
+                <tbody>
+                  {FILE_FORMATS.filter(f => f.kind === k).map(f => (
+                    <tr key={f.label + f.headers.join()}><td style={{ whiteSpace: 'nowrap' }}>{f.label}</td><td>{f.headers.join(' · ')}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 업로드 화면 (리뷰·게시판·주문 공통)
+// configs: { review: { table, toRow, linkProducts, afterInsert(newRows, app) }, board: {...}, order: {...} }
+function UploadPanel({ configs, onDone, guide }) {
+  const app = useApp();
+  const { products } = app;
+  const kinds = Object.keys(configs);
   const toast = useToast();
   const [brand, setBrand] = useState('');
   const [sheets, setSheets] = useState(null);
@@ -136,7 +187,7 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel
       const all = [];
       for (const file of files) {
         if (!brand) { const b = normBrand(file.name); if (b) setBrand(b); }
-        (await readUploadFile(file, kind)).forEach(s => all.push({ ...s, file: file.name }));
+        (await readUploadFile(file, kinds)).forEach(s => all.push({ ...s, file: file.name }));
       }
       setSheets(all);
     } catch (e) {
@@ -147,39 +198,46 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel
   const ready = sheets ? sheets.filter(s => s.format && s.rows.length) : [];
   const needsBrand = ready.some(s => s.rows.some(r => !r.brand));
 
+  // 종류(리뷰·게시판·주문)별로 나눠서 각자의 표에 저장
   const upload = async () => {
     const match = productMatcher(products);
-    const rows = [];
-    ready.forEach(s => s.rows.forEach(r => {
-      const b = r.brand || brand;
-      if (!b) return;
-      rows.push({
-        ...toRow(r), brand: b, platform: r.platform,
-        source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
-        ...(linkProducts ? { product_id: match(r.product_name) } : {}),
-      });
-    }));
-    // 같은 파일 안의 중복 제거
-    const unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
-    let inserted = 0;
-    const newRows = [];
+    const results = [];
     try {
-      for (let i = 0; i < unique.length; i += 500) {
-        setBusy(`올리는 중... ${Math.min(i + 500, unique.length).toLocaleString()} / ${unique.length.toLocaleString()}`);
-        // 이번에 새로 저장된 줄만 돌아옴 (이미 있던 줄은 건너뜀)
-        // 후속 처리가 필요할 때만 전체 줄을 돌려받음 (주문처럼 많은 데이터는 id만)
-        const { data, error } = await db.from(table).upsert(unique.slice(i, i + 500), { onConflict: 'platform,source_key', ignoreDuplicates: true }).select(afterInsert ? '*' : 'id');
-        if (error) throw error;
-        inserted += data.length;
-        newRows.push(...data);
+      for (const kind of kinds) {
+        const cfg = configs[kind];
+        const rows = [];
+        ready.filter(s => s.format.kind === kind).forEach(s => s.rows.forEach(r => {
+          const b = r.brand || brand;
+          if (!b) return;
+          rows.push({
+            ...cfg.toRow(r), brand: b, platform: r.platform,
+            source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
+            ...(cfg.linkProducts === false ? {} : { product_id: match(r.product_name) }),
+          });
+        }));
+        if (!rows.length) continue;
+        // 같은 파일 안의 중복 제거
+        const unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
+        let inserted = 0;
+        const newRows = [];
+        for (let i = 0; i < unique.length; i += 500) {
+          setBusy(`${KIND_LABEL[kind]} 올리는 중... ${Math.min(i + 500, unique.length).toLocaleString()} / ${unique.length.toLocaleString()}`);
+          // 이번에 새로 저장된 줄만 돌아옴 (이미 있던 줄은 건너뜀). 후속 처리가 필요할 때만 전체 줄을, 아니면 id만
+          const { data, error } = await db.from(cfg.table).upsert(unique.slice(i, i + 500), { onConflict: 'platform,source_key', ignoreDuplicates: true }).select(cfg.afterInsert ? '*' : 'id');
+          if (error) throw new Error(`${KIND_LABEL[kind]}: ${error.message}`);
+          inserted += data.length;
+          newRows.push(...data);
+        }
+        let extra = null;
+        if (cfg.afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await cfg.afterInsert(newRows, app); }
+        results.push({ kind, inserted, dup: rows.length - unique.length, skipped: unique.length - inserted, extra });
       }
-      let extra = null;
-      if (afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await afterInsert(newRows); }
-      setResult({ total: unique.length, inserted, dup: rows.length - unique.length, skipped: unique.length - inserted, extra });
+      setResult(results);
       setSheets(null);
-      toast(`✅ 새 ${itemLabel || (kind === 'review' ? '리뷰' : '문의')} ${inserted.toLocaleString()}건 저장`);
+      toast('✅ 업로드 완료');
       if (onDone) onDone();
     } catch (e) {
+      if (results.length) setResult(results);
       toast('❌ 업로드 실패: ' + (e.message || e), 'err');
     } finally { setBusy(''); }
   };
@@ -197,7 +255,7 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel
           <input ref={inputRef} type="file" multiple accept=".xlsx,.xls,.csv" hidden onChange={e => { pick([...e.target.files]); e.target.value = ''; }} />
         </div>
       </div>
-      <div className="hint" style={{ marginTop: 10 }}>{guide}</div>
+      {guide}
 
       {busy && <div className="empty">{busy}</div>}
 
@@ -206,13 +264,14 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel
           <div className="form-section">파일 내용 확인</div>
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>파일 · 시트</th><th>인식된 형식</th><th>플랫폼</th><th className="num">건수</th><th>기간</th></tr></thead>
+              <thead><tr><th>파일 · 시트</th><th>종류</th><th>인식된 형식</th><th>플랫폼</th><th className="num">건수</th><th>기간</th></tr></thead>
               <tbody>
                 {sheets.map(s => {
                   const dates = s.rows.map(r => r.when?.key).filter(Boolean).sort();
                   return (
                     <tr key={s.file + s.name}>
                       <td>{s.file} · {s.name}</td>
+                      <td>{s.format ? <b>{KIND_LABEL[s.format.kind]}</b> : '-'}</td>
                       <td>{s.format ? <span className="chip chip-green">{s.format.label}</span> : s.empty ? <span className="chip">빈 시트</span> : <span className="chip chip-amber">형식을 알 수 없어 건너뜀</span>}</td>
                       <td>{[...new Set(s.rows.map(r => r.platform))].join(', ') || '-'}</td>
                       <td className="num">{s.rows.length.toLocaleString()}</td>
@@ -233,12 +292,16 @@ function UploadPanel({ kind, table, toRow, onDone, guide, afterInsert, itemLabel
         </>
       )}
 
-      {result && (
+      {result && result.length > 0 && (
         <div className="card" style={{ marginTop: 16, background: 'var(--success-soft)', border: 'none' }}>
-          ✅ 업로드 완료 — 새로 저장 <b>{result.inserted.toLocaleString()}건</b>
-          {result.skipped > 0 && <> · 이미 있던 {result.skipped.toLocaleString()}건은 건너뜀</>}
-          {result.dup > 0 && <> · 파일 안 중복 {result.dup.toLocaleString()}건 제외</>}
-          {result.extra && <div style={{ marginTop: 6 }}>{result.extra}</div>}
+          {result.map(r => (
+            <div key={r.kind} style={{ marginBottom: 4 }}>
+              ✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b>
+              {r.skipped > 0 && <> · 이미 있던 {r.skipped.toLocaleString()}건은 건너뜀</>}
+              {r.dup > 0 && <> · 파일 안 중복 {r.dup.toLocaleString()}건 제외</>}
+              {r.extra && <div style={{ marginTop: 4 }}>{r.extra}</div>}
+            </div>
+          ))}
         </div>
       )}
     </div>

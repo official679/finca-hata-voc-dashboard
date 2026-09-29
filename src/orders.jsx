@@ -41,38 +41,52 @@ FILE_FORMATS.push(
       order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
 );
 
-function OrderUploadPage() {
-  const [count, setCount] = useState(null);
-  const refresh = () => db.from('order_items').select('id', { count: 'exact', head: true }).then(({ count }) => setCount(count));
-  useEffect(() => { refresh(); }, []);
-  const [summary] = useSince('order_items', 'brand,platform,order_date,category,qty,is_set,status', monthsAgo(5), 'order_date');
+// 데이터 업로드 화면에서 쓰는 주문 저장 설정 (고객 정보 칸은 저장하지 않음, 상품 마스터 연결 없음)
+const ORDER_UPLOAD = {
+  table: 'order_items',
+  linkProducts: false,
+  toRow: (r) => ({
+    order_no: str(r.order_no), status: str(r.status), claim_status: str(r.claim_status),
+    product_name: str(r.product_name), option_text: str(r.option_text), qty: r.qty,
+    ordered_at: r.when ? r.when.iso : null, order_date: r.when ? r.when.key.slice(0, 10) : null,
+    cancel_reason: str(r.cancel_reason), return_reason: str(r.return_reason),
+    ...classifyItem(r.product_name, r.option_text),
+  }),
+};
 
+// 리뷰·게시판·주문을 한 곳에서 올리는 화면 (파일마다 종류를 알아서 구분)
+function DataUploadPage() {
+  const [counts, setCounts] = useState({});
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    Promise.all(['review_items', 'board_items', 'order_items'].map(t => db.from(t).select('id', { count: 'exact', head: true }).then(({ count }) => [t, count])))
+      .then(rs => setCounts(Object.fromEntries(rs)));
+  }, [version]);
+  const n = (t) => (counts[t] === undefined ? '...' : (counts[t] || 0).toLocaleString());
+  return (
+    <>
+      <PageHeader title="데이터 업로드" desc={`지금까지 저장: 리뷰 ${n('review_items')}건 · 게시판 문의 ${n('board_items')}건 · 주문 품목 ${n('order_items')}줄`} />
+      <UploadPanel
+        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD }}
+        guide={<UploadGuide kinds={['review', 'board', 'order']} />}
+        onDone={() => setVersion(v => v + 1)}
+      />
+      <OrderCategorySummary key={version} />
+    </>
+  );
+}
+
+// 주문 자동 분류 확인용: 최근 6개월 대분류별 주문 라인 수
+function OrderCategorySummary() {
+  const [summary] = useSince('order_items', 'brand,platform,order_date,category,qty,is_set,status', monthsAgo(5), 'order_date');
   const months = summary ? [...new Set(summary.map(r => (r.order_date || '').slice(0, 7)).filter(Boolean))].sort() : [];
   const cats = [...MD_GROUPS.map(g => g[0]), null];
   const cancelled = (r) => /취소/.test(r.status || '');
-
   return (
     <>
-      <PageHeader title="주문 업로드" desc={`플랫폼 주문 파일을 그대로 올리세요. 지금까지 저장된 주문 품목 ${count === null ? '...' : count.toLocaleString()}줄`} />
-      <UploadPanel
-        kind="order"
-        table="order_items"
-        itemLabel="주문 품목"
-        linkProducts={false}
-        guide="29CM · 아임웹 · 카페24 · 무신사 주문 파일을 알아봐요. 주문자·수령자·연락처 같은 고객 정보는 저장하지 않아요. 상품명(마리테처럼 코드면 옵션명)을 보고 대분류와 세트 여부를 자동으로 붙여요. 같은 주문을 다시 올려도 중복되지 않아요."
-        toRow={(r) => ({
-          order_no: str(r.order_no), status: str(r.status), claim_status: str(r.claim_status),
-          product_name: str(r.product_name), option_text: str(r.option_text), qty: r.qty,
-          ordered_at: r.when ? r.when.iso : null, order_date: r.when ? r.when.key.slice(0, 10) : null,
-          cancel_reason: str(r.cancel_reason), return_reason: str(r.return_reason),
-          ...classifyItem(r.product_name, r.option_text),
-        })}
-        onDone={refresh}
-      />
-
       {summary && summary.length > 0 && (
         <div className="card" style={{ marginTop: 16, padding: 0 }}>
-          <div className="card-title" style={{ padding: '18px 20px 4px' }}>최근 6개월 대분류별 주문 수량 <small>취소 제외 · 자동 분류 확인용</small></div>
+          <div className="card-title" style={{ padding: '18px 20px 4px' }}>최근 6개월 대분류별 주문 라인 수 <small>취소 제외 · 주문 자동 분류 확인용</small></div>
           <div className="table-wrap">
             <table className="table report-table">
               <thead><tr><th>대분류</th>{months.map(m => <th key={m} className="num">{Number(m.slice(5))}월</th>)}<th className="num">세트 비중</th></tr></thead>
@@ -83,7 +97,7 @@ function OrderUploadPage() {
                   return (
                     <tr key={c || 'none'}>
                       <td>{c || <span className="muted">(분류 못 함)</span>}</td>
-                      {months.map(m => <td key={m} className="num">{rs.filter(r => (r.order_date || '').startsWith(m)).reduce((a, r) => a + (r.qty || 0), 0).toLocaleString()}</td>)}
+                      {months.map(m => <td key={m} className="num">{rs.filter(r => (r.order_date || '').startsWith(m)).length.toLocaleString()}</td>)}
                       <td className="num">{pct(rs.filter(r => r.is_set).length, rs.length)}</td>
                     </tr>
                   );

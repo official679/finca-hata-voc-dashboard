@@ -82,30 +82,18 @@ async function negativeReviewsToVoc(newReviews) {
   return created;
 }
 
-function ReviewUploadPage() {
-  const { setCases } = useApp();
-  const [count, setCount] = useState(null);
-  const refresh = () => db.from('review_items').select('id', { count: 'exact', head: true }).then(({ count }) => setCount(count));
-  useEffect(() => { refresh(); }, []);
-  return (
-    <>
-      <PageHeader title="리뷰 업로드" desc={`플랫폼에서 받은 리뷰 파일을 그대로 올리세요. 지금까지 저장된 리뷰 ${count === null ? '...' : count.toLocaleString()}건`} />
-      <UploadPanel
-        kind="review"
-        table="review_items"
-        guide="29CM · 아임웹 · 무신사 리뷰 다운로드 파일과 기존 시트의 '리뷰 low' 형식을 알아봐요. 같은 리뷰를 다시 올려도 중복으로 저장되지 않아요. 새로 들어온 1~3점 리뷰는 VOC 접수로 자동 등록돼요. 고객 이름·아이디는 저장하지 않아요."
-        toRow={(r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no) })}
-        onDone={refresh}
-        afterInsert={async (newRows) => {
-          const created = await negativeReviewsToVoc(newRows);
-          if (!created) return null;
-          setCases(prev => [...created, ...prev]);
-          return <>📝 새 부정 리뷰(1~3점) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
-        }}
-      />
-    </>
-  );
-}
+// 데이터 업로드 화면에서 쓰는 리뷰 저장 설정
+const REVIEW_UPLOAD = {
+  table: 'review_items',
+  toRow: (r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no) }),
+  // 새로 저장된 1~3점 리뷰 → VOC 접수
+  afterInsert: async (newRows, app) => {
+    const created = await negativeReviewsToVoc(newRows);
+    if (!created) return null;
+    app.setCases(prev => [...created, ...prev]);
+    return <>📝 새 부정 리뷰(1~3점) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
+  },
+};
 
 const REVIEW_PERIODS = [
   { key: '1', label: '이번 달' }, { key: '-1', label: '지난 달' }, { key: '3', label: '최근 3개월' }, { key: '6', label: '최근 6개월' }, { key: 'all', label: '전체' },
@@ -141,7 +129,7 @@ function ReviewAnalysisPage() {
   const enriched = useMemo(() => scoped.map(r => ({ ...r, neg: isNeg(r), themes: reviewThemes(r.content, isNeg(r)), name: (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)' })), [scoped, negMax, productById]);
 
   if (!reviews) return <div className="loading-screen">리뷰 불러오는 중...</div>;
-  if (!reviews.length && period === 'all') return <><PageHeader title="리뷰 분석" /><div className="card empty">아직 올린 리뷰가 없어요. <a href="#/upload-reviews">리뷰 업로드</a>에서 파일을 올려주세요.</div></>;
+  if (!reviews.length && period === 'all') return <><PageHeader title="리뷰 분석" /><div className="card empty">아직 올린 리뷰가 없어요. <a href="#/upload">데이터 업로드</a>에서 파일을 올려주세요.</div></>;
 
   const neg = enriched.filter(r => r.neg);
   const pos = enriched.filter(r => !r.neg);

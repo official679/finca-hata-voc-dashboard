@@ -14,9 +14,11 @@ const NAV = [
   { group: '✏️ 입력·업로드', items: [
     { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
-    { key: 'upload-reviews', label: '리뷰 업로드', icon: '⭐' },
-    { key: 'upload-board', label: '게시판 업로드', icon: '💬' },
-    { key: 'upload-orders', label: '주문 업로드', icon: '🛒' },
+    { key: 'upload', label: '데이터 업로드', icon: '📤' },
+    // 예전 주소(#/upload-reviews 등)로 들어와도 데이터 업로드 화면으로 (메뉴에는 안 보임)
+    { key: 'upload-reviews', label: '데이터 업로드', hidden: true },
+    { key: 'upload-board', label: '데이터 업로드', hidden: true },
+    { key: 'upload-orders', label: '데이터 업로드', hidden: true },
   ] },
   { group: '⚙️ 기준·매뉴얼', items: [
     { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
@@ -88,10 +90,11 @@ function Shell({ session }) {
     monthly: <ReportsPage />,
     report: <ReportPage go={go} />,
     daily: <DailyEntryPage />,
-    'upload-reviews': <ReviewUploadPage />,
+    upload: <DataUploadPage />,
+    'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
-    'upload-board': <BoardUploadPage />,
-    'upload-orders': <OrderUploadPage />,
+    'upload-board': <DataUploadPage />,
+    'upload-orders': <DataUploadPage />,
     board: <BoardAnalysisPage />,
     actions: <ActionsPage />,
     'voc-new': <VocEntryPage />,
@@ -116,7 +119,7 @@ function Shell({ session }) {
           {NAV.map(g => (
             <div className="nav-group" key={g.group}>
               <div className="nav-group-title">{g.group}</div>
-              {g.items.map(item => (
+              {g.items.filter(item => !item.hidden).map(item => (
                 <button key={item.key} className={`nav-item${route === item.key ? ' active' : ''}`} onClick={() => go(item.key)}>
                   <span>{item.icon}</span>{item.label}
                   {item.soon && <span className="badge-soon">{item.soon}</span>}
