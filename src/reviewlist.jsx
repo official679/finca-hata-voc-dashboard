@@ -18,7 +18,7 @@ function openReviewList(params) {
 }
 
 function ReviewListPage() {
-  const { productById, cases, setCases } = useApp();
+  const { productById, products, cases, setCases } = useApp();
   const toast = useToast();
   const init = useMemo(() => new URLSearchParams(location.hash.split('?')[1] || ''), []);
   const [brand, setBrand] = useState(init.get('brand') || '핀카');
@@ -74,13 +74,14 @@ function ReviewListPage() {
   };
   const toVoc = async (r) => {
     if (!confirm(`이 리뷰를 VOC로 접수할까요?\n${nameOf(r)} · ★${r.rating}`)) return;
-    const { data, error } = await db.from('voc_cases').insert(reviewToVocRow({ ...r, product_name: nameOf(r) }, '리뷰 목록에서 등록')).select().single();
+    const pid = r.product_id || findReviewProductId(r.product_name, r.brand, products);
+    const { data, error } = await db.from('voc_cases').insert(reviewToVocRow({ ...r, product_id: pid, product_name: pid ? productById.get(pid)?.product_name || nameOf(r) : nameOf(r) }, '리뷰 목록에서 등록')).select().single();
     if (error) { toast('❌ VOC 등록 실패: ' + error.message, 'err'); return; }
     setCases(prev => [data, ...prev]);
     const patch = { voc_case_id: data.id, ...(r.check_status ? {} : { check_status: r.rating > negMax ? '체크필요' : '부정' }) };
     const { error: e2 } = await db.from('review_items').update(patch).eq('id', r.id);
     setReviews(prev => prev.map(x => (x.id === r.id ? { ...x, ...(e2 ? {} : patch) } : x)));
-    toast(<>✅ VOC로 접수했어요 · <a href="#/voc-list">VOC 목록</a>에서 사진·처리 내용을 채워주세요</>);
+    toast(pid ? <>✅ VOC로 접수했어요 · <a href="#/voc-list">VOC 목록</a>에서 사진·처리 내용을 채워주세요</> : <>✅ VOC로 접수했어요 · 상품 마스터에서 상품을 못 찾아서 <a href="#/voc-list">VOC 목록</a>에서 대분류·중분류를 직접 골라주세요</>);
   };
 
   // VOC로 보낸 것 되돌리기: 연결된 VOC 접수를 지우고 리뷰의 연결을 풂

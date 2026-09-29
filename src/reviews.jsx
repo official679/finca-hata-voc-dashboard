@@ -74,6 +74,15 @@ function reviewToVocRow(r, note = REVIEW_VOC_NOTE) {
 }
 const reviewVocKey = (r) => `[리뷰 ★${r.rating}] ${r.content || ''}`;
 
+// 리뷰 상품명 → 상품 마스터 (VOC 대분류·중분류용). 똑같은 이름 먼저, 없으면 말머리·옵션을 뺀 핵심 단어로 찾기
+function findReviewProductId(name, brand, products) {
+  if (!products || !products.length || !name) return null;
+  const exact = productMatcher(products)(name);
+  if (exact) return exact;
+  const hit = inferProduct(coreName(name), brand, buildProductIndex(products));
+  return hit ? hit.id : null;
+}
+
 // 리뷰에 연결된 VOC 번호 기록 (12번 SQL 전이면 조용히 건너뜀)
 async function linkReviewsToVoc(reviews, created) {
   for (let i = 0; i < reviews.length; i++) {
@@ -83,9 +92,9 @@ async function linkReviewsToVoc(reviews, created) {
   }
 }
 
-async function negativeReviewsToVoc(newReviews) {
+async function negativeReviewsToVoc(newReviews, products) {
   const src = newReviews.filter(r => r.rating !== null && r.rating <= 3);
-  const rows = src.map(r => reviewToVocRow(r));
+  const rows = src.map(r => reviewToVocRow({ ...r, product_id: r.product_id || findReviewProductId(r.product_name, r.brand, products) }));
   if (!rows.length) return null;
   const created = [];
   for (let i = 0; i < rows.length; i += 200) {
@@ -103,7 +112,7 @@ const REVIEW_UPLOAD = {
   toRow: (r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no) }),
   // 새로 저장된 1~3점 리뷰 → VOC 접수
   afterInsert: async (newRows, app) => {
-    const created = await negativeReviewsToVoc(newRows);
+    const created = await negativeReviewsToVoc(newRows, app.products);
     if (!created) return null;
     app.setCases(prev => [...created, ...prev]);
     return <>📝 새 부정 리뷰(1~3점) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
