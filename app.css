@@ -372,8 +372,9 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 tr.row-selected td { background: #EEF4FE !important; }
 /* 리뷰 목록 */
 .review-table td { vertical-align: top; }
-.review-table .review-text { min-width: 320px; max-width: 520px; cursor: pointer; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
-.review-table .review-text.open { display: block; -webkit-line-clamp: unset; }
+.review-table td.review-text { min-width: 280px; cursor: pointer; line-height: 1.55; white-space: normal; }
+.review-table .review-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; word-break: break-all; }
+.review-table .review-text.open .review-clamp { display: block; -webkit-line-clamp: unset; }
 .review-table tr.review-neg td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
 .check-btn { border: 1px solid var(--border); background: #fff; cursor: pointer; margin-right: 4px; opacity: 0.55; font-size: 12px; }
 .check-btn:hover { opacity: 1; }

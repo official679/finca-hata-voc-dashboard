@@ -86,7 +86,7 @@ function ReviewListPage() {
   const hasFilter = platform || stars || check || theme || product || q;
   return (
     <>
-      <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · ${rows.length.toLocaleString()}건 · 리뷰마다 👍긍정 / 👎부정 / ⚠️체크필요로 표시하고, 부정·체크필요는 VOC로 보낼 수 있어요`}>
+      <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · ${rows.length.toLocaleString()}건 · 부정·체크필요로 표시하면 VOC로 보낼 수 있어요`}>
         <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
         <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
       </PageHeader>
@@ -119,7 +119,7 @@ function ReviewListPage() {
                     <td style={{ whiteSpace: 'nowrap' }}>{r.platform}</td>
                     <td style={{ minWidth: 180, maxWidth: 260 }}>{nameOf(r)}</td>
                     <td style={{ whiteSpace: 'nowrap' }}><span className="stars">{'★'.repeat(r.rating || 0)}<span className="muted">{'★'.repeat(5 - (r.rating || 0))}</span></span></td>
-                    <td className={`review-text${openId === r.id ? ' open' : ''}`} onClick={() => setOpenId(openId === r.id ? null : r.id)} title="누르면 전체 내용">{r.content || <span className="muted">(내용 없음)</span>}</td>
+                    <td className={`review-text${openId === r.id ? ' open' : ''}`} onClick={() => setOpenId(openId === r.id ? null : r.id)} title="누르면 전체 내용"><div className="review-clamp">{r.content || <span className="muted">(내용 없음)</span>}</div></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {REVIEW_CHECKS.map(c => (
                         <button key={c.key} className={`chip check-btn ${r.check_status === c.key ? c.cls + ' on' : ''}`} onClick={() => setStatus(r, c.key)} title={c.key}>{c.icon} {c.key}</button>
