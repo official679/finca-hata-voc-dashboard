@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~09 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~10 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -35,6 +35,8 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 예약배송 관리(preorder.jsx): 구글시트 '예약배송 자동정리' 스크립트 v1.7 계산을 옮김. 오클릭 미출고 파일을 올릴 때마다 파일에 없는 주문 = 출고완
   (판매처 누락·줄 수 30% 미만이면 확인). 지연 단계 = 구매일(판매처주문번호 날짜)과 n차 변경 공지일 비교.
   주문자 이름은 안내용으로 저장하기로 사용자 동의 (연락처·주소는 저장 안 함).
+  출고일이 늦어지지 않았으면(현재 출고일 <= 주문 당시 안내일) 지연 아님. 예약상품 일정은 대시보드에서만 고침 (구글시트 재업로드 시 덮어써짐).
+  사은품 목록 = 기준 관리 '예약배송 사은품' ("코드 단품) 상품명", 앞 숫자 = 오클릭 바코드 → 저재고 계산 제외·🎁 표시).
 - CX 미팅 로그(meetings.jsx): 노션 'CX 미팅 로그'를 대시보드로 옮김 (2026-09-29, 기존 6건 가져옴 · 이후엔 대시보드에서 작성).
   논의사항(meeting_items)은 완료될 때까지 다음 회의에 자동으로 따라감. '주간 CX 리포트 넣기' = CS 데일리 숫자,
   고객 문의 인입 = 게시판+해피톡+전화 인입 (노션 회의록 기준).
