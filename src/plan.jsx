@@ -14,6 +14,9 @@ function PlanPage() {
   const toast = useToast();
   const item = (codes || []).find(c => c.group_key === PLAN_GROUP);
   const [editing, setEditing] = useState(false);
+  // 시트 확대·축소 (구글 시트 안 배율은 못 바꿔서 틀 전체를 줄이거나 키움) · 이 PC에 기억
+  const [zoom, setZoomState] = useState(() => { try { return Number(localStorage.getItem('planZoom')) || 1; } catch { return 1; } });
+  const setZoom = (z) => { const v = Math.min(1.5, Math.max(0.5, Math.round(z * 10) / 10)); setZoomState(v); try { localStorage.setItem('planZoom', String(v)); } catch {} };
   const [draft, setDraft] = useState('');
   const sheet = item ? parseSheetUrl(item.label) : null;
 
@@ -54,11 +57,18 @@ function PlanPage() {
   return (
     <>
       <PageHeader title="전사플랜" desc="그로스본부 통합시트 · 2026 전사플랜 탭 (시트를 고치면 바로 반영돼요)">
+        <span className="zoom-ctl">
+          <button className="btn btn-sm" onClick={() => setZoom(zoom - 0.1)} disabled={zoom <= 0.5} title="작게">−</button>
+          <button className="btn btn-sm" onClick={() => setZoom(1)} title="100%로">{Math.round(zoom * 100)}%</button>
+          <button className="btn btn-sm" onClick={() => setZoom(zoom + 0.1)} disabled={zoom >= 1.5} title="크게">+</button>
+        </span>
         <a className="btn btn-primary" href={open} target="_blank" rel="noopener noreferrer">↗ 구글 시트에서 열기</a>
         <button className="btn" onClick={() => { setDraft(item.label); setEditing(true); }}>링크 바꾸기</button>
       </PageHeader>
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <iframe title="2026 전사플랜" src={view} className="plan-frame" />
+      <div className="card plan-box" style={{ padding: 0, overflow: 'hidden' }}>
+        {/* 배율만큼 틀을 크게 만든 뒤 줄여서, 줄였을 때 더 많은 칸이 보이게 */}
+        <iframe title="2026 전사플랜" src={view} className="plan-frame"
+          style={{ width: `${100 / zoom}%`, height: `calc((100vh - 190px) / ${zoom})`, transform: `scale(${zoom})`, transformOrigin: '0 0' }} />
       </div>
       <div className="hint" style={{ marginTop: 8 }}>안 보이면: 이 시트 권한이 있는 구글 계정으로 로그인돼 있는지 확인하거나 <b>↗ 구글 시트에서 열기</b>를 눌러주세요.</div>
     </>

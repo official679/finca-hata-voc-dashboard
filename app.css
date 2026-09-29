@@ -394,4 +394,7 @@ tr.row-selected td { background: #EEF4FE !important; }
 .grid-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 800px) { .grid-pair { grid-template-columns: 1fr; } }
 /* 전사플랜 시트 */
-.plan-frame { width: 100%; height: calc(100vh - 190px); min-height: 520px; border: 0; display: block; background: #fff; }
+.plan-frame { width: 100%; height: calc(100vh - 190px); border: 0; display: block; background: #fff; }
+.plan-box { height: calc(100vh - 190px); min-height: 480px; }
+.zoom-ctl { display: inline-flex; gap: 2px; align-items: center; }
+.zoom-ctl .btn { min-width: 36px; }
