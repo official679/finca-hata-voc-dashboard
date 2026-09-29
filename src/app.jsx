@@ -29,6 +29,8 @@ const NAV = [
   { group: '👥 팀', items: [
     { key: 'tasks', label: '업무 보드', icon: '📌' },
     { key: 'plan', label: '전사플랜', icon: '🗓️' },
+    // 다른 대시보드는 새 창으로만 연결 (그쪽은 수정하지 않음)
+    { key: 'ext-1inahundred', label: '원인어헌드레드 대시보드', icon: '🔗', href: 'https://1inahundred.netlify.app/' },
   ] },
   { group: '⚙️ 기준 · 매뉴얼', items: [
     { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
@@ -134,7 +136,11 @@ function Shell({ session }) {
           {NAV.map(g => (
             <div className="nav-group" key={g.group}>
               {g.group && <div className="nav-group-title">{g.group}</div>}
-              {g.items.filter(item => !item.hidden).map(item => (
+              {g.items.filter(item => !item.hidden).map(item => item.href ? (
+                <a key={item.key} className="nav-item" href={item.href} target="_blank" rel="noopener noreferrer" title="새 창으로 열려요">
+                  <span>{item.icon}</span>{item.label}<span style={{ marginLeft: 'auto', opacity: 0.6 }}>↗</span>
+                </a>
+              ) : (
                 <button key={item.key} className={`nav-item${route === item.key ? ' active' : ''}`} onClick={() => go(item.key)}>
                   <span>{item.icon}</span>{item.label}
                   {item.soon && <span className="badge-soon">{item.soon}</span>}
