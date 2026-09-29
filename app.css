@@ -319,3 +319,7 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .report-table.compact th, .report-table.compact td { padding: 8px 14px; }
 .report-table.compact th.num, .report-table.compact td.num { min-width: 84px; }
 .report-table.compact td:first-child { min-width: 120px; }
+.report-split { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.report-split > .brand-card-fit { flex: 0 1 auto; margin: 0; }
+.report-side { flex: 1 1 420px; min-width: 0; display: grid; gap: 16px; }
+.report-side > .card { margin: 0; }

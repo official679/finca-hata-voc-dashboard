@@ -129,12 +129,14 @@ function WeeklyReview({ daily, reviews, board, brand, ym, controls }) {
       </div>
 
       <div className="section-title">주간 주문 · 반품교환 · 과실 · 리뷰 현황 <small className="muted">빨간 칸 = 그달 가장 높았던 주</small></div>
-      <BrandWeekTable brand={brand} rows={rows} weeks={weeks} totalLabel={`${Number(mo)}월 합계·평균`} worstLabel="이달 중 가장 높은 주" />
-
-      <div className="grid grid-2w" style={{ marginTop: 16 }}>
-        <ComboChart title={`${brand} 주간 주문건 · 반품교환율`} color={BRAND_COLOR[brand]}
-          items={weekSums.map(x => ({ label: `${Number(mo)}월 ${x.w.short}`, bar: x.s.orders, line: ratioOf(returnsExchanges(x.s), x.s.orders) }))} />
-        <ChannelTable brand={brand} rows={rows.filter(r => r.platform !== BRAND_TOTAL)} />
+      {/* 표는 왼쪽, 그래프·채널별 현황은 오른쪽 (화면이 좁으면 아래로) */}
+      <div className="report-split">
+        <BrandWeekTable brand={brand} rows={rows} weeks={weeks} totalLabel={`${Number(mo)}월 합계·평균`} worstLabel="이달 중 가장 높은 주" />
+        <div className="report-side">
+          <ComboChart title={`${brand} 주간 주문건 · 반품교환율`} color={BRAND_COLOR[brand]}
+            items={weekSums.map(x => ({ label: `${Number(mo)}월 ${x.w.short}`, bar: x.s.orders, line: ratioOf(returnsExchanges(x.s), x.s.orders) }))} />
+          <ChannelTable brand={brand} rows={rows.filter(r => r.platform !== BRAND_TOTAL)} />
+        </div>
       </div>
 
       <MonthDetails reviews={reviews} board={board} brand={brand} ym={ym} />
@@ -159,9 +161,10 @@ function MonthlyReview({ daily, reviews, board, brand, ym, months, controls }) {
       <PageHeader title={`${brand} · 월간 리뷰 (${shown.map(m => `${Number(m.slice(5))}월`).join(' · ')})`} desc="월별로 나란히 비교 · 한 주 = 월~일 (전일 데이터 기준) · 각 달 = 그달 1~5주차 합계">{controls}</PageHeader>
 
       <div className="section-title">월별 주문 · 반품교환 · 과실 · 리뷰 현황 <small className="muted">빨간 칸 = 가장 높았던 달</small></div>
+      <div className="report-split">
       <BrandWeekTable brand={brand} rows={rows} weeks={periods} totalLabel="기간 합계·평균" worstLabel="가장 높은 달" />
 
-      <div className="grid grid-2w" style={{ marginTop: 16 }}>
+      <div className="report-side">
         <ComboChart title={`${brand} 월별 주문건 · 반품교환율`} color={BRAND_COLOR[brand]}
           items={sums.map(x => ({ label: x.p.short, bar: x.s.orders, line: ratioOf(returnsExchanges(x.s), x.s.orders) }))} />
         <div className="card brand-card" style={{ padding: 0, '--brand': BRAND_COLOR[brand] }}>
@@ -180,6 +183,7 @@ function MonthlyReview({ daily, reviews, board, brand, ym, months, controls }) {
             </table>
           </div>
         </div>
+      </div>
       </div>
 
       <div className="section-title">{y}년 {Number(mo)}월 상세 <small className="muted">오른쪽 위에서 달을 바꿀 수 있어요</small></div>
