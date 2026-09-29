@@ -125,6 +125,10 @@ function useAppData(session) {
     setCases(rows);
   }, []);
 
+  const loadProducts = useCallback(async () => {
+    setProducts(await fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender').order('id')));
+  }, []);
+
   const loadDaily = useCallback(async () => {
     const rows = await fetchAll(() => db.from('cs_daily').select('*').order('report_date').order('id'));
     setDaily(rows);
@@ -154,7 +158,7 @@ function useAppData(session) {
   const codeOptions = useCallback((group, includeInactive = false) =>
     codes.filter(c => c.group_key === group && (includeInactive || c.active)).map(c => c.label), [codes]);
 
-  return { products, productById, codes, codeOptions, cases, setCases, daily, setDaily, loadDaily, loadCodes, loadCases, ready, loadError };
+  return { products, productById, loadProducts, codes, codeOptions, cases, setCases, daily, setDaily, loadDaily, loadCodes, loadCases, ready, loadError };
 }
 
 // 상품 카테고리 (상품 마스터 기준). 상품이 연결 안 된 건은 '(미분류)'

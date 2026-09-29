@@ -71,8 +71,94 @@ function DataUploadPage() {
         guide={<UploadGuide kinds={['review', 'board', 'order']} />}
         onDone={() => setVersion(v => v + 1)}
       />
+      <ProductMasterUpload />
       <OrderCategorySummary key={version} />
     </>
+  );
+}
+
+// 상품 마스터 (오클릭 카테고리 파일): 새 상품 추가 + 대분류(복종)·중분류(성별)가 바뀐 상품만 고침. 지우지는 않음
+const PRODUCT_FILE_HEADERS = ['품명', '브랜드', '복종', '성별'];
+function ProductMasterUpload() {
+  const { products, loadProducts } = useApp();
+  const toast = useToast();
+  const ref = useRef(null);
+  const [plan, setPlan] = useState(null);
+  const [busy, setBusy] = useState('');
+
+  const pick = async (file) => {
+    setBusy('파일 읽는 중...'); setPlan(null);
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      let rows = null;
+      for (const name of wb.SheetNames) {
+        const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
+        const h = grid.slice(0, 5).findIndex(r => PRODUCT_FILE_HEADERS.every(k => r.map(c => String(c).trim()).includes(k)));
+        if (h < 0) continue;
+        const head = grid[h].map(c => String(c).trim()), col = (k) => head.indexOf(k);
+        rows = grid.slice(h + 1).map(r => ({ product_name: str(r[col('품명')]), brand: str(r[col('브랜드')]), category: str(r[col('복종')]), size_gender: str(r[col('성별')]) }))
+          .filter(r => r.product_name && r.brand);
+        break;
+      }
+      if (!rows) { toast('❌ 품명·브랜드·복종·성별 칸이 있는 오클릭 카테고리 파일이 아니에요', 'err'); return; }
+      const key = (p) => `${p.brand}|${String(p.product_name).trim()}`;
+      const existing = new Map(products.map(p => [key(p), p]));
+      const seen = new Set(), adds = [], changes = [];
+      rows.forEach(r => {
+        const k = key(r);
+        if (seen.has(k)) return;
+        seen.add(k);
+        const e = existing.get(k);
+        if (!e) adds.push(r);
+        else if ((r.category && r.category !== e.category) || (r.size_gender && r.size_gender !== e.size_gender)) {
+          changes.push({ id: e.id, name: e.product_name, from: `${e.category || '-'} · ${e.size_gender || '-'}`, category: r.category || e.category, size_gender: r.size_gender || e.size_gender });
+        }
+      });
+      setPlan({ file: file.name, total: seen.size, adds, changes });
+    } catch (e) { toast('❌ 파일을 읽지 못했어요: ' + e.message, 'err'); } finally { setBusy(''); }
+  };
+
+  const apply = async () => {
+    setBusy('저장 중...');
+    try {
+      for (let i = 0; i < plan.adds.length; i += 500) {
+        const { error } = await db.from('products').insert(plan.adds.slice(i, i + 500));
+        if (error) throw error;
+      }
+      for (const c of plan.changes) {
+        const { error } = await db.from('products').update({ category: c.category, size_gender: c.size_gender }).eq('id', c.id);
+        if (error) throw error;
+      }
+      await loadProducts();
+      toast(`✅ 새 상품 ${plan.adds.length}개 추가 · 분류 바뀐 상품 ${plan.changes.length}개 고침`);
+      setPlan(null);
+    } catch (e) { toast('❌ 저장 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
+  };
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-title">🏷️ 상품 마스터 올리기 <small>오클릭 카테고리 파일 · 지금 {products.length.toLocaleString()}개</small></div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn" onClick={() => ref.current.click()} disabled={!!busy}>📂 상품 파일 선택</button>
+        <input ref={ref} type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => { if (e.target.files[0]) pick(e.target.files[0]); e.target.value = ''; }} />
+        <span className="hint">첫 줄에 품명 · 브랜드 · 복종(=대분류) · 성별(=중분류) 칸이 있는 파일. 새 상품만 추가하고, 이미 있는 상품은 분류가 바뀐 것만 고쳐요 (지우지는 않아요)</span>
+      </div>
+      {busy && <div className="empty">{busy}</div>}
+      {plan && !busy && (
+        <div style={{ marginTop: 12 }}>
+          <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', lineHeight: 1.8 }}>
+            <b>{plan.file}</b> · 상품 {plan.total.toLocaleString()}개 확인<br />
+            ➕ 새 상품 <b>{plan.adds.length.toLocaleString()}개</b> 추가 · ✏️ 대분류·중분류 바뀐 상품 <b>{plan.changes.length.toLocaleString()}개</b> 고침 · 나머지는 이미 있어서 그대로
+          </div>
+          {plan.adds.length > 0 && <div className="hint" style={{ marginTop: 8 }}>새 상품 예: {plan.adds.slice(0, 8).map(a => `${a.product_name} (${a.category || '-'} · ${a.size_gender || '-'})`).join(' / ')}{plan.adds.length > 8 ? ' …' : ''}</div>}
+          {plan.changes.length > 0 && <div className="hint" style={{ marginTop: 4 }}>분류 변경 예: {plan.changes.slice(0, 5).map(c => `${c.name}: ${c.from} → ${c.category} · ${c.size_gender}`).join(' / ')}{plan.changes.length > 5 ? ' …' : ''}</div>}
+          <div className="form-actions">
+            <button className="btn" onClick={() => setPlan(null)}>취소</button>
+            <button className="btn btn-primary" onClick={apply} disabled={!plan.adds.length && !plan.changes.length}>저장하기</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
