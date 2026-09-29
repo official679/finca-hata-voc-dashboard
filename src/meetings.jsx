@@ -71,9 +71,35 @@ function itemsForMeeting(meeting, meetings, items) {
 }
 
 // ---------- 화면 ----------
+// 주소로 화면 구분 (브라우저 뒤로가기가 자연스럽게 되도록): #/meetings · #/meetings/12 · #/meetings/12/edit · #/meetings/new
+function meetingView() {
+  const [, a, b] = location.hash.replace(/^#\/?/, '').split('/');
+  if (a === 'new') return { edit: {} };
+  if (a && /^\d+$/.test(a)) return b === 'edit' ? { editId: Number(a) } : { id: Number(a) };
+  return null;
+}
+function goMeeting(v, replace) {
+  const hash = !v ? '#/meetings' : v.edit ? '#/meetings/new' : v.editId ? `#/meetings/${v.editId}/edit` : `#/meetings/${v.id}`;
+  if (replace) location.replace(hash); else location.hash = hash;
+}
+
+async function deleteMeeting(meeting, toast) {
+  if (!confirm(`"${meeting.title}" 회의록을 삭제할까요?\n이 회의에서 나온 논의사항도 같이 지워지고, 되돌릴 수 없어요.`)) return false;
+  const { error } = await db.from('meetings').delete().eq('id', meeting.id);
+  if (error) { toast('❌ 삭제 실패: ' + error.message, 'err'); return false; }
+  toast('✅ 삭제했어요');
+  return true;
+}
+
 function MeetingsPage() {
   const [{ meetings, items, error }, reload] = useMeetings();
-  const [view, setView] = useState(null);   // { id } 보기 · { edit: meeting|{} } 쓰기
+  const [view, setViewState] = useState(meetingView);
+  useEffect(() => {
+    const on = () => setViewState(meetingView());
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
+  const setView = (v) => goMeeting(v);
   const [kind, setKind] = useState('');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -81,10 +107,13 @@ function MeetingsPage() {
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>미팅 로그를 불러오지 못했어요: {error}<div className="hint">DB 설정 SQL(09_meetings_schema.sql)을 실행했는지 확인해 주세요.</div></div>;
   if (!meetings) return <div className="loading-screen">미팅 로그 불러오는 중...</div>;
 
-  if (view && view.edit) return <MeetingForm meeting={view.edit} onDone={async (id) => { await reload(); setView(id ? { id } : null); }} />;
+  const done = async (id) => { await reload(); goMeeting(id ? { id } : null, true); };
+  if (view && view.edit) return <MeetingForm meeting={view.edit} onDone={done} />;
+  if (view && view.editId) return <MeetingEditLoader id={view.editId} onDone={done} />;
   if (view && view.id) {
     const m = meetings.find(x => x.id === view.id);
-    if (m) return <MeetingDetail meeting={m} meetings={meetings} items={items} reload={reload} onBack={() => setView(null)} onEdit={(full) => setView({ edit: full })} />;
+    if (m) return <MeetingDetail meeting={m} meetings={meetings} items={items} reload={reload} onBack={() => setView(null)} onEdit={() => setView({ editId: m.id })} onDeleted={() => done(null)} />;
+    return <><div className="card empty">회의록을 찾을 수 없어요 (삭제됐을 수 있어요)</div><button className="btn-link" onClick={() => setView(null)}>← 목록으로</button></>;
   }
 
   const openItems = items.filter(i => i.status !== '완료');
@@ -192,7 +221,16 @@ function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried }) {
   );
 }
 
-function MeetingDetail({ meeting, meetings, items, reload, onBack, onEdit }) {
+// 수정 화면을 주소로 바로 열었을 때: 본문까지 불러온 뒤 폼 표시
+function MeetingEditLoader({ id, onDone }) {
+  const [m, setM] = useState(null);
+  useEffect(() => { db.from('meetings').select('*').eq('id', id).single().then(({ data }) => setM(data || false)); }, [id]);
+  if (m === null) return <div className="loading-screen">불러오는 중...</div>;
+  if (!m) return <div className="card empty">회의록을 찾을 수 없어요</div>;
+  return <MeetingForm meeting={m} onDone={onDone} />;
+}
+
+function MeetingDetail({ meeting, meetings, items, reload, onBack, onEdit, onDeleted }) {
   const toast = useToast();
   const [full, setFull] = useState(null);
   const [newItem, setNewItem] = useState('');
@@ -213,7 +251,8 @@ function MeetingDetail({ meeting, meetings, items, reload, onBack, onEdit }) {
       <div style={{ marginBottom: 12 }}><button className="btn-link" onClick={onBack}>← 목록으로</button></div>
       <PageHeader title={meeting.title} desc={`${fmtDate(meeting.meeting_date)} · ${meeting.kind}${meeting.attendees ? ` · ${meeting.attendees}` : ''}`}>
         {meeting.status === '완료' ? <span className="chip chip-green">완료</span> : <span className="chip chip-red">진행중</span>}
-        {full && <button className="btn" onClick={() => onEdit(full)}>✏️ 수정</button>}
+        <button className="btn" onClick={onEdit}>✏️ 수정</button>
+        <button className="btn btn-danger" onClick={async () => { if (await deleteMeeting(meeting, toast)) onDeleted(); }}>🗑️ 삭제</button>
       </PageHeader>
       <div className="grid" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(280px, 1fr)', alignItems: 'start' }}>
         <div className="card">{full ? <MarkdownView text={full.body} /> : <div className="empty">불러오는 중...</div>}
@@ -274,12 +313,7 @@ function MeetingForm({ meeting, onDone }) {
     toast('✅ 회의록을 저장했어요');
     onDone(data.id);
   };
-  const remove = async () => {
-    if (!confirm('이 회의록을 삭제할까요? 이 회의에서 나온 논의사항도 같이 지워져요.')) return;
-    const { error } = await db.from('meetings').delete().eq('id', meeting.id);
-    if (error) { toast('❌ 삭제 실패: ' + error.message, 'err'); return; }
-    toast('✅ 삭제했어요'); onDone(null);
-  };
+  const remove = async () => { if (await deleteMeeting(meeting, toast)) onDone(null); };
 
   return (
     <>

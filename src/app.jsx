@@ -62,7 +62,7 @@ const SOON_PAGES = {
 };
 
 function currentRoute() {
-  const key = location.hash.replace(/^#\/?/, '');
+  const key = location.hash.replace(/^#\/?/, '').split('/')[0];   // #/meetings/12 처럼 뒤에 붙은 건 화면 안에서 씀
   return ALL_NAV.some(n => n.key === key) ? key : 'home';
 }
 
