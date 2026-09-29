@@ -32,7 +32,8 @@ async function readPreorderFile(file) {
   wb.SheetNames.forEach(name => {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
     for (let h = 0; h < Math.min(5, grid.length); h++) {
-      const header = grid[h].map(c => String(c).trim());
+      // 오클릭 파일에 따라 '바코드' 대신 '품번'·'상품코드'로 나옴 → 같은 칸으로 봄
+      const header = grid[h].map(c => String(c).trim()).map(c => (c === '품번' || c === '상품코드' ? '바코드' : c));
       const format = PREORDER_FORMATS.find(f => f.headers.every(x => header.includes(x)));
       if (!format) continue;
       const rows = grid.slice(h + 1).filter(r => r.some(c => String(c).trim() !== ''));
