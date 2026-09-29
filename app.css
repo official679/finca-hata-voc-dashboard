@@ -385,3 +385,11 @@ tr.row-selected td { background: #EEF4FE !important; }
 .task-comment-body { white-space: pre-line; margin-top: 4px; font-size: 13.5px; line-height: 1.6; }
 .board-card.clickable { cursor: pointer; }
 .board-card.clickable:hover { border-color: var(--accent); }
+/* 긴 이름(상품명) 막대 목록 */
+.bars-wide .bar-row { grid-template-columns: minmax(0, 1.3fr) minmax(60px, 1fr) 36px; }
+.bars-wide .bar-row .bar-label { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
+.bar-row button.bar-label { text-align: left; padding: 0; font-size: inherit; color: var(--text); text-decoration: none; }
+.bar-row button.bar-label:hover { color: var(--primary); text-decoration: underline; }
+.detail-section { font-size: 14px; font-weight: 700; margin: 20px 0 10px; color: var(--muted); }
+.grid-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 800px) { .grid-pair { grid-template-columns: 1fr; } }

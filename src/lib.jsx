@@ -232,14 +232,15 @@ function Kpi({ label, value, sub, alert }) {
   );
 }
 
-function Bars({ items, max, color }) {
-  if (!items.length) return <div className="empty">데이터가 없습니다</div>;
+// wide: 상품명처럼 긴 이름은 이름 칸을 넓히고 두 줄까지 · onPick: 이름을 누르면 실행
+function Bars({ items, max, color, wide, onPick, empty }) {
+  if (!items.length) return <div className="empty">{empty || '데이터가 없습니다'}</div>;
   const top = max || Math.max(...items.map(i => i.count));
   return (
-    <div className="bars">
+    <div className={`bars${wide ? ' bars-wide' : ''}`}>
       {items.map(i => (
         <div className="bar-row" key={i.label} title={`${i.label}: ${i.count}건`}>
-          <span className="bar-label">{i.label}</span>
+          {onPick ? <button className="bar-label btn-link" onClick={() => onPick(i.label)}>{i.label}</button> : <span className="bar-label">{i.label}</span>}
           <div className="bar-track"><div className="bar-fill" style={{ width: `${(i.count / top) * 100}%`, background: color }} /></div>
           <span className="bar-value">{i.count}</span>
         </div>

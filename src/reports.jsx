@@ -94,34 +94,51 @@ function MonthDetails({ reviews, board, brand, ym }) {
     .filter(x => x.label !== '(미입력)').slice(0, 5);
   const restock = restockRanking(board.filter(r => r.brand === brand && inRange(r.written_at, from, to)), productById).slice(0, 5);
   const faultCases = cases.filter(c => c.brand === brand && isFault(c.voc_type) && c.received_date >= from && c.received_date <= to);
+  const m = Number(ym.slice(5));
+  // 상품 이름을 누르면 리뷰 목록에서 그 상품 리뷰 (전체 기간 · 이름으로 검색)
+  const openProduct = (stars) => (name) => openReviewList({ brand, period: 'all', stars, q: name });
   return (
-    <div className="grid grid-2w" style={{ marginTop: 16 }}>
-      <div className="card">
-        <div className="card-title">{Number(ym.slice(5))}월 리뷰 불만 TOP 5 <small>업로드한 리뷰 {rv.total.toLocaleString()}건 · 부정 {pct(rv.neg.length, rv.total)}</small></div>
-        <Bars items={rv.top} color="var(--danger)" />
+    <>
+      {/* ① 이번 달 요약 (결론) */}
+      <div className="detail-section">📝 {m}월 요약</div>
+      <div className="grid grid-pair">
+        <MonthNotes ym={ym} brand={brand} />
       </div>
-      <div className="card">
-        <div className="card-title">{Number(ym.slice(5))}월 리뷰 좋았던 점 TOP 5 <small>긍정 {rv.pos.length.toLocaleString()}건 · {pct(rv.pos.length, rv.total)}</small></div>
-        <Bars items={rv.posTop} color="var(--success)" />
+
+      {/* ② 리뷰: 왼쪽 부정(빨강) · 오른쪽 긍정(초록) */}
+      <div className="detail-section">⭐ {m}월 리뷰 <small className="muted" style={{ fontWeight: 400 }}>업로드한 리뷰 {rv.total.toLocaleString()}건 · 부정 {rv.neg.length.toLocaleString()}건 ({pct(rv.neg.length, rv.total)}) · 긍정 {rv.pos.length.toLocaleString()}건 ({pct(rv.pos.length, rv.total)})</small></div>
+      <div className="grid grid-pair">
+        <div className="card">
+          <div className="card-title">😟 불만 TOP 5 <small>1~3점 리뷰에서 많이 나온 말</small></div>
+          <Bars items={rv.top} color="var(--danger)" />
+        </div>
+        <div className="card">
+          <div className="card-title">😊 좋았던 점 TOP 5 <small>4~5점 리뷰에서 많이 나온 말</small></div>
+          <Bars items={rv.posTop} color="var(--success)" />
+        </div>
+        <div className="card">
+          <div className="card-title">부정 리뷰 많은 상품 TOP 5 <small>1~3점 · 누르면 리뷰 보기</small></div>
+          <Bars items={byProduct(rv.neg)} color="var(--danger)" wide onPick={openProduct('neg')} />
+        </div>
+        <div className="card">
+          <div className="card-title">칭찬 많은 상품 TOP 5 <small>4~5점 · 누르면 리뷰 보기</small></div>
+          <Bars items={byProduct(rv.pos)} color="var(--success)" wide onPick={openProduct('pos')} />
+        </div>
       </div>
-      <div className="card">
-        <div className="card-title">{Number(ym.slice(5))}월 부정 리뷰 많은 상품 TOP 5 <small>1~3점 리뷰 수 · 사이즈·옵션은 합쳐서</small></div>
-        <Bars items={byProduct(rv.neg)} color="var(--danger)" />
+
+      {/* ③ VOC · 재입고 */}
+      <div className="detail-section">🛠 {m}월 VOC · 재입고</div>
+      <div className="grid grid-pair">
+        <div className="card">
+          <div className="card-title">과실 이슈 상품 TOP 5 <small>VOC 접수 {faultCases.length}건</small></div>
+          <Bars items={countBy(faultCases, c => caseProductName(c, productById)).slice(0, 5)} color="var(--danger)" wide empty="이달 접수된 과실 VOC가 없어요" />
+        </div>
+        <div className="card">
+          <div className="card-title">재입고 문의 TOP 5 <small>게시판 · 리오더 검토</small></div>
+          <Bars items={restock.map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" wide empty="이달 재입고 문의가 없어요 (게시판 파일을 올리면 보여요)" />
+        </div>
       </div>
-      <div className="card">
-        <div className="card-title">{Number(ym.slice(5))}월 칭찬 많은 상품 TOP 5 <small>4~5점 리뷰 수 · 사이즈·옵션은 합쳐서</small></div>
-        <Bars items={byProduct(rv.pos)} color="var(--success)" />
-      </div>
-      <div className="card">
-        <div className="card-title">{Number(ym.slice(5))}월 과실 이슈 상품 TOP 5 <small>VOC 접수 {faultCases.length}건</small></div>
-        <Bars items={countBy(faultCases, c => caseProductName(c, productById)).slice(0, 5)} color="var(--danger)" />
-      </div>
-      <div className="card">
-        <div className="card-title">{Number(ym.slice(5))}월 재입고 문의 TOP 5 <small>게시판 · 리오더 검토</small></div>
-        <Bars items={restock.map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" />
-      </div>
-      <MonthNotes ym={ym} brand={brand} />
-    </div>
+    </>
   );
 }
 

@@ -28,7 +28,7 @@ function ReviewListPage() {
   const [check, setCheck] = useState('');
   const [theme, setTheme] = useState(init.get('theme') || '');
   const [product, setProduct] = useState(init.get('product') || '');
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(init.get('q') || '');
   const [sort, setSort] = useState('date');
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState(null);
