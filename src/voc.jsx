@@ -384,7 +384,7 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{caseCategory(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{caseSubCategory(c, productById)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{caseLineType(c, productById) ? <span className={`chip ${caseLineType(c, productById) === '앵커' ? 'chip-blue' : ''}`}>{caseLineType(c, productById)}</span> : <span className="muted">-</span>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}><LineTypeChip type={caseLineType(c, productById)} /></td>
                   <td className="ellipsis" title={caseProductName(c, productById)}>{c.consult_method === '리뷰' && <span className="chip chip-amber" style={{ marginRight: 6 }} title={c.note || '리뷰에서 등록'}>⭐ 리뷰</span>}{caseProductName(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
                   <td><StatusChip status={c.status} /></td>

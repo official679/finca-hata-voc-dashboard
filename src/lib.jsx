@@ -170,6 +170,15 @@ const caseCategory = (c, productById) => (c.product_id && productById.get(c.prod
 const caseSubCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.size_gender) || c.sub_category || '-';
 // 추가분류 (오클릭 '추가분류': 앵커 / 레귤러 등) — 상품 마스터와 연결된 VOC만
 const caseLineType = (c, productById) => (c.product_id && productById.get(c.product_id)?.line_type) || '';
+// 추가분류 뜻 (VOC 볼 때: 앵커 = 브랜드 대표라 우선 대응 · 캐리오버 = 재생산·품질 개선 근거)
+const LINE_TYPE_INFO = {
+  '앵커': { cls: 'chip-blue', desc: '브랜드를 대표하는 핵심 상품 · VOC 한 건도 브랜드 이미지에 직결 → 우선 대응' },
+  '레귤러': { cls: 'chip-green', desc: '일반 운영 상품 (상시·시즌 일반 상품)' },
+  '캐리오버': { cls: 'chip-amber', desc: '이전 시즌에서 이어지는 상품 · VOC는 재생산·품질 개선 근거' },
+};
+const LineTypeChip = ({ type }) => (type
+  ? <span className={`chip ${(LINE_TYPE_INFO[type] || {}).cls || ''}`} title={(LINE_TYPE_INFO[type] || {}).desc || type}>{type}</span>
+  : <span className="muted">-</span>);
 const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(c => c && c !== 'null'))].sort(), NO_CATEGORY];
 
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';

@@ -134,6 +134,10 @@ function MonthDetails({ reviews, board, brand, ym }) {
           <Bars items={countBy(faultCases, c => caseProductName(c, productById)).slice(0, 5)} color="var(--danger)" wide empty="이달 접수된 과실 VOC가 없어요" />
         </div>
         <div className="card">
+          <div className="card-title">추가분류별 과실 VOC <small>앵커 = 브랜드 대표 · 캐리오버 = 재생산 검토</small></div>
+          <Bars items={countBy(faultCases.filter(c => caseLineType(c, productById)), c => caseLineType(c, productById))} color="var(--danger)" empty="상품 마스터와 연결된 과실 VOC가 없어요" />
+        </div>
+        <div className="card">
           <div className="card-title">재입고 문의 TOP 5 <small>게시판 · 리오더 검토</small></div>
           <Bars items={restock.map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" wide empty="이달 재입고 문의가 없어요 (게시판 파일을 올리면 보여요)" />
         </div>

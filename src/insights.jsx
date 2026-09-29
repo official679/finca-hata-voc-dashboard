@@ -69,6 +69,12 @@ function ReportPage({ go }) {
           <Bars items={countBy(faults, c => caseCategory(c, productById))} color="var(--danger)" />
         </div>
         <div className="card">
+          <div className="card-title">추가분류별 VOC <small>앵커 = 브랜드 대표 상품 · 괄호 = 과실</small></div>
+          <Bars items={countBy(inPeriod.filter(c => caseLineType(c, productById)), c => caseLineType(c, productById))
+            .map(x => ({ ...x, label: `${x.label} (과실 ${faults.filter(c => caseLineType(c, productById) === x.label).length})` }))}
+            empty="상품 마스터와 연결된 VOC가 없어요" />
+        </div>
+        <div className="card">
           <div className="card-title">플랫폼별 VOC</div>
           <Bars items={countBy(inPeriod, c => c.platform)} />
         </div>
