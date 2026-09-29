@@ -420,6 +420,13 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .sched-title small { font-weight: 400; color: var(--muted); }
 .sched-no { width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
 .sched-add { justify-self: start; border-style: dashed; }
+/* KPI */
+.kpi-table td { vertical-align: middle; }
+.kpi-table .kpi-cur { font-size: 17px; font-weight: 800; }
+.kpi-trend { display: flex; gap: 6px; align-items: flex-end; height: 44px; min-width: 150px; }
+.kpi-trend-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.kpi-trend-bar { width: 14px; border-radius: 3px 3px 0 0; }
+.kpi-trend-label { font-size: 10px; color: var(--faint); margin-top: 2px; }
 /* 상품명 검색 목록 */
 .product-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(15,23,42,.12); max-height: 320px; overflow-y: auto; margin-top: 4px; }
 .product-suggest button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 12px; font-size: 13px; cursor: pointer; }

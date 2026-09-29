@@ -203,6 +203,7 @@ function ProductMasterUpload() {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn" onClick={() => ref.current.click()} disabled={!!busy}>📂 상품 파일 선택</button>
         <input ref={ref} type="file" accept=".xlsx,.xls,.csv" hidden onChange={e => { if (e.target.files[0]) pick(e.target.files[0]); e.target.value = ''; }} />
+        <TemplateButton name="상품마스터" headers={['품번', '품명', '브랜드', '복종', '성별', '추가분류']} />
         <span className="hint">첫 줄에 품명 · 브랜드 · 복종(=대분류) · 성별(=중분류) 칸이 있는 파일. 새 상품만 추가하고, 이미 있는 상품은 분류가 바뀐 것만 고쳐요 (지우지는 않아요)</span>
       </div>
       {busy && <div className="empty">{busy}</div>}

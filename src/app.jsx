@@ -24,6 +24,7 @@ const NAV = [
   ] },
   { group: '📊 보고 · 회의', items: [
     { key: 'monthly', label: '보고서 (주간·월간)', icon: '📈' },
+    { key: 'kpi', label: 'KPI', icon: '🎯' },
     { key: 'meetings', label: 'CX 미팅 로그', icon: '📒' },
   ] },
   { group: '👥 팀', items: [
@@ -104,6 +105,7 @@ function Shell({ session }) {
     daily: <DailyEntryPage />,
     preorder: <PreorderPage />,
     meetings: <MeetingsPage />,
+    kpi: <KpiPage />,
     tasks: <TasksPage />,
     plan: <PlanPage />,
     upload: <DataUploadPage />,

@@ -189,7 +189,7 @@ function usePreorderPending() {
     ]).then(([products, lines]) => {
       if (!alive) return;
       const orders = enrichPreorder(lines, new Map(products.map(p => [p.code, p])), giftCodesFrom(giftKey.split('\n')));
-      setState({ pending: orders.filter(o => o.pending).length, open: orders.length });
+      setState({ pending: orders.filter(o => o.pending).length, open: orders.length, delayed: orders.filter(o => o.preLines.some(l => l.need > 0)).length });
     }).catch(() => alive && setState({ error: true }));
     return () => { alive = false; };
   }, [giftKey]);
@@ -873,9 +873,12 @@ function PreorderUpload({ lines, products, uploads, reload }) {
           </div>
         </div>
         <ul className="hint" style={{ marginTop: 12, lineHeight: 1.8, paddingLeft: 18 }}>
-          <li><b>오클릭 예약주문</b>: 첫 줄에 {PREORDER_FORMATS[0].headers.join(' · ')} 칸이 있는 파일 (구글시트 A~L열에 붙여넣던 원본). 올릴 때마다 <b>파일에 없는 주문은 출고완</b>으로 바뀌어요.</li>
-          <li><b>예약상품리스트</b>: {PREORDER_FORMATS[1].headers.join(' · ')} … 칸. 같은 단품코드는 새 내용으로 덮어써요.</li>
-          <li><b>예약 지연안내리스트</b>: 기존 안내 기록(1차·2차 안내, 사은품, 배송구분)을 옮겨와요. 대시보드에 이미 적힌 칸은 건드리지 않아요.</li>
+          <li><b>오클릭 예약주문</b>: 첫 줄에 {PREORDER_FORMATS[0].headers.join(' · ')} 칸이 있는 파일 (구글시트 A~L열에 붙여넣던 원본). 올릴 때마다 <b>파일에 없는 주문은 출고완</b>으로 바뀌어요.{' '}
+            <TemplateButton name="예약주문_오클릭미출고" headers={['주문번호', '판매처', '판매처주문번호', '입력일', '주문자', '바코드', '품명', '사이즈', '수량', '재고', '가용재고', '미출고']} /></li>
+          <li><b>예약상품리스트</b>: {PREORDER_FORMATS[1].headers.join(' · ')} … 칸. 같은 단품코드는 새 내용으로 덮어써요. 여러 상품 일정을 한 번에 넣을 때 편해요.{' '}
+            <TemplateButton name="예약상품리스트" headers={['단품코드', '상품명', '옵션', '최초 입고예정', '최초 출고일 공지', '1차 일정 변경 공지일', '1차 변경 입고일', '1차 변경 출고안내일', '2차 일정 변경 공지일', '2차 변경 입고일', '2차 변경 출고안내일', '실제입고일', '비고', '예판 상태']} /> <span className="muted">(날짜는 2026-11-09 형식 · 예판 상태는 진행/종료)</span></li>
+          <li><b>예약 지연안내리스트</b>: 기존 안내 기록(1차·2차 안내, 사은품, 배송구분)을 옮겨와요. 대시보드에 이미 적힌 칸은 건드리지 않아요.{' '}
+            <TemplateButton name="예약_지연안내리스트" headers={['판매처', '바코드', '상품명', '옵션', '수량', '주문번호', '발주등록일', '고객명', '배송구분', '1차 안내', '1차 안내일자', '2차 안내', '2차 안내일자', '사은품', '출고여부', '비고']} /></li>
           <li>구글시트 전체를 엑셀로 받아 올리면 예약상품·지연안내 시트만 쓰고, 날짜별 예약주문 시트는 여러 장이라 건너뛰어요.</li>
         </ul>
         {busy && <div className="empty">{busy}</div>}

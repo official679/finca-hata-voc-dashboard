@@ -130,6 +130,20 @@ const KIND_GUIDE = {
   order: { icon: '🛒', title: '주문', does: '대분류(베딩·러그·바스·홈데코·웨어·잡화·키친)와 세트 여부 자동 분류 · 주문자·수령자·연락처는 저장 안 함' },
 };
 
+// 양식 파일 받기: 첫 줄 = 꼭 있어야 하는 칸 이름, 둘째 줄 = 예시(있으면). 이 양식에 맞춰 채워서 올리면 알아봄
+function downloadTemplate(name, headers, example) {
+  const rows = [headers];
+  if (example) rows.push(headers.map(h => example[h] ?? ''));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = headers.map(h => ({ wch: Math.max(10, String(h).length * 2 + 2) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '양식');
+  XLSX.writeFile(wb, `양식_${name.replace(/[\\/:*?"<>|\s]+/g, '_')}.xlsx`);
+}
+const TemplateButton = ({ name, headers, example, label = '📄 양식' }) => (
+  <button type="button" className="btn btn-sm" title="첫 줄에 필요한 칸 이름이 들어 있는 빈 엑셀" onClick={() => downloadTemplate(name, headers, example)}>{label}</button>
+);
+
 function UploadGuide({ kinds }) {
   const [open, setOpen] = useState(false);
   return (
@@ -142,6 +156,7 @@ function UploadGuide({ kinds }) {
           <li>한 파일에 플랫폼별 시트가 여러 개 있어도 괜찮아요. <b>첫 줄(제목 줄)의 칸 이름</b>으로 형식을 알아봐요.</li>
           <li>같은 파일·같은 기간을 다시 올려도 <b>중복 저장되지 않아요.</b></li>
           <li>파일에 브랜드 칸이 없으면 위에서 고른 브랜드로 저장돼요. 파일 이름에 '핀카'·'하타'가 있으면 자동으로 골라져요.</li>
+          <li>직접 만들어 올릴 때는 아래 <b>형식 보기 → 📄 양식</b>을 받아 칸 이름을 그대로 두고 채우면 돼요.</li>
         </ul>
       </div>
       <button className="btn-link" onClick={() => setOpen(!open)}>{open ? '▲ 알아보는 파일 형식 접기' : '▼ 알아보는 파일 형식 보기 (필수 칸 이름)'}</button>
@@ -152,10 +167,11 @@ function UploadGuide({ kinds }) {
               <div className="upload-guide-title">{KIND_GUIDE[k].icon} {KIND_GUIDE[k].title}</div>
               <div className="hint" style={{ marginTop: 0, marginBottom: 8 }}>{KIND_GUIDE[k].does}</div>
               <table className="table">
-                <thead><tr><th>파일 형식</th><th>첫 줄에 꼭 있어야 하는 칸</th></tr></thead>
+                <thead><tr><th>파일 형식</th><th>첫 줄에 꼭 있어야 하는 칸</th><th></th></tr></thead>
                 <tbody>
                   {FILE_FORMATS.filter(f => f.kind === k).map(f => (
-                    <tr key={f.label + f.headers.join()}><td style={{ whiteSpace: 'nowrap' }}>{f.label}</td><td>{f.headers.join(' · ')}</td></tr>
+                    <tr key={f.label + f.headers.join()}><td style={{ whiteSpace: 'nowrap' }}>{f.label}</td><td>{f.headers.join(' · ')}</td>
+                      <td><TemplateButton name={f.label} headers={f.headers} /></td></tr>
                   ))}
                 </tbody>
               </table>
