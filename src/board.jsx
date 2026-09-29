@@ -116,7 +116,8 @@ function restockRanking(rows, productById, since) {
   const m = new Map();
   rows.filter(r => r.inquiry_type === '재입고' && (!since || (r.written_at || '') >= since)).forEach(r => {
     const full = (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name;
-    const name = full ? coreName(full) : '(상품 미지정)';
+    if (!full) return;   // 상품을 못 찾은 문의는 순위에서 뺌 (화면에 따로 건수만 표시)
+    const name = coreName(full);
     const e = m.get(name) || { name, brand: r.brand, count: 0, options: new Map(), latest: '' };
     e.count++;
     if (r.option_text) e.options.set(r.option_text, (e.options.get(r.option_text) || 0) + 1);
@@ -229,7 +230,7 @@ function BoardAnalysisPage() {
       </div>
 
       <div className="card" style={{ marginTop: 16, padding: 0 }}>
-        <div className="card-title" style={{ padding: '18px 20px 0' }}>🔁 재입고 문의가 많은 상품 <small>리오더 검토용 · 사이즈 옵션은 합쳐서 · 누르면 문의를 볼 수 있어요{unlinkedRestock ? ` · 상품을 못 찾은 ${unlinkedRestock}건은 (상품 미지정)` : ''}</small></div>
+        <div className="card-title" style={{ padding: '18px 20px 0' }}>🔁 재입고 문의가 많은 상품 <small>리오더 검토용 · 사이즈 옵션은 합쳐서 · 누르면 문의를 볼 수 있어요{unlinkedRestock ? ` · 상품을 못 찾은 ${unlinkedRestock}건은 순위에서 제외` : ''}</small></div>
         <div className="table-wrap">
           <table className="table">
             <thead><tr><th>#</th><th>상품명</th><th>브랜드</th><th className="num">재입고 문의</th><th>많이 찾는 옵션</th><th>최근 문의</th></tr></thead>

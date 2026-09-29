@@ -76,6 +76,7 @@ function HomePage() {
   const bd = byBrand(board).filter(r => r.written_at && isInquiry(r));
   const bdRecent = bd.filter(r => r.written_at.slice(0, 10) >= toISODate(addDays(now, -90)));
   const bdScope = bdRecent.length ? bdRecent : bd;
+  const unlinkedRestock = bdScope.filter(r => r.inquiry_type === '재입고' && !r.product_id && !r.product_name).length;
   const restock30 = bd.filter(r => r.inquiry_type === '재입고' && r.written_at.slice(0, 10) >= since30).length;
 
   const link = (to, text = '자세히 →') => <a className="btn-link" href={`#/${to}`}>{text}</a>;
@@ -121,7 +122,7 @@ function HomePage() {
           <Bars items={countBy(faults30, x => x.reason_category).slice(0, 7)} color="var(--danger)" />
         </div>
         <div className="card">
-          <div className="card-title">재입고 문의 많은 상품 <small>{bdRecent.length ? '최근 90일' : '전체'} · 리오더 검토 {link('board')}</small></div>
+          <div className="card-title">재입고 문의 많은 상품 <small>{bdRecent.length ? '최근 90일' : '전체'} · 리오더 검토{unlinkedRestock ? ` · 상품 못 찾은 ${unlinkedRestock}건 제외` : ''} {link('board')}</small></div>
           <Bars items={restockRanking(bdScope, productById).slice(0, 7).map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" />
         </div>
       </div>
