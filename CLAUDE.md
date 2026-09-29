@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~07 적용 완료).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~08 적용 완료).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -32,6 +32,9 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 후속 조치 보드와 담당 부서·완료일(목록)은 숨김(`SHOW_FOLLOWUP=false`). 사용자가 다시 요청하면 켜기.
 - CS 데일리 "업로드 데이터로 채우기": 주문건 = 주문 라인 수, 출고전 취소 = 주문상태에 "취소"가 들어간 라인. 자사몰은 지금 아임웹(카페24도 아임웹 칸으로 합산) — 연말 카페24 이전 시 사용자가 알려줌. 반품·교환·해피톡·전화는 수기.
 - VOC 상품이 마스터에 없으면(세트 등) voc_cases.category·sub_category에 직접 고른 분류 저장 (07 SQL).
+- 예약배송 관리(preorder.jsx): 구글시트 '예약배송 자동정리' 스크립트 v1.7 계산을 옮김. 오클릭 미출고 파일을 올릴 때마다 파일에 없는 주문 = 출고완
+  (판매처 누락·줄 수 30% 미만이면 확인). 지연 단계 = 구매일(판매처주문번호 날짜)과 n차 변경 공지일 비교.
+  주문자 이름은 안내용으로 저장하기로 사용자 동의 (연락처·주소는 저장 안 함).
 
 ## 작업 방식
 - 수정 후 로컬 확인: `.claude/launch.json` 없이도 PowerShell HttpListener로 저장소를 서빙하고 Browser 패널에서

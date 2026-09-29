@@ -13,6 +13,7 @@ const NAV = [
   ] },
   { group: '✏️ 입력·업로드', items: [
     { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
+    { key: 'preorder', label: '예약배송 관리', icon: '📦' },
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
     { key: 'upload', label: '데이터 업로드', icon: '📤' },
     // 예전 주소(#/upload-reviews 등)로 들어와도 데이터 업로드 화면으로 (메뉴에는 안 보임)
@@ -90,6 +91,7 @@ function Shell({ session }) {
     monthly: <ReportsPage />,
     report: <ReportPage go={go} />,
     daily: <DailyEntryPage />,
+    preorder: <PreorderPage />,
     upload: <DataUploadPage />,
     'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
