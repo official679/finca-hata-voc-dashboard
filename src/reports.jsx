@@ -45,18 +45,22 @@ function ComboChart({ items, color, lineColor = '#E5484D', title }) {
   );
 }
 
-// 기간 안의 부정 리뷰 불만 TOP
+// 기간 안의 리뷰: 부정(1~3점) 불만 TOP · 긍정(4~5점) 좋았던 점 TOP
 function complaintTop(reviews, brand, from, to, n = 5) {
   const all = reviews.filter(r => r.brand === brand && inRange(r.written_at, from, to));
   const neg = all.filter(r => r.rating !== null && r.rating <= 3);
-  const counts = new Map();
-  neg.forEach(r => reviewThemes(r.content, true).forEach(t => counts.set(t, (counts.get(t) || 0) + 1)));
-  return { total: all.length, neg, top: [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, n) };
+  const pos = all.filter(r => r.rating !== null && r.rating > 3);
+  const topOf = (rows, negative) => {
+    const counts = new Map();
+    rows.forEach(r => reviewThemes(r.content, negative).forEach(t => counts.set(t, (counts.get(t) || 0) + 1)));
+    return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count).slice(0, n);
+  };
+  return { total: all.length, neg, pos, top: topOf(neg, true), posTop: topOf(pos, false) };
 }
 
 function ReportsPage() {
   const daily = useDaily();
-  const reviews = useLight('review_items', 'brand,rating,content,written_at');
+  const reviews = useLight('review_items', 'brand,rating,content,written_at,product_name,product_id');
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id,option_text');
   const [tab, setTab] = useState(() => { try { return localStorage.getItem('reportTab') === 'monthly' ? 'monthly' : 'weekly'; } catch { return 'weekly'; } });
   const [brand, setBrand] = useState('핀카');
@@ -85,6 +89,9 @@ function MonthDetails({ reviews, board, brand, ym }) {
   const { cases, productById } = useApp();
   const [from, to] = monthRange(ym);
   const rv = complaintTop(reviews, brand, from, to);
+  // 리뷰 수 많은 상품 (상품 마스터 이름 우선, 사이즈·옵션 괄호는 합침)
+  const byProduct = (rows) => countBy(rows, r => { const n = (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name; return n ? coreName(n) : null; })
+    .filter(x => x.label !== '(미입력)').slice(0, 5);
   const restock = restockRanking(board.filter(r => r.brand === brand && inRange(r.written_at, from, to)), productById).slice(0, 5);
   const faultCases = cases.filter(c => c.brand === brand && isFault(c.voc_type) && c.received_date >= from && c.received_date <= to);
   return (
@@ -92,6 +99,18 @@ function MonthDetails({ reviews, board, brand, ym }) {
       <div className="card">
         <div className="card-title">{Number(ym.slice(5))}월 리뷰 불만 TOP 5 <small>업로드한 리뷰 {rv.total.toLocaleString()}건 · 부정 {pct(rv.neg.length, rv.total)}</small></div>
         <Bars items={rv.top} color="var(--danger)" />
+      </div>
+      <div className="card">
+        <div className="card-title">{Number(ym.slice(5))}월 리뷰 좋았던 점 TOP 5 <small>긍정 {rv.pos.length.toLocaleString()}건 · {pct(rv.pos.length, rv.total)}</small></div>
+        <Bars items={rv.posTop} color="var(--success)" />
+      </div>
+      <div className="card">
+        <div className="card-title">{Number(ym.slice(5))}월 부정 리뷰 많은 상품 TOP 5 <small>1~3점 리뷰 수 · 사이즈·옵션은 합쳐서</small></div>
+        <Bars items={byProduct(rv.neg)} color="var(--danger)" />
+      </div>
+      <div className="card">
+        <div className="card-title">{Number(ym.slice(5))}월 칭찬 많은 상품 TOP 5 <small>4~5점 리뷰 수 · 사이즈·옵션은 합쳐서</small></div>
+        <Bars items={byProduct(rv.pos)} color="var(--success)" />
       </div>
       <div className="card">
         <div className="card-title">{Number(ym.slice(5))}월 과실 이슈 상품 TOP 5 <small>VOC 접수 {faultCases.length}건</small></div>
