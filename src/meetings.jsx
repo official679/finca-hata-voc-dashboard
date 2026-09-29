@@ -72,7 +72,7 @@ function weeklyReportDraft(daily, meetingDate) {
   const table = ['| 항목 | 핀카 전주 → 금주 | 핀카 증감 | 하타 전주 → 금주 | 하타 증감 |', '| --- | --- | --- | --- | --- |',
     ...rows.map(([label, f]) => `| ${label} | ${[...f('핀카'), ...f('하타')].join(' | ')} |`)].join('\n');
   // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
-  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. [리뷰](#/reviews) / [VOC](#/voc-list)\n- 핀카: \n- 하타: \n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
+  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. [리뷰](#/reviews) / [VOC](#/report)\n- 핀카: \n- 하타: \n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
 }
 
 // ---------- 데이터 ----------
