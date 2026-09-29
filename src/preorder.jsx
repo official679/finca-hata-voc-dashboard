@@ -421,7 +421,7 @@ function PreorderProducts({ products, lines, productByCode, onEdit }) {
       </div>
       <div className="table-wrap">
         <table className="table table-wide">
-          <thead><tr><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고 공지</th><th>1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th>2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제입고</th><th className="num">대기 수량</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
+          <thead><tr><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고</th><th title="고객 안내 시작한 날">1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th title="다시 안내 시작한 날">2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제 입고</th><th className="num">대기 수량</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
           <tbody>
             {rows.map(p => {
               const c = counts.get(p.code) || {};
@@ -446,11 +446,17 @@ function PreorderProducts({ products, lines, productByCode, onEdit }) {
   );
 }
 
+// [칸, 이름, 설명] — 일정이 바뀔 때마다 '공지일(안내 시작한 날) → 입고일 → 출고일' 순서로 한 줄씩 채움
 const PRODUCT_DATE_FIELDS = [
-  ['first_in', '최초 입고예정'], ['first_out', '최초 출고일 공지'],
-  ['change1_notice', '1차 일정 변경 공지일'], ['change1_in', '1차 변경 입고일'], ['change1_out', '1차 변경 출고안내일'],
-  ['change2_notice', '2차 일정 변경 공지일'], ['change2_in', '2차 변경 입고일'], ['change2_out', '2차 변경 출고안내일'],
-  ['actual_in', '실제입고일'],
+  ['first_in', '최초 입고예정', '처음 잡혔던 입고 예정일'],
+  ['first_out', '최초 출고일 공지', '상품페이지에 처음 안내한 출고일 (일반상품이면 원래 출고일)'],
+  ['change1_notice', '1차 공지일', '일정이 처음 바뀌어서 고객 안내를 시작한 날'],
+  ['change1_in', '1차 변경 입고일', '바뀐 입고 예정일'],
+  ['change1_out', '1차 변경 출고일', '바뀐 출고 예정일 (고객에게 안내한 날짜)'],
+  ['change2_notice', '2차 공지일', '일정이 또 바뀌어서 다시 안내를 시작한 날'],
+  ['change2_in', '2차 변경 입고일', '다시 바뀐 입고 예정일'],
+  ['change2_out', '2차 변경 출고일', '다시 바뀐 출고 예정일'],
+  ['actual_in', '실제 입고일', '실제로 들어온 날 (다 나가면 예판 상태를 종료로)'],
 ];
 
 function PreorderProductPanel({ product, onClose, reload }) {
@@ -483,11 +489,15 @@ function PreorderProductPanel({ product, onClose, reload }) {
           </div>
           <div className="form-section">일정</div>
           <div className="form-grid">
-            {PRODUCT_DATE_FIELDS.map(([k, label]) => (
-              <div className="field" key={k}><label>{label}</label><input type="date" value={f[k] || ''} onChange={e => set(k)(e.target.value)} /></div>
+            {PRODUCT_DATE_FIELDS.map(([k, label, help]) => (
+              <div className="field" key={k}><label>{label}</label><input type="date" value={f[k] || ''} onChange={e => set(k)(e.target.value)} /><div className="hint">{help}</div></div>
             ))}
           </div>
-          <div className="hint">출고일이 바뀌면 <b>변경 공지일</b>도 꼭 넣어주세요. 공지일보다 먼저 산 고객 = 지연 안내 대상, 공지일 이후에 산 고객 = 바뀐 일정을 보고 산 고객이에요.</div>
+          <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', marginTop: 12, lineHeight: 1.8 }}>
+            <b>예시</b> · 원래 9/28 당일 출고였는데 재고가 부족해서 9/28부터 고객 안내 시작, 11/2 입고 · 11/9 출고로 바뀐 경우<br />
+            최초 출고일 공지 <b>9/28</b> → 1차 공지일 <b>9/28</b> · 1차 변경 입고일 <b>11/2</b> · 1차 변경 출고일 <b>11/9</b><br />
+            <span className="muted">공지일보다 먼저 산 고객 = 지연 안내 대상 · 공지일 이후에 산 고객 = 바뀐 일정을 보고 산 고객 (지연 아님) · 공지일 당일 주문은 * 표시</span>
+          </div>
           <div className="field" style={{ marginTop: 12 }}><label>비고</label><input value={f.note} onChange={e => set('note')(e.target.value)} /></div>
           <div className="form-actions">
             {product.id && <button type="button" className="btn btn-danger" style={{ marginRight: 'auto' }} onClick={async () => {
