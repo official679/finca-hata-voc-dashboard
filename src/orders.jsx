@@ -170,9 +170,17 @@ function ProductMasterUpload() {
   const apply = async () => {
     setBusy('저장 중...');
     try {
-      for (let i = 0; i < plan.adds.length; i += 500) {
-        const { error } = await db.from('products').insert(plan.adds.slice(i, i + 500));
-        if (error) throw error;
+      // products.id는 자동 번호가 아님(처음 넣을 때 번호를 직접 붙임) → 지금 가장 큰 번호 다음부터 붙여서 추가
+      if (plan.adds.length) {
+        const { data: top, error: e1 } = await db.from('products').select('id').order('id', { ascending: false }).limit(1);
+        if (e1) throw e1;
+        let next = Number((top && top[0] && top[0].id) || 0) + 1;
+        const withIds = plan.adds.map(a => ({ id: next++, ...a }));
+        for (let i = 0; i < withIds.length; i += 500) {
+          setBusy(`새 상품 추가 중... ${Math.min(i + 500, withIds.length)}/${withIds.length}`);
+          const { error } = await db.from('products').insert(withIds.slice(i, i + 500));
+          if (error) throw error;
+        }
       }
       // 바뀐 상품: 같은 분류로 바뀌는 것끼리 묶어서 한 번에 (처음 추가분류를 채울 때 수천 개라서)
       const groups = new Map();
