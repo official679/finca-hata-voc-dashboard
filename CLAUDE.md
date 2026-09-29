@@ -55,6 +55,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사용자에게는 항상 한국어로 답하기 (영어로 답했다가 지적받음).
 - **매뉴얼·안내 글을 만들거나 고치면 대시보드 업무 매뉴얼 + 노션(ONE BOOK > CX본부) 둘 다 반영** (사용자 필수 요청, 2026-09-30).
 - 백업: 데이터 업로드 > 📦 백업 받기(엑셀, 표마다 시트). 마지막 백업일 = code_items 'backup_log'. 30일 지나면 메인 '오늘 챙길 것'에 알림.
+- index.html의 CDN 라이브러리는 버전 고정 (React 18.3.1, Babel 7.29.9, supabase-js 2.117.2 등, 2026-09-30). 올릴 땐 한 번에 하나씩 확인 후.
 - 검색은 lib.jsx `matchQuery` (띄어 쓴 단어가 모두 들어 있으면 찾음). 새 검색창도 이걸 쓰기.
 - KPI 화면(kpi.jsx): 대표님 보고 + 팀 목표 공용. 목표값 = code_items 'kpi_target' (label '브랜드|지표키|값'), 기본값은 KPI_DEFS.def.
 - 양식 파일: upload.jsx `downloadTemplate`/`TemplateButton` (칸 이름만, 예시 줄 없음 — 예시가 실제 데이터로 들어가는 사고 방지).
