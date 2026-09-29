@@ -254,7 +254,7 @@ function PreorderPage() {
 
       {tab === 'todo' && <PreorderAllOrders key="todo" orders={pending} onOpen={setOpenOrder} reload={reload} todo />}
       {tab === 'orders' && <PreorderAllOrders key="orders" orders={orders} onOpen={setOpenOrder} reload={reload} />}
-      {tab === 'products' && <PreorderProducts products={products} lines={lines} productByCode={productByCode} onEdit={setEditProduct} />}
+      {tab === 'products' && <PreorderProducts products={products} lines={lines} productByCode={productByCode} onEdit={setEditProduct} reload={reload} />}
       {tab === 'upload' && <PreorderUpload lines={lines} products={products} uploads={uploads} reload={reload} />}
       {tab === 'guide' && <PreorderGuide />}
 
@@ -529,7 +529,8 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   );
 }
 
-function PreorderProducts({ products, lines, productByCode, onEdit }) {
+function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
+  const toast = useToast();
   const [showDone, setShowDone] = useState(false);
   const counts = useMemo(() => {
     const m = new Map();
@@ -542,12 +543,25 @@ function PreorderProducts({ products, lines, productByCode, onEdit }) {
     });
     return m;
   }, [lines, productByCode]);
-  const rows = products.filter(p => showDone || p.status !== '종료');
+  // 입고 완료 상품: 기다리는 주문이 없으면 종료해도 됨 · 있으면 '입고됐는데 미출고'로 확인 필요
+  const waitingOf = (p) => (counts.get(p.code) || {}).total || 0;
+  const readyToClose = products.filter(p => p.status !== '종료' && p.actual_in && !waitingOf(p));
+  const closeAll = async () => {
+    if (!confirm(`입고가 끝났고 기다리는 주문이 없는 상품 ${readyToClose.length}개를 '종료'로 바꿀까요?\n(종료된 상품은 목록에서 숨겨지고, '종료된 상품도 보기'로 다시 볼 수 있어요)`)) return;
+    const { error } = await db.from('preorder_products').update({ status: '종료' }).in('id', readyToClose.map(p => p.id));
+    if (error) { toast('❌ ' + error.message, 'err'); return; }
+    toast(`✅ ${readyToClose.length}개 종료 처리했어요`);
+    reload();
+  };
+  // 확인이 필요한 것(입고됐는데 미출고)을 위로
+  const rank = (p) => (p.status === '종료' ? 3 : p.actual_in && waitingOf(p) ? 0 : p.actual_in ? 2 : 1);
+  const rows = products.filter(p => showDone || p.status !== '종료').sort((a, b) => rank(a) - rank(b));
   const d = (v) => (v ? fmtDate(v) : '');
   return (
     <div className="card" style={{ padding: 0 }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '16px 20px' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '16px 20px', flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={() => onEdit({ status: '진행' })}>+ 예약상품 추가</button>
+        {readyToClose.length > 0 && <button className="btn" onClick={closeAll} title="실제 입고일이 있고 기다리는 주문이 없는 상품">✅ 입고 끝난 상품 {readyToClose.length}개 종료 처리</button>}
         <label className="muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} /> 종료된 상품도 보기</label>
         <span className="muted" style={{ marginLeft: 'auto' }}>행을 누르면 일정을 고칠 수 있어요 · 수량 = 출고대기 기준</span>
       </div>
@@ -566,7 +580,10 @@ function PreorderProducts({ products, lines, productByCode, onEdit }) {
                   <td style={warn && p.change2_out && !p.change2_notice ? { background: 'var(--warn-soft)' } : null}>{d(p.change2_notice) || (p.change2_out ? '⚠️ 비어있음' : '')}</td><td>{d(p.change2_in)}</td><td>{d(p.change2_out)}</td>
                   <td>{d(p.actual_in)}</td>
                   <td className="num">{c.total || ''}</td><td className="num">{c['1차 지연'] || ''}</td><td className="num">{c['2차 지연'] || ''}</td>
-                  <td>{p.status === '종료' ? <span className="chip">종료</span> : <span className="chip chip-blue">진행</span>}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{p.status === '종료' ? <span className="chip">종료</span>
+                    : p.actual_in && c.total ? <span className="chip chip-amber" title="입고됐는데 아직 출고 안 된 주문이 있어요">입고됨 · 미출고 {c.total}</span>
+                    : p.actual_in ? <span className="chip chip-green" title="기다리는 주문이 없어요. 종료 처리해도 돼요">입고 완료 · 종료 가능</span>
+                    : <span className="chip chip-blue">진행</span>}</td>
                 </tr>
               );
             })}
