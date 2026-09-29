@@ -38,7 +38,8 @@ function HomePage() {
   const reviews = useLight('review_items', 'brand,rating,written_at,content', monthsAgo(4));   // 최근 5개월 (코멘트 분석용 내용 포함)
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id');
   const [brand, setBrand] = useState('핀카');
-  const preorder = usePreorderPending();   // 예약배송은 브랜드 구분 없이 (지금은 핀카만 운영)
+  const preorder = usePreorderPending();
+  const taskSum = useTaskSummary();   // 예약배송은 브랜드 구분 없이 (지금은 핀카만 운영)
 
   if (!daily || !reviews || !board) return <div className="loading-screen">요약 불러오는 중...</div>;
 
@@ -103,6 +104,8 @@ function HomePage() {
         <Kpi label="처리 대기 VOC" value={openCases.length} sub={link('voc-list', 'VOC 목록 →')} alert={openCases.length > 0} />
         <Kpi label="부정 리뷰 (최근 30일)" value={neg30.toLocaleString()} sub={link('reviews', '리뷰 분석 →')} />
         <Kpi label="재입고 문의 (최근 30일)" value={restock30} sub={link('board', '게시판 분석 →')} />
+        <Kpi label="업무 마감 임박" value={!taskSum ? '...' : taskSum.error ? '-' : taskSum.due}
+          sub={link('tasks', taskSum && !taskSum.error ? `진행 전·중 ${taskSum.open}건${taskSum.mine !== null ? ` · 내 업무 ${taskSum.mine}` : ''} →` : '업무 보드 →')} alert={!!(taskSum && taskSum.due)} />
         <Kpi label="예약배송 안내 필요" value={!preorder ? '...' : preorder.error ? '-' : preorder.pending}
           sub={link('preorder', preorder && !preorder.error ? `출고대기 ${preorder.open}건 · 예약배송 →` : '예약배송 관리 →')} alert={!!(preorder && preorder.pending)} />
       </div>

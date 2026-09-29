@@ -378,3 +378,9 @@ tr.row-selected td { background: #EEF4FE !important; }
 .check-btn { border: 1px solid var(--border); background: #fff; cursor: pointer; margin-right: 4px; opacity: 0.55; font-size: 12px; }
 .check-btn:hover { opacity: 1; }
 .check-btn.on { opacity: 1; border-color: transparent; font-weight: 700; }
+/* 업무 보드 댓글 */
+.task-comment { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.task-comment-head { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.task-comment-body { white-space: pre-line; margin-top: 4px; font-size: 13.5px; line-height: 1.6; }
+.board-card.clickable { cursor: pointer; }
+.board-card.clickable:hover { border-color: var(--accent); }
