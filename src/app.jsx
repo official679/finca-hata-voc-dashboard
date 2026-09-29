@@ -10,6 +10,7 @@ const NAV = [
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
     { key: 'reviews', label: '리뷰 분석', icon: '📊' },
+    { key: 'review-list', label: '리뷰 목록', icon: '💬' },
     { key: 'board', label: '게시판 분석', icon: '🔎' },
   ] },
   { group: '✏️ 입력·업로드', items: [
@@ -62,7 +63,7 @@ const SOON_PAGES = {
 };
 
 function currentRoute() {
-  const key = location.hash.replace(/^#\/?/, '').split('/')[0];   // #/meetings/12 처럼 뒤에 붙은 건 화면 안에서 씀
+  const key = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];   // #/meetings/12 · #/review-list?theme=.. 처럼 뒤에 붙은 건 화면 안에서 씀
   return ALL_NAV.some(n => n.key === key) ? key : 'home';
 }
 
@@ -97,6 +98,7 @@ function Shell({ session }) {
     upload: <DataUploadPage />,
     'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
+    'review-list': <ReviewListPage key={location.hash} />,
     'upload-board': <DataUploadPage />,
     'upload-orders': <DataUploadPage />,
     board: <BoardAnalysisPage />,

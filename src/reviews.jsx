@@ -55,23 +55,37 @@ const REVIEW_PLATFORM_TO_VOC = { '아임웹': '자사몰', '카페24': '자사�
 const REVIEW_VOC_NOTE = '리뷰 자동 등록';
 
 // 새로 올라온 부정 리뷰(1~3점)를 VOC 접수로 등록 → 담당자는 VOC 목록에서 사진·처리 내용만 채움
+// 리뷰 한 건 → VOC 접수 내용 (VOC 목록에서 '[리뷰 ★점수] 내용'으로 보임)
+function reviewToVocRow(r, note = REVIEW_VOC_NOTE) {
+  const theme = reviewThemes(r.content, true).find(t => THEME_TO_VOC_TYPE[t]);
+  return {
+    received_date: (r.written_at || '').slice(0, 10) || today(),
+    brand: r.brand,
+    platform: REVIEW_PLATFORM_TO_VOC[r.platform] || r.platform,
+    order_no: r.order_no || null,
+    product_id: r.product_id || null,
+    product_name: r.product_name,
+    voc_type: theme ? THEME_TO_VOC_TYPE[theme] : '기타',
+    consult_method: '리뷰',
+    status: '접수',
+    reason_detail: reviewVocKey(r),
+    note,
+  };
+}
+const reviewVocKey = (r) => `[리뷰 ★${r.rating}] ${r.content || ''}`;
+
+// 리뷰에 연결된 VOC 번호 기록 (12번 SQL 전이면 조용히 건너뜀)
+async function linkReviewsToVoc(reviews, created) {
+  for (let i = 0; i < reviews.length; i++) {
+    if (!reviews[i].id || !created[i]) continue;
+    const { error } = await db.from('review_items').update({ voc_case_id: created[i].id }).eq('id', reviews[i].id);
+    if (error) return;
+  }
+}
+
 async function negativeReviewsToVoc(newReviews) {
-  const rows = newReviews.filter(r => r.rating !== null && r.rating <= 3).map(r => {
-    const theme = reviewThemes(r.content, true).find(t => THEME_TO_VOC_TYPE[t]);
-    return {
-      received_date: (r.written_at || '').slice(0, 10) || today(),
-      brand: r.brand,
-      platform: REVIEW_PLATFORM_TO_VOC[r.platform] || r.platform,
-      order_no: r.order_no,
-      product_id: r.product_id,
-      product_name: r.product_name,
-      voc_type: theme ? THEME_TO_VOC_TYPE[theme] : '기타',
-      consult_method: '리뷰',
-      status: '접수',
-      reason_detail: `[리뷰 ★${r.rating}] ${r.content || ''}`,
-      note: REVIEW_VOC_NOTE,
-    };
-  });
+  const src = newReviews.filter(r => r.rating !== null && r.rating <= 3);
+  const rows = src.map(r => reviewToVocRow(r));
   if (!rows.length) return null;
   const created = [];
   for (let i = 0; i < rows.length; i += 200) {
@@ -79,6 +93,7 @@ async function negativeReviewsToVoc(newReviews) {
     if (error) throw new Error('부정 리뷰 VOC 등록 실패: ' + error.message);
     created.push(...data);
   }
+  await linkReviewsToVoc(src, created);
   return created;
 }
 
@@ -116,8 +131,6 @@ function ReviewAnalysisPage() {
   const [period, setPeriod] = useState('6');     // 기본 최근 6개월 (데이터가 쌓여도 빠르게)
   const [reviews, setReviews] = useReviews(period === 'all' ? null : reviewPeriodStart(period)[0]);
   const [negMax, setNegMax] = useState(loadNegMax);
-  const [theme, setTheme] = useState(null);     // { name, side }
-  const [product, setProduct] = useState('');
 
   useEffect(() => { try { localStorage.setItem('reviewNegMax', String(negMax)); } catch {} }, [negMax]);
 
@@ -146,16 +159,6 @@ function ReviewAnalysisPage() {
   const byProduct = [...enriched.reduce((m, r) => { const e = m.get(r.name) || { name: r.name, brand: r.brand, rows: [] }; e.rows.push(r); m.set(r.name, e); return m; }, new Map()).values()]
     .map(e => ({ ...e, count: e.rows.length, neg: e.rows.filter(r => r.neg).length, avg: e.rows.reduce((a, r) => a + (r.rating || 0), 0) / e.rows.length, negThemes: themeCount(e.rows.filter(r => r.neg)).slice(0, 3) }))
     .filter(e => e.neg > 0).sort((a, b) => b.neg - a.neg || a.avg - b.avg).slice(0, 15);
-
-  const listRows = (theme ? enriched.filter(r => r.themes.includes(theme.name) && (theme.side === 'neg' ? r.neg : !r.neg))
-    : product ? enriched.filter(r => r.name === product && r.neg)
-    : neg);
-
-  const updateReview = async (id, patch) => {
-    const { error } = await db.from('review_items').update(patch).eq('id', id);
-    if (error) { toast('❌ ' + error.message, 'err'); return; }
-    setReviews(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
-  };
 
   return (
     <>
@@ -199,23 +202,23 @@ function ReviewAnalysisPage() {
 
       <div className="grid grid-2w" style={{ marginTop: 16 }}>
         <div className="card">
-          <div className="card-title">👍 좋았던 점 <small>긍정 리뷰 기준 · 누르면 리뷰를 볼 수 있어요</small></div>
-          <ThemeBars items={themeCount(pos).slice(0, 10)} total={pos.length} color="var(--accent)" onPick={name => { setTheme({ name, side: 'pos' }); setProduct(''); }} />
+          <div className="card-title">👍 좋았던 점 <small>긍정 리뷰 기준 · 누르면 리뷰 목록에서 볼 수 있어요</small></div>
+          <ThemeBars items={themeCount(pos).slice(0, 10)} total={pos.length} color="var(--accent)" onPick={name => openReviewList({ brand, period, theme: name, stars: 'pos' })} />
         </div>
         <div className="card">
-          <div className="card-title">👎 불만 사항 <small>부정 리뷰 기준 · 누르면 리뷰를 볼 수 있어요</small></div>
-          <ThemeBars items={themeCount(neg).slice(0, 10)} total={neg.length} color="var(--danger)" onPick={name => { setTheme({ name, side: 'neg' }); setProduct(''); }} />
+          <div className="card-title">👎 불만 사항 <small>부정 리뷰 기준 · 누르면 리뷰 목록에서 볼 수 있어요</small></div>
+          <ThemeBars items={themeCount(neg).slice(0, 10)} total={neg.length} color="var(--danger)" onPick={name => openReviewList({ brand, period, theme: name, stars: 'neg' })} />
         </div>
       </div>
 
       <div className="card" style={{ marginTop: 16, padding: 0 }}>
-        <div className="card-title" style={{ padding: '18px 20px 0' }}>부정 리뷰가 많은 상품 <small>누르면 해당 상품의 부정 리뷰를 볼 수 있어요</small></div>
+        <div className="card-title" style={{ padding: '18px 20px 0' }}>부정 리뷰가 많은 상품 <small>누르면 리뷰 목록에서 이 상품의 부정 리뷰를 볼 수 있어요</small></div>
         <div className="table-wrap">
           <table className="table">
             <thead><tr><th>상품명</th><th>브랜드</th><th className="num">리뷰</th><th className="num">부정</th><th className="num">부정 비중</th><th className="num">평균 별점</th><th>주요 불만</th></tr></thead>
             <tbody>
               {byProduct.map(p => (
-                <tr key={p.name} className="clickable" onClick={() => { setProduct(p.name); setTheme(null); }}>
+                <tr key={p.name} className="clickable" onClick={() => openReviewList({ brand, period, product: p.name, stars: 'neg' })}>
                   <td className="ellipsis" title={p.name}>{p.name}</td>
                   <td>{p.brand}</td>
                   <td className="num">{p.count}</td>
@@ -229,18 +232,6 @@ function ReviewAnalysisPage() {
           </table>
           {byProduct.length === 0 && <div className="empty">부정 리뷰가 없어요</div>}
         </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-title">
-          <span>
-            {theme ? `${theme.side === 'neg' ? '👎 부정' : '👍 긍정'} 리뷰 · "${theme.name}"` : product ? `부정 리뷰 · ${product}` : '부정 리뷰'}
-            <small> {listRows.length.toLocaleString()}건</small>
-          </span>
-          {(theme || product) && <button className="btn btn-sm" onClick={() => { setTheme(null); setProduct(''); }}>← 부정 리뷰 전체로</button>}
-        </div>
-        <Paged items={listRows} resetKey={`${theme?.name}|${theme?.side}|${product}|${brand}|${platform}|${category}|${period}|${negMax}`}
-          empty="해당하는 리뷰가 없어요" render={r => <ReviewCard key={r.id} r={r} onUpdate={updateReview} />} />
       </div>
     </>
   );

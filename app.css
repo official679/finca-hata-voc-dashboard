@@ -370,3 +370,11 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .bulk-bar.on { background: var(--accent-soft); border-color: var(--accent); }
 .bulk-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
 tr.row-selected td { background: #EEF4FE !important; }
+/* 리뷰 목록 */
+.review-table td { vertical-align: top; }
+.review-table .review-text { min-width: 320px; max-width: 520px; cursor: pointer; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.review-table .review-text.open { display: block; -webkit-line-clamp: unset; }
+.review-table tr.review-neg td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.check-btn { border: 1px solid var(--border); background: #fff; cursor: pointer; margin-right: 4px; opacity: 0.55; font-size: 12px; }
+.check-btn:hover { opacity: 1; }
+.check-btn.on { opacity: 1; border-color: transparent; font-weight: 700; }
