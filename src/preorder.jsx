@@ -313,6 +313,28 @@ function PreorderAllOrders({ orders, onOpen }) {
   );
 }
 
+// 사은품: 기준 관리 목록에서 고르기 (목록에 없는 기존 값은 그대로 보이고, '직접 입력'도 가능)
+function GiftPicker({ value, onChange, options }) {
+  const [typing, setTyping] = useState(false);
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  const opts = clean && !options.includes(value) ? [...options, value] : options;
+  if (typing) return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <input style={{ flex: 1 }} value={value} onChange={e => onChange(e.target.value)} placeholder="사은품 직접 입력" autoFocus />
+      <button type="button" className="btn btn-sm" onClick={() => setTyping(false)}>목록</button>
+    </div>
+  );
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      <select style={{ flex: 1, minWidth: 0 }} value={value} onChange={e => onChange(e.target.value)}>
+        <option value="">없음</option>
+        {opts.map(g => <option key={g} value={g}>{String(g).replace(/\s+/g, ' ')}{options.includes(g) ? '' : ' (기존 기록)'}</option>)}
+      </select>
+      <button type="button" className="btn btn-sm" onClick={() => setTyping(true)}>직접 입력</button>
+    </div>
+  );
+}
+
 function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   const toast = useToast();
   const [ls, setLs] = useState(() => order.lines.map(l => ({ ...l })));
@@ -368,7 +390,6 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
             <button className="btn" onClick={() => copy(PREORDER_SMS.second(smsName, smsDate), '2차 지연')}>📋 2차 지연 문자</button>
             {order.low && <button className="btn" onClick={() => copy(PREORDER_SMS.split(smsName), '분리배송')}>📋 재고 소량·분리배송 문자</button>}
           </div>
-          <datalist id="preorder-gift-options">{giftOptions.map(g => <option key={g} value={g} />)}</datalist>
           <div className="field" style={{ maxWidth: 240, marginBottom: 14 }}>
             <label>배송구분 (주문 전체)</label>
             <Select className="" value={split} onChange={setSplit} options={['합배송', '분리배송']} placeholder="선택 안 함" />
@@ -388,7 +409,7 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
                     <div className="field"><label>2차 안내</label><Select className="" value={l.notice2_method || ''} onChange={setLine(i, 'notice2_method')} options={['유선', '문자']} placeholder="-" /></div>
                     <div className="field"><label>2차 안내일</label><input type="date" value={l.notice2_date || ''} onChange={ev => setLine(i, 'notice2_date')(ev.target.value)} /></div>
                     <div className="field" style={{ gridColumn: 'span 2' }}><label>사은품</label>
-                      <input list="preorder-gift-options" value={l.gift || ''} onChange={ev => setLine(i, 'gift')(ev.target.value)} placeholder="눌러서 목록에서 고르거나 직접 입력" />
+                      <GiftPicker value={l.gift || ''} onChange={setLine(i, 'gift')} options={giftOptions} />
                     </div>
                   </div>
                 )}
