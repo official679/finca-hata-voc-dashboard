@@ -83,6 +83,20 @@ function ReviewListPage() {
     toast(<>✅ VOC로 접수했어요 · <a href="#/voc-list">VOC 목록</a>에서 사진·처리 내용을 채워주세요</>);
   };
 
+  // VOC로 보낸 것 되돌리기: 연결된 VOC 접수를 지우고 리뷰의 연결을 풂
+  const undoVoc = async (r, vocId) => {
+    const c = cases.find(x => x.id === vocId);
+    const touched = c && ((c.photos || []).length || (c.status && c.status !== '접수'));
+    if (!confirm(`이 리뷰로 만든 VOC 접수를 삭제할까요?${touched ? '\n⚠️ 이 VOC에는 사진이나 처리 상태가 이미 입력돼 있어요. 같이 지워져요.' : ''}\n되돌릴 수 없어요.`)) return;
+    const { error } = await db.from('voc_cases').delete().eq('id', vocId);
+    if (error) { toast('❌ 삭제 실패: ' + error.message, 'err'); return; }
+    if (c && c.photos && c.photos.length) await db.storage.from(PHOTO_BUCKET).remove(c.photos);
+    setCases(prev => prev.filter(x => x.id !== vocId));
+    if (r.voc_case_id) await db.from('review_items').update({ voc_case_id: null }).eq('id', r.id);
+    setReviews(prev => prev.map(x => (x.id === r.id ? { ...x, voc_case_id: null } : x)));
+    toast('✅ VOC 접수를 삭제했어요');
+  };
+
   const hasFilter = platform || stars || check || theme || product || q;
   return (
     <>
@@ -126,7 +140,10 @@ function ReviewListPage() {
                       ))}
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
-                      {voc ? <a className="chip chip-green" href="#/voc-list">✓ VOC 등록됨</a>
+                      {voc ? <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                          <a className="chip chip-green" href="#/voc-list">✓ VOC 등록됨</a>
+                          <button className="btn-link" style={{ fontSize: 12, color: 'var(--danger)' }} title="VOC 접수를 지워요" onClick={() => undoVoc(r, voc)}>취소</button>
+                        </span>
                         : needVoc ? <button className="btn btn-sm btn-primary" onClick={() => toVoc(r)}>→ VOC로</button>
                         : <span className="muted">-</span>}
                     </td>
