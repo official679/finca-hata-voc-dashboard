@@ -175,6 +175,26 @@ function usePreorder() {
   return [state, load];
 }
 
+// 메인 요약용: 지금 안내가 필요한 예약배송 주문 수 (출고대기 주문만 불러옴)
+function usePreorderPending() {
+  const { codeOptions } = useApp();
+  const giftKey = codeOptions ? codeOptions('preorder_gift', true).join('\n') : '';
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    Promise.all([
+      fetchAll(() => db.from('preorder_products').select('*').order('id')),
+      fetchAll(() => db.from('preorder_lines').select('*').eq('status', '출고대기').order('id')),
+    ]).then(([products, lines]) => {
+      if (!alive) return;
+      const orders = enrichPreorder(lines, new Map(products.map(p => [p.code, p])), giftCodesFrom(giftKey.split('\n')));
+      setState({ pending: orders.filter(o => o.pending).length, open: orders.length });
+    }).catch(() => alive && setState({ error: true }));
+    return () => { alive = false; };
+  }, [giftKey]);
+  return state;
+}
+
 async function upsertChunks(table, rows, onConflict) {
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await db.from(table).upsert(rows.slice(i, i + 500), { onConflict });

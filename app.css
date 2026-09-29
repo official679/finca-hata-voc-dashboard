@@ -319,9 +319,9 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .report-table.compact th, .report-table.compact td { padding: 8px 14px; }
 .report-table.compact th.num, .report-table.compact td.num { min-width: 84px; }
 .report-table.compact td:first-child { min-width: 120px; }
-.report-split { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.report-split { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; }
 .report-split > .brand-card-fit { flex: 0 1 auto; margin: 0; }
-.report-side { flex: 1 1 420px; min-width: 0; display: grid; gap: 16px; }
+.report-side { flex: 1 1 420px; min-width: 0; display: grid; gap: 16px; grid-template-rows: auto 1fr; }
 .report-side > .card { margin: 0; }
 .meeting-item-result { margin-top: 6px; padding: 6px 10px; background: var(--success-soft); border-radius: 8px; font-size: 13px; white-space: pre-line; }
 .meeting-item-result b { color: #1F7A52; margin-right: 4px; }
