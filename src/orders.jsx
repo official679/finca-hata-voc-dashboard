@@ -144,7 +144,7 @@ function ProductMasterUpload() {
         const h = grid.slice(0, 5).findIndex(r => PRODUCT_FILE_HEADERS.every(k => r.map(c => String(c).trim()).includes(k)));
         if (h < 0) continue;
         const head = grid[h].map(c => String(c).trim()), col = (k) => head.indexOf(k);
-        rows = grid.slice(h + 1).map(r => ({ product_name: str(r[col('품명')]), brand: str(r[col('브랜드')]), category: str(r[col('복종')]), size_gender: str(r[col('성별')]) }))
+        rows = grid.slice(h + 1).map(r => ({ product_name: str(r[col('품명')]), brand: str(r[col('브랜드')]), category: str(r[col('복종')]), size_gender: str(r[col('성별')]), line_type: col('추가분류') >= 0 ? str(r[col('추가분류')]) : null }))
           .filter(r => r.product_name && r.brand);
         break;
       }
@@ -158,8 +158,9 @@ function ProductMasterUpload() {
         seen.add(k);
         const e = existing.get(k);
         if (!e) adds.push(r);
-        else if ((r.category && r.category !== e.category) || (r.size_gender && r.size_gender !== e.size_gender)) {
-          changes.push({ id: e.id, name: e.product_name, from: `${e.category || '-'} · ${e.size_gender || '-'}`, category: r.category || e.category, size_gender: r.size_gender || e.size_gender });
+        else if ((r.category && r.category !== e.category) || (r.size_gender && r.size_gender !== e.size_gender) || (r.line_type && r.line_type !== e.line_type)) {
+          changes.push({ id: e.id, name: e.product_name, brand: e.brand, from: `${e.category || '-'} · ${e.size_gender || '-'} · ${e.line_type || '-'}`,
+            category: r.category || e.category, size_gender: r.size_gender || e.size_gender, line_type: r.line_type || e.line_type || null });
         }
       });
       setPlan({ file: file.name, total: seen.size, adds, changes });
@@ -173,9 +174,22 @@ function ProductMasterUpload() {
         const { error } = await db.from('products').insert(plan.adds.slice(i, i + 500));
         if (error) throw error;
       }
-      for (const c of plan.changes) {
-        const { error } = await db.from('products').update({ category: c.category, size_gender: c.size_gender }).eq('id', c.id);
-        if (error) throw error;
+      // 바뀐 상품: 같은 분류로 바뀌는 것끼리 묶어서 한 번에 (처음 추가분류를 채울 때 수천 개라서)
+      const groups = new Map();
+      plan.changes.forEach(c => {
+        const k = JSON.stringify([c.category, c.size_gender, c.line_type]);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(c.id);
+      });
+      let done = 0;
+      for (const [k, ids] of groups) {
+        const [category, size_gender, line_type] = JSON.parse(k);
+        for (let i = 0; i < ids.length; i += 200) {
+          const { error } = await db.from('products').update({ category, size_gender, line_type }).in('id', ids.slice(i, i + 200));
+          if (error) throw error;
+        }
+        done += ids.length;
+        setBusy(`분류 고치는 중... ${done}/${plan.changes.length}`);
       }
       await loadProducts();
       toast(`✅ 새 상품 ${plan.adds.length}개 추가 · 분류 바뀐 상품 ${plan.changes.length}개 고침`);
@@ -196,10 +210,10 @@ function ProductMasterUpload() {
         <div style={{ marginTop: 12 }}>
           <div className="card" style={{ background: 'var(--accent-soft)', border: 'none', lineHeight: 1.8 }}>
             <b>{plan.file}</b> · 상품 {plan.total.toLocaleString()}개 확인<br />
-            ➕ 새 상품 <b>{plan.adds.length.toLocaleString()}개</b> 추가 · ✏️ 대분류·중분류 바뀐 상품 <b>{plan.changes.length.toLocaleString()}개</b> 고침 · 나머지는 이미 있어서 그대로
+            ➕ 새 상품 <b>{plan.adds.length.toLocaleString()}개</b> 추가 · ✏️ 대분류·중분류·추가분류 바뀐 상품 <b>{plan.changes.length.toLocaleString()}개</b> 고침 · 나머지는 이미 있어서 그대로
           </div>
           {plan.adds.length > 0 && <div className="hint" style={{ marginTop: 8 }}>새 상품 예: {plan.adds.slice(0, 8).map(a => `${a.product_name} (${a.category || '-'} · ${a.size_gender || '-'})`).join(' / ')}{plan.adds.length > 8 ? ' …' : ''}</div>}
-          {plan.changes.length > 0 && <div className="hint" style={{ marginTop: 4 }}>분류 변경 예: {plan.changes.slice(0, 5).map(c => `${c.name}: ${c.from} → ${c.category} · ${c.size_gender}`).join(' / ')}{plan.changes.length > 5 ? ' …' : ''}</div>}
+          {plan.changes.length > 0 && <div className="hint" style={{ marginTop: 4 }}>분류 변경 예: {plan.changes.slice(0, 5).map(c => `${c.name}: ${c.from} → ${c.category} · ${c.size_gender} · ${c.line_type || '-'}`).join(' / ')}{plan.changes.length > 5 ? ' …' : ''}</div>}
           <div className="form-actions">
             <button className="btn" onClick={() => setPlan(null)}>취소</button>
             <button className="btn btn-primary" onClick={apply} disabled={!plan.adds.length && !plan.changes.length}>저장하기</button>

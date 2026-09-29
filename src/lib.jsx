@@ -126,7 +126,7 @@ function useAppData(session) {
   }, []);
 
   const loadProducts = useCallback(async () => {
-    setProducts(await fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender').order('id')));
+    setProducts(await fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender,line_type').order('id')));
   }, []);
 
   const loadDaily = useCallback(async () => {
@@ -141,7 +141,7 @@ function useAppData(session) {
     (async () => {
       try {
         const [prods] = await Promise.all([
-          fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender').order('id')),
+          fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender,line_type').order('id')),
           loadCodes(),
           loadCases(),
         ]);
@@ -168,6 +168,8 @@ const subCategoryOf = (productId, productById) => (productId && productById.get(
 // VOC는 상품 마스터에 없으면 직접 고른 대분류·중분류(category·sub_category)를 씀
 const caseCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.category) || c.category || NO_CATEGORY;
 const caseSubCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.size_gender) || c.sub_category || '-';
+// 추가분류 (오클릭 '추가분류': 앵커 / 레귤러 등) — 상품 마스터와 연결된 VOC만
+const caseLineType = (c, productById) => (c.product_id && productById.get(c.product_id)?.line_type) || '';
 const categoryOptions = (products) => [...[...new Set(products.map(p => p.category).filter(c => c && c !== 'null'))].sort(), NO_CATEGORY];
 
 const caseProductName = (c, productById) => (c.product_id && productById.get(c.product_id)?.product_name) || c.product_name || '(상품 미입력)';

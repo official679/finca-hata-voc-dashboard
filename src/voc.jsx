@@ -294,7 +294,8 @@ function downloadCsv(filename, header, rows) {
 
 function VocListPage({ initialFilter }) {
   const { cases, codeOptions, productById, products } = useApp();
-  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', q: '', ...initialFilter });
+  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '', ...initialFilter });
+  const lineOptions = useMemo(() => [...new Set(products.map(p => p.line_type).filter(Boolean))].sort(), [products]);
   const [editing, setEditing] = useState(null);
   const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
 
@@ -305,14 +306,15 @@ function VocListPage({ initialFilter }) {
       (!f.brand || c.brand === f.brand) && (!f.platform || c.platform === f.platform) &&
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
       (!f.reason || c.reason_category === f.reason) && (!f.category || caseCategory(c, productById) === f.category) &&
+      (!f.line || caseLineType(c, productById) === f.line) &&
       (!f.action || (f.action === '__any' ? !!c.action_required : c.action_required === f.action)) &&
       matchQuery(q, caseProductName(c, productById), c.order_no, c.orderer, c.receiver, c.reason_detail, c.note, c.voc_type, c.reason_category));
   }, [cases, f, productById]);
 
   const exportCsv = () => downloadCsv(`VOC목록_${today()}.csv`,
-    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', '중분류', 'VOC구분', '처리구분', '문의채널', '진행상황', '담당부서', '완료일', '사유카테고리', '상세사유', '처리메모', '후속조치', '사진수'],
+    ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', '중분류', '추가분류', 'VOC구분', '처리구분', '문의채널', '진행상황', '담당부서', '완료일', '사유카테고리', '상세사유', '처리메모', '후속조치', '사진수'],
     rows.map(c => [c.received_date, c.brand, c.handler, c.platform, c.order_no, c.orderer, c.receiver, caseProductName(c, productById),
-      caseCategory(c, productById), caseSubCategory(c, productById), c.voc_type, c.handling, c.consult_method, c.status, c.department, c.completed_at, c.reason_category, c.reason_detail, c.note, c.action_required, (c.photos || []).length]));
+      caseCategory(c, productById), caseSubCategory(c, productById), caseLineType(c, productById), c.voc_type, c.handling, c.consult_method, c.status, c.department, c.completed_at, c.reason_category, c.reason_detail, c.note, c.action_required, (c.photos || []).length]));
 
   const hasFilter = Object.values(f).some(Boolean);
 
@@ -358,18 +360,19 @@ function VocListPage({ initialFilter }) {
           <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
           <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
           <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
+          {lineOptions.length > 0 && <Select value={f.line} onChange={set('line')} options={lineOptions} placeholder="추가분류 전체" />}
           <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
           {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
           <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·내용 검색" />
-          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', q: '' })}>필터 초기화</button>}
+          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '' })}>필터 초기화</button>}
         </div>
       </div>
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap">
           <table className="table table-wide">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>상품명</th><th>사유</th><th>진행</th>{SHOW_FOLLOWUP && <th>후속 조치</th>}<th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>추가분류</th><th>상품명</th><th>사유</th><th>진행</th>{SHOW_FOLLOWUP && <th>후속 조치</th>}<th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
               {rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE).map(c => (
@@ -381,6 +384,7 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{caseCategory(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{caseSubCategory(c, productById)}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{caseLineType(c, productById) ? <span className={`chip ${caseLineType(c, productById) === '앵커' ? 'chip-blue' : ''}`}>{caseLineType(c, productById)}</span> : <span className="muted">-</span>}</td>
                   <td className="ellipsis" title={caseProductName(c, productById)}>{c.consult_method === '리뷰' && <span className="chip chip-amber" style={{ marginRight: 6 }} title={c.note || '리뷰에서 등록'}>⭐ 리뷰</span>}{caseProductName(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
                   <td><StatusChip status={c.status} /></td>
