@@ -5,6 +5,7 @@ const NAV = [
     { key: 'home', label: '메인 요약', icon: '🏠' },
     { key: 'monthly', label: '보고서 (주간·월간)', icon: '📈' },
     { key: 'report', label: 'VOC 현황', icon: '📉' },
+    { key: 'meetings', label: 'CX 미팅 로그', icon: '📒' },
   ] },
   { group: '🔍 조회·분석', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
@@ -92,6 +93,7 @@ function Shell({ session }) {
     report: <ReportPage go={go} />,
     daily: <DailyEntryPage />,
     preorder: <PreorderPage />,
+    meetings: <MeetingsPage />,
     upload: <DataUploadPage />,
     'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
