@@ -297,6 +297,26 @@ function VocListPage({ initialFilter }) {
 
   const hasFilter = Object.values(f).some(Boolean);
 
+  // (미분류) VOC: 상품명으로 상품 마스터를 다시 찾아 연결 (리뷰에서 온 것 등)
+  const toast = useToast();
+  const { setCases } = useApp();
+  const [relinking, setRelinking] = useState(false);
+  const unlinked = cases.filter(c => !c.product_id && !c.category && c.product_name);
+  const relink = async () => {
+    setRelinking(true);
+    let n = 0;
+    const updated = new Map();
+    for (const c of unlinked) {
+      const pid = findReviewProductId(c.product_name, c.brand, products);
+      if (!pid) continue;
+      const { error } = await db.from('voc_cases').update({ product_id: pid }).eq('id', c.id);
+      if (!error) { n++; updated.set(c.id, pid); }
+    }
+    setCases(prev => prev.map(c => (updated.has(c.id) ? { ...c, product_id: updated.get(c.id) } : c)));
+    setRelinking(false);
+    toast(n ? `✅ ${n}건 상품을 찾아 대분류·중분류를 채웠어요${unlinked.length - n ? ` · 못 찾은 ${unlinked.length - n}건은 VOC를 눌러 직접 골라주세요` : ''}` : '상품 마스터에서 찾은 상품이 없어요. VOC를 눌러 대분류·중분류를 직접 골라주세요');
+  };
+
   // 15건씩 페이지로 (필터를 바꾸면 1페이지로)
   const PAGE_SIZE = 15;
   const [page, setPage] = useState(1);
@@ -307,6 +327,7 @@ function VocListPage({ initialFilter }) {
   return (
     <>
       <PageHeader title="VOC 목록" desc={`전체 ${cases.length.toLocaleString()}건 중 ${rows.length.toLocaleString()}건`}>
+        {unlinked.length > 0 && <button className="btn" onClick={relink} disabled={relinking} title="상품명으로 상품 마스터를 다시 찾아서 대분류·중분류를 채워요">{relinking ? '찾는 중...' : `🔗 미분류 ${unlinked.length}건 상품 다시 찾기`}</button>}
         <button className="btn" onClick={exportCsv}>⬇ 엑셀(CSV) 다운로드</button>
       </PageHeader>
       <div className="card" style={{ marginBottom: 16 }}>
@@ -341,7 +362,7 @@ function VocListPage({ initialFilter }) {
                   <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{caseCategory(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{caseSubCategory(c, productById)}</td>
-                  <td className="ellipsis" title={caseProductName(c, productById)}>{caseProductName(c, productById)}</td>
+                  <td className="ellipsis" title={caseProductName(c, productById)}>{c.consult_method === '리뷰' && <span className="chip chip-amber" style={{ marginRight: 6 }} title={c.note || '리뷰에서 등록'}>⭐ 리뷰</span>}{caseProductName(c, productById)}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
                   <td><StatusChip status={c.status} /></td>
                   {SHOW_FOLLOWUP && <td>{c.action_required ? <span className="chip chip-red">{c.action_required}</span> : <span className="muted">-</span>}</td>}

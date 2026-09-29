@@ -79,6 +79,12 @@ function findReviewProductId(name, brand, products) {
   if (!products || !products.length || !name) return null;
   const exact = productMatcher(products)(name);
   if (exact) return exact;
+  // 말머리·옵션·색상 수를 뺀 핵심 이름이 같은 상품 (예: '베이직 에코백 8COLORS' = '베이직 에코백_블랙')
+  const want = PRODUCT_BRAND[brand];
+  const key = (n) => coreName(n).replace(/\s+/g, '').toLowerCase();
+  const k = key(name);
+  const same = k.length >= 3 && products.find(p => (!want || p.brand === want) && key(p.product_name) === k);
+  if (same) return same.id;
   const hit = inferProduct(coreName(name), brand, buildProductIndex(products));
   return hit ? hit.id : null;
 }

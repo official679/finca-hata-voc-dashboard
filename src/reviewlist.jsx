@@ -133,7 +133,7 @@ function ReviewListPage() {
                     <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(r.written_at.slice(0, 10))}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{r.platform}</td>
                     <td style={{ minWidth: 180, maxWidth: 260 }}>{nameOf(r)}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}><span className="stars">{'★'.repeat(r.rating || 0)}<span className="muted">{'★'.repeat(5 - (r.rating || 0))}</span></span></td>
+                    <td style={{ whiteSpace: 'nowrap' }}><span className="stars">{'★'.repeat(r.rating || 0)}<span className="muted">{'★'.repeat(5 - (r.rating || 0))}</span></span><span className="stars-num">{r.rating ?? '-'}점</span></td>
                     <td className={`review-text${openId === r.id ? ' open' : ''}`} onClick={() => setOpenId(openId === r.id ? null : r.id)} title="누르면 전체 내용"><div className="review-clamp">{r.content || <span className="muted">(내용 없음)</span>}</div></td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       {REVIEW_CHECKS.map(c => (
