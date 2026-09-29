@@ -32,6 +32,7 @@ function ReviewListPage() {
   const [sort, setSort] = useState('date');
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState(null);
+  const [SIZE, setSize] = usePageSize('reviews', 15);
   const [reviews, setReviews] = useSince('review_items', '*', period === 'all' ? null : reviewPeriodStart(period)[0]);
   const negMax = loadNegMax();
 
@@ -63,7 +64,7 @@ function ReviewListPage() {
 
   if (!reviews) return <div className="loading-screen">리뷰 불러오는 중...</div>;
   const platforms = [...new Set(reviews.map(r => r.platform))].sort();
-  const SIZE = 20, pages = Math.max(1, Math.ceil(rows.length / SIZE)), cur = Math.min(page, pages);
+  const pages = Math.max(1, Math.ceil(rows.length / SIZE)), cur = Math.min(page, pages);
   const counts = Object.fromEntries(REVIEW_CHECKS.map(c => [c.key, rows.filter(r => r.check_status === c.key).length]));
 
   const setStatus = async (r, key) => {
@@ -155,7 +156,7 @@ function ReviewListPage() {
           </table>
           {!rows.length && <div className="empty">조건에 맞는 리뷰가 없어요</div>}
         </div>
-        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} /></div>
+        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} size={SIZE} onSize={setSize} /></div>
       </div>
     </>
   );

@@ -318,7 +318,7 @@ function VocListPage({ initialFilter }) {
   };
 
   // 15건씩 페이지로 (필터를 바꾸면 1페이지로)
-  const PAGE_SIZE = 15;
+  const [PAGE_SIZE, setPageSize] = usePageSize('voc');
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [f]);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
@@ -374,7 +374,7 @@ function VocListPage({ initialFilter }) {
           </table>
           {rows.length === 0 && <div className="empty">조건에 맞는 VOC가 없어요</div>}
         </div>
-        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} /></div>
+        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} size={PAGE_SIZE} onSize={setPageSize} /></div>
       </div>
       <VocEditPanel vocCase={editing} onClose={() => setEditing(null)} />
     </>

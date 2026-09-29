@@ -267,7 +267,8 @@ function PreorderPage() {
 function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected }) {
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [orders.length]);
-  const SIZE = 15, pages = Math.max(1, Math.ceil(orders.length / SIZE)), cur = Math.min(page, pages);
+  const [SIZE, setSize] = usePageSize('preorder');
+  const pages = Math.max(1, Math.ceil(orders.length / SIZE)), cur = Math.min(page, pages);
   if (!orders.length) return <div className="card empty">{empty}</div>;
   const shown = orders.slice((cur - 1) * SIZE, cur * SIZE);
   const toggle = (no) => setSelected(prev => { const n = new Set(prev); n.has(no) ? n.delete(no) : n.add(no); return n; });
@@ -314,7 +315,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
           </tbody>
         </table>
       </div>
-      <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} /></div>
+      <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} size={SIZE} onSize={setSize} /></div>
     </div>
   );
 }

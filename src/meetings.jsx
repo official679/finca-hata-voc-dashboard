@@ -167,6 +167,7 @@ function MeetingsPage() {
   const [kind, setKind] = useState('');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [SIZE, setSize] = usePageSize('meetings');
 
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>미팅 로그를 불러오지 못했어요: {error}<div className="hint">DB 설정 SQL(09_meetings_schema.sql)을 실행했는지 확인해 주세요.</div></div>;
   if (!meetings) return <div className="loading-screen">미팅 로그 불러오는 중...</div>;
@@ -182,7 +183,7 @@ function MeetingsPage() {
 
   const openItems = items.filter(i => i.status !== '완료');
   const rows = meetings.filter(m => (!kind || m.kind === kind) && (!q.trim() || m.title.toLowerCase().includes(q.trim().toLowerCase())));
-  const SIZE = 15, pages = Math.max(1, Math.ceil(rows.length / SIZE)), cur = Math.min(page, pages);
+  const pages = Math.max(1, Math.ceil(rows.length / SIZE)), cur = Math.min(page, pages);
   const counts = (m) => { const own = items.filter(i => i.meeting_id === m.id); return own.length ? `${own.filter(i => i.status === '완료').length}/${own.length}` : ''; };
   const dateOf = new Map(meetings.map(m => [m.id, m]));
 
@@ -226,7 +227,7 @@ function MeetingsPage() {
           </table>
           {!rows.length && <div className="empty">회의록이 없어요. '+ 새 회의록'으로 써보세요.</div>}
         </div>
-        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} /></div>
+        <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} size={SIZE} onSize={setSize} /></div>
       </div>
     </>
   );

@@ -271,9 +271,22 @@ function Paged({ items, render, size = 10, resetKey, empty }) {
   );
 }
 
-// 페이지 번호 버튼 (현재 페이지 주변 번호만 보여줌)
-function Pager({ page, pages, onChange }) {
-  if (pages <= 1) return null;
+// 한 페이지에 볼 개수 (목록마다 이 PC에 기억)
+const PAGE_SIZES = [15, 50, 100];
+function usePageSize(key, def = 15) {
+  const [size, setSize] = useState(() => { try { return Number(localStorage.getItem('pageSize:' + key)) || def; } catch { return def; } });
+  const set = (n) => { setSize(n); try { localStorage.setItem('pageSize:' + key, String(n)); } catch {} };
+  return [size, set];
+}
+
+// 페이지 번호 버튼 (현재 페이지 주변 번호만 보여줌) · size/onSize를 주면 '15개씩 · 50개씩 · 100개씩' 선택도 같이
+function Pager({ page, pages, onChange, size, onSize }) {
+  const sizeSel = onSize ? (
+    <select className="input pager-size" value={size} onChange={e => { onSize(Number(e.target.value)); onChange(1); }}>
+      {PAGE_SIZES.map(n => <option key={n} value={n}>{n}개씩 보기</option>)}
+    </select>
+  ) : null;
+  if (pages <= 1) return sizeSel ? <div className="pager">{sizeSel}</div> : null;
   const nums = [...new Set([1, page - 2, page - 1, page, page + 1, page + 2, pages])].filter(n => n >= 1 && n <= pages).sort((a, b) => a - b);
   return (
     <div className="pager">
@@ -285,6 +298,7 @@ function Pager({ page, pages, onChange }) {
         </React.Fragment>
       ))}
       <button className="btn btn-sm" disabled={page === pages} onClick={() => onChange(page + 1)}>다음 ›</button>
+      {sizeSel}
     </div>
   );
 }
