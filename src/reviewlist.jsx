@@ -25,7 +25,7 @@ function ReviewListPage() {
   const [period, setPeriod] = useState(init.get('period') || '1');
   const [platform, setPlatform] = useState('');
   const [stars, setStars] = useState(init.get('stars') || '');
-  const [check, setCheck] = useState('');
+  const [check, setCheck] = useState(init.get('check') || '');
   const [theme, setTheme] = useState(init.get('theme') || '');
   const [product, setProduct] = useState(init.get('product') || '');
   const [q, setQ] = useState(init.get('q') || '');

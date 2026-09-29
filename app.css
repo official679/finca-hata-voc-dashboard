@@ -395,6 +395,14 @@ tr.row-selected td { background: #EEF4FE !important; }
 .detail-section { font-size: 14px; font-weight: 700; margin: 20px 0 10px; color: var(--muted); }
 .grid-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 800px) { .grid-pair { grid-template-columns: 1fr; } }
+/* 메인: 오늘 챙길 것 (누르면 해당 화면) · 아래 줄 그래프 + 목록 2개 */
+a.todo-kpi { display: block; color: inherit; text-decoration: none; transition: border-color .15s, transform .15s; }
+a.todo-kpi:hover { border-color: var(--accent); transform: translateY(-1px); }
+a.todo-kpi .kpi-sub { color: var(--primary); }
+.home-bottom { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); align-items: start; margin-top: 16px; }
+.home-bottom > .card { margin: 0; }
+@media (max-width: 1200px) { .home-bottom { grid-template-columns: 1fr 1fr; } .home-bottom > .card:first-child { grid-column: 1 / -1; } }
+@media (max-width: 800px) { .home-bottom { grid-template-columns: 1fr; } }
 /* 전사플랜 시트 */
 .plan-frame { width: 100%; height: calc(100vh - 190px); border: 0; display: block; background: #fff; }
 .plan-box { height: calc(100vh - 190px); min-height: 480px; }
