@@ -2,41 +2,74 @@
 
 const MEETING_KINDS = ['CX 회의', 'PJ 회의'];
 
-// 표 꾸미기: 증감 칸을 좋음(초록)/나쁨(빨강)으로, 핀카·하타 사이에 구분선
-// 늘면 좋은 항목 = 주문·작성 리뷰 / 늘면 나쁜 항목 = 취소율·반품교환율·문의·부정 리뷰
-const GOOD_WHEN_UP = /총 ?주문|주문건|작성 ?리뷰|리뷰 ?수/;
-const BAD_WHEN_UP = /취소|반품|교환|과실|문의|부정|저평점/;
-function decorateTables(html) {
+// 주간 리포트 표: '전주 → 금주' 한 칸을 전주 / 금주 두 칸으로 나누고, 위에 브랜드(핀카·하타) 묶음 제목을 붙임
+// (저장된 글은 그대로 두고 보여줄 때만 바꿔서 예전 노션 회의록 표도 같이 적용됨)
+function splitReportTables(html) {
   if (!html.includes('<table')) return html;
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  const el = (name, inner, attrs = {}) => { const e = doc.createElement(name); e.innerHTML = inner; Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
   doc.querySelectorAll('table').forEach(table => {
-    table.classList.add('md-report');
-    const head = [...(table.querySelector('tr')?.children || [])].map(c => c.textContent);
-    // '하타'로 시작하는 첫 칸 앞에 구분선
-    const split = head.findIndex(h => /하타/.test(h));
-    table.querySelectorAll('tr').forEach(tr => {
-      const cells = [...tr.children];
-      if (split > 0 && cells[split]) cells[split].classList.add('md-split');
-      const label = cells[0]?.textContent || '';
-      const dir = GOOD_WHEN_UP.test(label) ? 1 : BAD_WHEN_UP.test(label) ? -1 : 0;
-      cells.slice(1).forEach(td => {
-        const m = td.textContent.trim().match(/^([+-])\s*\d/);
-        if (!m || !dir || td.tagName === 'TH') return;
-        const up = m[1] === '+';
-        if (/^[+-]0(\.0)?(건|%p)/.test(td.textContent.trim())) return;   // 변화 없음
-        td.classList.add((up ? dir : -dir) > 0 ? 'md-good' : 'md-bad');
-      });
+    const rows = [...table.querySelectorAll('tr')];
+    if (rows.length < 2) return;
+    const head = [...rows[0].children];
+    const arrow = head.map((c, i) => i > 0 && /→/.test(c.textContent));
+    if (!arrow.some(Boolean)) return;
+    // 같은 브랜드 칸끼리 묶기 ('핀카 전주 → 금주', '핀카 증감' → 핀카)
+    const brandOf = (t) => t.replace(/전주\s*→\s*금주|증감|전주|금주/g, '').trim() || ' ';
+    const groups = [];
+    head.forEach((c, i) => {
+      if (i === 0) return;
+      const b = brandOf(c.textContent), g = groups[groups.length - 1];
+      if (g && g.brand === b) g.cols.push(i); else groups.push({ brand: b, cols: [i] });
     });
+    // '인입 20건 → 9건<br>발신 38건 → 12건' → ['인입 20건<br>발신 38건', '인입 9건<br>발신 12건']
+    const split = (cell) => {
+      const L = [], R = [];
+      String(cell ? cell.innerHTML : '').split(/<br\s*\/?>/i).forEach(line => {
+        const [a, b] = line.split('→');
+        if (b === undefined) { L.push(line); R.push(''); return; }
+        const label = (a.replace(/<[^>]+>/g, '').match(/^\s*([^\d+\-.,]*)/) || ['', ''])[1].trim();
+        L.push(a.trim()); R.push((label ? label + ' ' : '') + b.trim());
+      });
+      return [L.join('<br>'), R.join('<br>')];
+    };
+    const thead = doc.createElement('thead'), r1 = doc.createElement('tr'), r2 = doc.createElement('tr');
+    r1.appendChild(el('th', head[0].innerHTML, { rowspan: 2 }));
+    groups.forEach((g, gi) => {
+      const subs = g.cols.flatMap(i => (arrow[i] ? ['전주', '금주'] : [head[i].textContent.replace(g.brand, '').trim() || head[i].textContent]));
+      r1.appendChild(el('th', g.brand, { colspan: subs.length, class: `md-grp${gi ? ' md-split' : ''}` }));
+      subs.forEach((s, si) => r2.appendChild(el('th', s, si === 0 && gi ? { class: 'md-split' } : {})));
+    });
+    thead.append(r1, r2);
+    const tbody = doc.createElement('tbody');
+    rows.slice(1).forEach(tr => {
+      const cells = [...tr.children], nr = doc.createElement('tr');
+      nr.appendChild(el('td', cells[0] ? cells[0].innerHTML : ''));
+      groups.forEach((g, gi) => {
+        let first = true;
+        g.cols.forEach(i => {
+          (arrow[i] ? split(cells[i]) : [cells[i] ? cells[i].innerHTML : '']).forEach(p => {
+            nr.appendChild(el('td', p, first && gi ? { class: 'md-split' } : {}));
+            first = false;
+          });
+        });
+      });
+      tbody.appendChild(nr);
+    });
+    table.innerHTML = '';
+    table.append(thead, tbody);
+    table.classList.add('md-week');
   });
   return doc.body.firstChild.innerHTML;
 }
+
 
 // 회의 내용은 마크다운 (- 목록, ### 제목, **굵게**, 표). 노션에서 가져온 표(HTML)도 그대로 보임
 function MarkdownView({ text }) {
   const html = useMemo(() => {
     // '9/14~9/20'의 ~ 를 취소선으로 읽지 않도록 글자 그대로 표시
     const src = String(text || '').replace(/<empty-block\s*\/>/g, '').replace(/\\([~\-*_>#|])/g, '$1').replace(/~/g, '&#126;');
-    try { return decorateTables(DOMPurify.sanitize(marked.parse(src, { breaks: true }))); } catch { return ''; }
+    try { return splitReportTables(DOMPurify.sanitize(marked.parse(src, { breaks: true }))); } catch { return ''; }
   }, [text]);
   if (!String(text || '').trim()) return <div className="muted">내용이 없어요</div>;
   return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />;

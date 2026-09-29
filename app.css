@@ -325,14 +325,12 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .report-side > .card { margin: 0; }
 .meeting-item-result { margin-top: 6px; padding: 6px 10px; background: var(--success-soft); border-radius: 8px; font-size: 13px; white-space: pre-line; }
 .meeting-item-result b { color: #1F7A52; margin-right: 4px; }
-/* 회의록 표 (주간 CX 리포트 등) */
-.md table.md-report { border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; font-size: 13.5px; }
-.md table.md-report td:first-child { font-weight: 700; background: #F4F6FA; }
-.md table.md-report thead th, .md table.md-report > tbody:first-child > tr:first-child > td { background: var(--sidebar) !important; color: #fff; font-weight: 700; }
-.md table.md-report td, .md table.md-report th { border: none; border-bottom: 1px solid var(--border); padding: 9px 14px; white-space: nowrap; }
-.md table.md-report tr:last-child td { border-bottom: none; }
-.md table.md-report tbody tr:nth-child(even) td:not(:first-child) { background: #FAFBFC; }
-.md table.md-report .md-split { border-left: 3px solid var(--border); }
-.md table.md-report thead .md-split, .md table.md-report > tbody:first-child > tr:first-child > .md-split { border-left-color: rgba(255,255,255,0.35); }
-.md table.md-report td.md-good { color: #1F7A52; background: var(--success-soft) !important; }
-.md table.md-report td.md-bad { color: #B42F34; background: var(--danger-soft) !important; }
+/* 회의록 주간 리포트 표: 전주·금주·증감을 칸으로 나눔 */
+.md table.md-week th { text-align: center; white-space: nowrap; }
+.md table.md-week th.md-grp { font-size: 13.5px; }
+.md table.md-week td { white-space: nowrap; }
+.md table.md-week td:not(:first-child) { text-align: right; }
+.md table.md-week td:first-child { font-weight: 600; }
+.md table.md-week .md-split { border-left: 2px solid #C9D1DC; }
+.md table.md-week tbody tr:first-child td { background: none; font-weight: 400; }
+.md table.md-week tbody tr:first-child td:first-child { font-weight: 600; }
