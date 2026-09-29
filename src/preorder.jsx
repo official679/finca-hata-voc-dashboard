@@ -106,6 +106,8 @@ function preorderStage(line, prod) {
   const last = s2 ? 2 : s1 ? 1 : 0;
   const seen = [s0, s1, s2][k], current = [s0, s1, s2][last];
   if ((s1 && !f1) || (s2 && !f2)) return { stage: '공지일 확인', need: 0, seen, current };
+  // 일정이 바뀌었어도 출고일이 늦어지지 않았으면 고객 입장에선 지연이 아님
+  if (seen && current && current <= seen) return { stage: '정상', need: 0, seen, current };
   const sameDay = !!((s1 && f1 && pd === f1) || (s2 && f2 && pd === f2));
   return { stage: ['정상', '1차 지연', '2차 지연'][last - k], need: last - k, sameDay, seen, current };
 }
@@ -239,7 +241,6 @@ function PreorderOrderTable({ orders, onOpen, empty, todo }) {
   useEffect(() => { setPage(1); }, [orders.length]);
   const SIZE = 15, pages = Math.max(1, Math.ceil(orders.length / SIZE)), cur = Math.min(page, pages);
   if (!orders.length) return <div className="card empty">{empty}</div>;
-  const names = (o) => { const ls = o.preLines.length ? o.preLines : o.lines; return ls[0].product_name + (o.lines.length > 1 ? ` 외 ${o.lines.length - 1}` : ''); };
   return (
     <div className="card" style={{ padding: 0 }}>
       <div className="table-wrap">
@@ -254,7 +255,15 @@ function PreorderOrderTable({ orders, onOpen, empty, todo }) {
                   <td>{sellerLabel(o.seller)}</td>
                   <td>{o.seller_order_no || o.order_no}</td>
                   <td>{o.orderer || '-'}</td>
-                  <td className="ellipsis" style={{ maxWidth: 280 }} title={o.lines.map(x => x.product_name).join('\n')}>{names(o)}</td>
+                  <td style={{ whiteSpace: 'normal', minWidth: 320, maxWidth: 440 }}>
+                    {[...o.preLines, ...o.lines.filter(x => !x.prod)].map(x => (
+                      <div key={x.id || x.line_key} className="preorder-line" style={x.prod ? null : { color: 'var(--muted)' }}>
+                        {x.product_name}{x.size && x.size !== '0' ? ` (${x.size})` : ''}{x.qty > 1 ? ` ×${x.qty}` : ''}
+                        {x.prod ? (x.stage && x.stage !== o.stage ? <span className="muted"> · {x.stage}</span> : null) : <span> · 일반</span>}
+                        {x.low && <span className="chip chip-amber" style={{ marginLeft: 4, fontSize: 11 }}>재고 {x.avail}</span>}
+                      </div>
+                    ))}
+                  </td>
                   <td><StageChip stage={o.stage} sameDay={l && l.sameDay} /></td>
                   <td>{l && l.seen ? fmtDate(l.seen) : '-'}</td>
                   <td>{l && l.current ? fmtDate(l.current) : '-'}</td>

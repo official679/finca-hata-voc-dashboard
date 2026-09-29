@@ -307,3 +307,7 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .meeting-item-title { font-weight: 600; }
 .meeting-item.done .meeting-item-title { text-decoration: line-through; color: var(--muted); }
 .meeting-item-detail { font-size: 13px; color: var(--muted); white-space: pre-line; margin-top: 2px; }
+
+/* 예약배송: 주문 안 상품 목록 */
+.preorder-line { line-height: 1.5; padding: 1px 0; }
+.preorder-line + .preorder-line { border-top: 1px dashed var(--border); }
