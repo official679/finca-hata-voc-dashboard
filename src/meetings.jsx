@@ -252,7 +252,13 @@ function MeetingDetail({ meeting, meetings, items, reload, onBack, onEdit, onDel
     <>
       <div style={{ marginBottom: 12 }}><button className="btn-link" onClick={onBack}>← 목록으로</button></div>
       <PageHeader title={meeting.title} desc={`${fmtDate(meeting.meeting_date)} · ${meeting.kind}${meeting.attendees ? ` · ${meeting.attendees}` : ''}`}>
-        {meeting.status === '완료' ? <span className="chip chip-green">완료</span> : <span className="chip chip-red">진행중</span>}
+        <button className={`chip ${meeting.status === '완료' ? 'chip-green' : 'chip-red'}`} style={{ border: 'none', cursor: 'pointer' }}
+          title={meeting.status === '완료' ? '누르면 진행중으로' : '누르면 완료로'}
+          onClick={async () => {
+            const { error } = await db.from('meetings').update({ status: meeting.status === '완료' ? '진행중' : '완료' }).eq('id', meeting.id);
+            if (error) { toast('❌ ' + error.message, 'err'); return; }
+            reload();
+          }}>{meeting.status === '완료' ? '✓ 완료' : '진행중'} ⇄</button>
         <button className="btn" onClick={onEdit}>✏️ 수정</button>
         <button className="btn btn-danger" onClick={async () => { if (await deleteMeeting(meeting, toast)) onDeleted(); }}>🗑️ 삭제</button>
       </PageHeader>
