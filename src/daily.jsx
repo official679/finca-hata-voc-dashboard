@@ -291,8 +291,9 @@ const WEEK_METRICS = [
   { label: '작성 리뷰', fn: (s) => s.reviews_total },
   // 긍정 = 4~5점 = 작성 - 부정 (예전 데이터에 긍정 칸이 비어 있어도 같은 기준으로 계산)
   { label: '긍정 리뷰', fn: (s) => Math.max(0, s.reviews_total - s.reviews_negative) },
-  { label: '긍정 리뷰율', fn: (s) => pct(Math.max(0, s.reviews_total - s.reviews_negative), s.reviews_total), rate: true },
   { label: '부정 리뷰', fn: (s) => s.reviews_negative },
+  // 긍정 리뷰율은 낮을수록 나쁨 → 가장 낮았던 주를 빨갛게
+  { label: '긍정 리뷰율', fn: (s) => pct(Math.max(0, s.reviews_total - s.reviews_negative), s.reviews_total), val: (s) => s.reviews_total ? Math.max(0, s.reviews_total - s.reviews_negative) / s.reviews_total : null, key: true, lowIsBad: true },
   { label: '부정 리뷰율', fn: (s) => pct(s.reviews_negative, s.reviews_total), val: (s) => s.reviews_total ? s.reviews_negative / s.reviews_total : null, key: true },
   { label: '게시판', fn: (s) => s.board_total },
   { label: '해피톡', fn: (s) => s.ht_total },
@@ -320,11 +321,12 @@ function BrandWeekTable({ brand, rows, weeks, totalLabel = '합계·평균', wor
             {WEEK_METRICS.filter(m => !m.phone || hasPhone).map(m => {
               // 핵심 비율은 가장 높았던(나빴던) 주를 빨갛게
               const vals = m.val ? cols.map(m.val) : [];
-              const worst = vals.some(v => v !== null) ? vals.indexOf(Math.max(...vals.filter(v => v !== null))) : -1;
+              const ok = vals.filter(v => v !== null);
+              const worst = ok.length ? vals.indexOf(m.lowIsBad ? Math.min(...ok) : Math.max(...ok)) : -1;
               return (
               <tr key={m.label} className={m.key ? 'key-row' : ''}>
                 <td>{m.label}</td>
-                {cols.map((c, i) => <td key={i} className={`num${i === worst ? ' worst' : ''}`} title={i === worst ? worstLabel : ''}>{c.orders || c.reviews_total || c.ht_total ? m.fn(c) : <span className="muted">-</span>}</td>)}
+                {cols.map((c, i) => <td key={i} className={`num${i === worst ? ' worst' : ''}`} title={i === worst ? (m.lowIsBad ? worstLabel.replace('높은', '낮은') : worstLabel) : ''}>{c.orders || c.reviews_total || c.ht_total ? m.fn(c) : <span className="muted">-</span>}</td>)}
                 <td className="num total">{m.fn(month)}</td>
               </tr>
               );
