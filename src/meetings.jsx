@@ -2,12 +2,41 @@
 
 const MEETING_KINDS = ['CX 회의', 'PJ 회의'];
 
+// 표 꾸미기: 증감 칸을 좋음(초록)/나쁨(빨강)으로, 핀카·하타 사이에 구분선
+// 늘면 좋은 항목 = 주문·작성 리뷰 / 늘면 나쁜 항목 = 취소율·반품교환율·문의·부정 리뷰
+const GOOD_WHEN_UP = /총 ?주문|주문건|작성 ?리뷰|리뷰 ?수/;
+const BAD_WHEN_UP = /취소|반품|교환|과실|문의|부정|저평점/;
+function decorateTables(html) {
+  if (!html.includes('<table')) return html;
+  const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+  doc.querySelectorAll('table').forEach(table => {
+    table.classList.add('md-report');
+    const head = [...(table.querySelector('tr')?.children || [])].map(c => c.textContent);
+    // '하타'로 시작하는 첫 칸 앞에 구분선
+    const split = head.findIndex(h => /하타/.test(h));
+    table.querySelectorAll('tr').forEach(tr => {
+      const cells = [...tr.children];
+      if (split > 0 && cells[split]) cells[split].classList.add('md-split');
+      const label = cells[0]?.textContent || '';
+      const dir = GOOD_WHEN_UP.test(label) ? 1 : BAD_WHEN_UP.test(label) ? -1 : 0;
+      cells.slice(1).forEach(td => {
+        const m = td.textContent.trim().match(/^([+-])\s*\d/);
+        if (!m || !dir || td.tagName === 'TH') return;
+        const up = m[1] === '+';
+        if (/^[+-]0(\.0)?(건|%p)/.test(td.textContent.trim())) return;   // 변화 없음
+        td.classList.add((up ? dir : -dir) > 0 ? 'md-good' : 'md-bad');
+      });
+    });
+  });
+  return doc.body.firstChild.innerHTML;
+}
+
 // 회의 내용은 마크다운 (- 목록, ### 제목, **굵게**, 표). 노션에서 가져온 표(HTML)도 그대로 보임
 function MarkdownView({ text }) {
   const html = useMemo(() => {
     // '9/14~9/20'의 ~ 를 취소선으로 읽지 않도록 글자 그대로 표시
     const src = String(text || '').replace(/<empty-block\s*\/>/g, '').replace(/\\([~\-*_>#|])/g, '$1').replace(/~/g, '&#126;');
-    try { return DOMPurify.sanitize(marked.parse(src, { breaks: true })); } catch { return ''; }
+    try { return decorateTables(DOMPurify.sanitize(marked.parse(src, { breaks: true }))); } catch { return ''; }
   }, [text]);
   if (!String(text || '').trim()) return <div className="muted">내용이 없어요</div>;
   return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />;
