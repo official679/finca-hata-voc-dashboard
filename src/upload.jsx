@@ -102,6 +102,11 @@ async function readUploadFile(file, kind) {
         .map(r => format.map(Object.fromEntries(header.map((k, i) => [k, r[i]]))))
         // 리뷰·게시판은 내용이 있어야, 주문·반품처럼 key(품목 번호)가 있는 형식은 key가 있어야 저장
         .filter(r => (r.key !== undefined ? !!r.key : r.content && String(r.content).trim()));
+      // 주문: 주문일시 칸이 날짜가 아니면 칸이 밀린 줄 → 저장하지 않고 개수만 알려줌 (수량·상품명이 엉뚱하게 들어가는 것 방지)
+      if (format.kind === 'order') {
+        const good = rows.filter(r => r.when);
+        return { name, format, rows: good, skipped: rows.length - good.length };
+      }
       return { name, format, rows };
     }
     return { name, format: null, rows: [], empty: !grid.some(r => r.some(c => String(c).trim() !== '')) };
@@ -290,7 +295,7 @@ function UploadPanel({ configs, onDone, guide }) {
                       <td>{s.format ? <b>{KIND_LABEL[s.format.kind]}</b> : '-'}</td>
                       <td>{s.format ? <span className="chip chip-green">{s.format.label}</span> : s.empty ? <span className="chip">빈 시트</span> : <span className="chip chip-amber">형식을 알 수 없어 건너뜀</span>}</td>
                       <td>{[...new Set(s.rows.map(r => r.platform))].join(', ') || '-'}</td>
-                      <td className="num">{s.rows.length.toLocaleString()}</td>
+                      <td className="num">{s.rows.length.toLocaleString()}{s.skipped > 0 && <div className="muted" style={{ fontSize: 12 }} title="주문일시 칸에 날짜가 없는 줄 (칸이 밀려 있음) — 파일에서 칸을 맞추면 다시 올릴 수 있어요">칸 밀린 {s.skipped.toLocaleString()}줄 제외</div>}</td>
                       <td>{dates.length ? `${dates[0].slice(0, 10)} ~ ${dates[dates.length - 1].slice(0, 10)}` : '-'}</td>
                     </tr>
                   );

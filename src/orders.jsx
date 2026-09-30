@@ -3,10 +3,11 @@
 // 상반기 VOC 리포트와 같은 MD 그룹. 위에서부터 먼저 맞는 것 (매트리스는 베딩, 주방매트는 러그처럼 순서 중요)
 const MD_GROUPS = [
   ['키친', /커트러리|머그|컵|그릇|접시|키친|행주|수저|포크|나이프|식기|플레이트|트레이|오덴세|젓가락|티스푼|코스터|볼(?![가-힣])/],
-  ['바스', /타월|타올|수건|목욕|바스/],
+  ['바스', /타월|타올|수건|목욕|바스|towel/i],
   ['러그', /러그|발매트|주방매트|카페트|현관매트|매트(?![가-힣])/],
-  ['웨어', /파자마|잠옷|셋업|팬츠|쇼츠|티셔츠|원피스|가운|로브|홈웨어|반바지|레깅스|비키니|수영복|모노키니|양말|삭스|슬리브|셔츠|스커트|자켓|후드|맨투맨/],
-  ['잡화', /가방|에코백|보냉백|토트|숄더|백팩|파우치|우산|양산|머플러|스카프|장갑|모자|볼캡|버킷|키링|다이어리|스크런치|헤어|슬리퍼/],
+  ['웨어', /파자마|잠옷|셋업|팬츠|쇼츠|티셔츠|원피스|가운|로브|홈웨어|반바지|레깅스|비키니|수영복|모노키니|양말|삭스|슬리브|셔츠|스커트|자켓|후드|맨투맨|bikini|monokini|swim|shirt|shorts|pants|skirt|breaker|jacket|hoodie|dress|leggings|knit|top(?![a-z])/i],
+  // 하타 상품명은 영어 (HaTA Signature Eco Bag 등)
+  ['잡화', /가방|에코백|보냉백|토트|숄더|백팩|파우치|우산|양산|머플러|스카프|장갑|모자|볼캡|버킷|키링|다이어리|스크런치|헤어|슬리퍼|bag|pouch|cap(?![a-z])|hat(?![a-z])|keyring|sandal|slipper|scarf|hairband/i],
   ['홈데코', /티슈|쿠션|커튼|방석|베개솜|솜(?![가-힣])|충전재|포스터|테이블보|식탁보|앞치마/],
   ['베딩', /이불|베개|매트리스|패드|차렵|침구|블랭킷|담요|스프레드|베딩|배딩|토퍼/],
 ];
@@ -23,22 +24,33 @@ function classifyItem(name, option) {
 const num1 = (v) => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); return Number.isFinite(n) && n > 0 ? n : 1; };
 
 // 주문 파일 형식 (개인정보 칸은 읽지 않음)
+// 순서 중요: 무신사(클레임상태 칸 있음)를 먼저 확인해야 29CM로 잘못 알아보지 않음
 FILE_FORMATS.push(
-  { kind: 'order', label: '29CM 주문', headers: ['주문번호', '주문상태', '상품번호', '상품명', '옵션코드', '옵션', '수량', '주문일시'],
-    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션코드']}|${r['옵션']}`) : '', brand: normBrand(r['브랜드']), platform: '29CM',
+  { kind: 'order', label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],
+    map: (r) => ({ key: r['주문일련번호'], platform: '무신사',
+      order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
+  // 하타 상반기 파일처럼 주문일련번호가 없는 무신사 파일
+  { kind: 'order', label: '무신사 주문 (일련번호 없음)', headers: ['주문일시', '주문번호', '주문상태', '클레임상태', '상품번호', '상품명', '옵션', '수량'],
+    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션']}`) : '', platform: '무신사',
+      order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
+  // 옵션코드 칸은 없어도 됨 (하타 29CM 파일)
+  { kind: 'order', label: '29CM 주문', headers: ['주문번호', '주문상태', '상품번호', '상품명', '옵션', '수량', '주문일시'],
+    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션코드'] || ''}|${r['옵션']}`) : '', brand: normBrand(r['브랜드']), platform: '29CM',
       order_no: r['주문번호'], status: r['주문상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
   { kind: 'order', label: '아임웹 주문', headers: ['주문번호', '주문상태', '주문섹션품목번호', '구매수량', '상품명', '주문일'],
     map: (r) => ({ key: r['주문섹션품목번호'], brand: normBrand(r['판매채널']), platform: '아임웹',
       order_no: r['주문번호'], status: r['주문상태'], product_name: r['상품명'], option_text: r['옵션명'], qty: num1(r['구매수량']), when: parseWhen(r['주문일']),
+      cancel_reason: [r['취소사유'], r['취소상세사유']].filter(Boolean).join(' / '), return_reason: [r['반품사유'], r['반품 상세사유']].filter(Boolean).join(' / ') }) },
+  // 하타 상반기 파일처럼 품목번호·주문상태 대신 섹션상태만 있는 아임웹 파일
+  { kind: 'order', label: '아임웹 주문 (품목번호 없음)', headers: ['판매채널', '주문번호', '구매수량', '상품명', '주문일', '섹션상태'],
+    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품명']}|${r['옵션명']}`) : '', brand: normBrand(r['판매채널']), platform: '아임웹',
+      order_no: r['주문번호'], status: r['섹션상태'], product_name: r['상품명'], option_text: r['옵션명'], qty: num1(r['구매수량']), when: parseWhen(r['주문일']),
       cancel_reason: [r['취소사유'], r['취소상세사유']].filter(Boolean).join(' / '), return_reason: [r['반품사유'], r['반품 상세사유']].filter(Boolean).join(' / ') }) },
   { kind: 'order', label: '카페24 주문', headers: ['주문번호', '품목별 주문번호', '주문상품명', '수량', '발주일'],
     map: (r) => ({ key: r['품목별 주문번호'], platform: '카페24',
       order_no: r['주문번호'], product_name: r['주문상품명'],
       option_text: String(r['주문상품명(옵션포함)'] || '').replace(String(r['주문상품명'] || ''), '').replace(/^\(|\)$/g, '').trim(),
       qty: num1(r['수량']), when: parseWhen(r['발주일']) }) },
-  { kind: 'order', label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],
-    map: (r) => ({ key: r['주문일련번호'], platform: '무신사',
-      order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
 );
 
 // 데이터 업로드 화면에서 쓰는 주문 저장 설정 (고객 정보 칸은 저장하지 않음, 상품 마스터 연결 없음)
