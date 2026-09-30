@@ -32,7 +32,10 @@ function DailyReportPanel({ date, onClose }) {
   const [busy, setBusy] = useState('');
   const [from, to] = dataRangeOf(date);
   const d = parseDate(date);
-  const brands = ['핀카', '하타'];
+  // 전체 / 핀카만 / 하타만 (고른 브랜드만 이미지에 들어감)
+  const [only, setOnly] = useState('');
+  const brands = only ? [only] : ['핀카', '하타'];
+  const titleBrand = only === '핀카' ? 'FINCA' : only === '하타' ? 'HaTA' : 'FINCA / HaTA';
   const rowsOf = (brand) => (daily || []).filter(r => r.report_date === date && r.brand === brand);
   const vocOf = (brand) => cases.filter(c => c.brand === brand && c.received_date >= from && c.received_date <= to)
     .sort((a, b) => (a.received_date || '').localeCompare(b.received_date || ''));
@@ -69,18 +72,19 @@ function DailyReportPanel({ date, onClose }) {
     try {
       const blob = await capture();
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob); a.download = `CS데일리리포트_${date}.png`; a.click();
+      a.href = URL.createObjectURL(blob); a.download = `CS데일리리포트_${only ? only + '_' : ''}${date}.png`; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } finally { setBusy(''); }
   };
-  const slackText = `[FINCA / HaTA CS 데일리 리포트]\n${date.replace(/-/g, '.')} ${WEEKDAY[d.getDay()]}요일 (전일 접수 기준 · ${dataLabel(date)})`;
+  const slackText = `[${titleBrand} CS 데일리 리포트]\n${date.replace(/-/g, '.')} ${WEEKDAY[d.getDay()]}요일 (전일 접수 기준 · ${dataLabel(date)})`;
 
   return (
     <div className="overlay" onClick={onClose}>
       <div className="panel panel-wide" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>데일리 리포트 · 슬랙 공유</h2>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Segmented options={[{ key: '', label: '전체' }, { key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={only} onChange={setOnly} />
             <button className="btn btn-primary" onClick={copy} disabled={!!busy}>📋 이미지 복사</button>
             <button className="btn" onClick={save} disabled={!!busy}>⬇ PNG 저장</button>
             <button className="btn" onClick={async () => { await navigator.clipboard.writeText(slackText); toast('📋 제목 글을 복사했어요'); }}>📝 제목 글 복사</button>
@@ -91,7 +95,7 @@ function DailyReportPanel({ date, onClose }) {
         <div style={{ overflowX: 'auto' }}>
           <div ref={ref} className="dr">
             <div className="dr-head">
-              <div><div className="dr-title">FINCA / HaTA CS 데일리 리포트</div>
+              <div><div className="dr-title">{titleBrand} CS 데일리 리포트</div>
                 <div className="dr-sub">{date.replace(/-/g, '.')} ({WEEKDAY[d.getDay()]}) · 전일 접수 기준 · 데이터 {dataLabel(date)}</div></div>
             </div>
             {brands.map(b => <DailyReportBrand key={b} brand={b} rows={rowsOf(b)} vocs={vocOf(b)} photos={photos} productById={productById}
