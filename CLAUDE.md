@@ -1,4 +1,4 @@
-﻿# CLAUDE.md — FINCA·HaTA CX 대시보드
+# CLAUDE.md — FINCA·HaTA CX 대시보드
 
 Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 메모입니다. 사람용 안내는 README.md에 있습니다.
 작업을 마칠 때마다 커밋·푸시하고, 새로 정한 규칙·결정은 이 파일에 추가하세요 (대화 기록은 PC 사이에 넘어가지 않음).
@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~17 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~18 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -38,7 +38,8 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
   출고일이 늦어지지 않았으면(현재 출고일 <= 주문 당시 안내일) 지연 아님. 예약상품 일정은 대시보드에서만 고침 (구글시트 재업로드 시 덮어써짐).
   저재고 표시는 출고대기 상품만 판단 (분리배송으로 먼저 출고완 처리한 상품은 제외, 2026-09-30).
   사은품 목록 = 기준 관리 '예약배송 사은품' ("코드 단품) 상품명", 앞 숫자 = 오클릭 바코드 → 저재고 계산 제외·🎁 표시).
-- 업무 보드(tasks.jsx): 할 일 → 진행중 → 완료 + 댓글. 공용 계정이라 '나'는 PC별로 이름 선택(localStorage 'taskMe'), 이름 목록 = 기준 관리 '처리자'.
+- 팀 캘린더(calendar.jsx, 18 SQL team_events, 2026-09-30): 우리 팀끼리 휴가·반차·외근·미팅·교육·행사 공유 (회사 구글 캘린더는 복잡해서 안 쓰기로). CX 미팅 로그 회의 자동 표시(점선). 알림 없음.
+- 업무 보드(tasks.jsx): 세로 목록(진행중 → 할 일 → 완료 접힘, 2026-09-30 사용자 요청). 할 일 → 진행중 → 완료 + 댓글. 공용 계정이라 '나'는 PC별로 이름 선택(localStorage 'taskMe'), 이름 목록 = 기준 관리 '처리자'.
 - 리뷰 목록(reviewlist.jsx): 리뷰마다 check_status(긍정·부정·체크필요), 부정·체크필요 → VOC로 (review_items.voc_case_id). 리뷰 분석은 수치만.
 - CS 데일리 '📸 데일리 리포트': 저장된 숫자 + 그날 VOC(사진)로 슬랙용 이미지 (html2canvas).
 - CX 미팅 로그(meetings.jsx): 노션 'CX 미팅 로그'를 대시보드로 옮김 (2026-09-29, 기존 6건 가져옴 · 이후엔 대시보드에서 작성).

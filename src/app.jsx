@@ -31,6 +31,7 @@ const NAV = [
   ] },
   { group: '👥 팀', items: [
     { key: 'tasks', label: '업무 보드', icon: '📌' },
+    { key: 'calendar', label: '팀 캘린더', icon: '📅' },
     { key: 'plan', label: '전사플랜', icon: '🗓️' },
     // 다른 대시보드는 새 창으로만 연결 (그쪽은 수정하지 않음)
     { key: 'ext-1inahundred', label: '원인어헌드레드 대시보드', icon: '🔗', href: 'https://1inahundred.netlify.app/' },
@@ -114,6 +115,7 @@ function Shell({ session }) {
     meetings: <MeetingsPage />,
     kpi: <KpiPage />,
     tasks: <TasksPage />,
+    calendar: <CalendarPage />,
     plan: <PlanPage />,
     'hold-sheet': <HoldSheetPage />,
     returns: <ReturnsPage />,
