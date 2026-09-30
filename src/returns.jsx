@@ -103,9 +103,9 @@ function ReturnsPage() {
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
       </PageHeader>
       <div className="filters">
-        <select className="select" value={from} onChange={e => setFrom(e.target.value)}>{monthOpts.map(m => <option key={m} value={m}>{m.replace('-', '.')}부터</option>)}</select>
-        <select className="select" value={to} onChange={e => setTo(e.target.value)}>{monthOpts.map(m => <option key={m} value={m}>{m.replace('-', '.')}까지</option>)}</select>
-        <select className="select" value={platform} onChange={e => setPlatform(e.target.value)}>
+        <select className="input" style={{ width: 'auto' }} value={from} onChange={e => setFrom(e.target.value)}>{monthOpts.map(m => <option key={m} value={m}>{m.replace('-', '.')}부터</option>)}</select>
+        <select className="input" style={{ width: 'auto' }} value={to} onChange={e => setTo(e.target.value)}>{monthOpts.map(m => <option key={m} value={m}>{m.replace('-', '.')}까지</option>)}</select>
+        <select className="input" style={{ width: 'auto' }} value={platform} onChange={e => setPlatform(e.target.value)}>
           <option value="">판매처 전체</option>{platforms.map(p => <option key={p}>{p}</option>)}
         </select>
         <label className={`chip ${faultOnly ? 'chip-red' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
