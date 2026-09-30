@@ -10,7 +10,9 @@ const EVENT_KINDS = [
   { kind: '행사', icon: '🎉', color: '#D6457A' },
   { kind: '기타', icon: '📌', color: '#6B7280' },
 ];
-const kindInfo = (k) => EVENT_KINDS.find(x => x.kind === k) || EVENT_KINDS[EVENT_KINDS.length - 1];
+// 업무 보드 마감은 직접 추가하는 종류가 아니라서 목록(EVENT_KINDS)에는 없고 표시용으로만
+const TASK_KIND = { kind: '업무', icon: '⏰', color: '#374151' };
+const kindInfo = (k) => (k === '업무' ? TASK_KIND : EVENT_KINDS.find(x => x.kind === k) || EVENT_KINDS[EVENT_KINDS.length - 1]);
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 function eventLabel(e) {
@@ -26,6 +28,8 @@ function CalendarPage() {
   const [error, setError] = useState('');
   const [who, setWho] = useState('');
   const [showMeetings, setShowMeetings] = useState(true);
+  const [showTasks, setShowTasks] = useState(true);   // 업무 보드 마감일 (안 끝난 업무만)
+  const [tasks, setTasks] = useState([]);
   const [editing, setEditing] = useState(null);   // { ...event } 또는 새 일정 { start_date }
 
   // 보이는 달력 범위 (앞뒤 주 포함)
@@ -36,11 +40,12 @@ function CalendarPage() {
 
   const load = useCallback(async () => {
     try {
-      const [ev, mt] = await Promise.all([
+      const [ev, mt, tk] = await Promise.all([
         fetchAll(() => db.from('team_events').select('*').lte('start_date', to).gte('end_date', from).order('start_date').order('id')),
         fetchAll(() => db.from('meetings').select('id,meeting_date,title,kind').gte('meeting_date', from).lte('meeting_date', to).order('meeting_date')),
+        fetchAll(() => db.from('tasks').select('id,title,assignee,due_date,status,priority').neq('status', '완료').gte('due_date', from).lte('due_date', to).order('id')),
       ]);
-      setEvents(ev); setMeetings(mt); setError('');
+      setEvents(ev); setMeetings(mt); setTasks(tk); setError('');
     } catch (e) { setError(e.message || String(e)); }
   }, [from, to]);
   useEffect(() => { load(); }, [load]);
@@ -54,6 +59,7 @@ function CalendarPage() {
   const onDay = (day) => [
     ...shown.filter(e => e.start_date <= day && e.end_date >= day).map(e => ({ ...e, _type: 'event' })),
     ...(showMeetings && !who ? meetings.filter(m => m.meeting_date === day).map(m => ({ id: 'm' + m.id, meetingId: m.id, kind: '미팅', title: m.title, _type: 'meeting' })) : []),
+    ...(showTasks ? tasks.filter(t => t.due_date === day && (!who || t.assignee === who)).map(t => ({ id: 't' + t.id, kind: '업무', person: t.assignee, title: `${t.priority === '급함' ? '🔥' : ''}${t.title} 마감`, _type: 'task' })) : []),
   ];
   const todayList = onDay(todayStr).filter(e => e._type === 'event');
   const away = todayList.filter(e => ['휴가', '반차', '외근'].includes(e.kind));
@@ -82,10 +88,13 @@ function CalendarPage() {
           <button className="btn btn-sm" onClick={() => shift(1)}>▶</button>
           <button className="btn btn-sm" onClick={() => { const d = new Date(); setMonth(new Date(d.getFullYear(), d.getMonth(), 1)); }}>오늘</button>
           <label className="muted" style={{ marginLeft: 'auto', display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
+            <input type="checkbox" checked={showTasks} onChange={e => setShowTasks(e.target.checked)} style={{ width: 'auto' }} /> 업무 마감 보기
+          </label>
+          <label className="muted" style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 13 }}>
             <input type="checkbox" checked={showMeetings} onChange={e => setShowMeetings(e.target.checked)} style={{ width: 'auto' }} /> CX 미팅 로그 보기
           </label>
         </div>
-        <div className="cal-legend">{EVENT_KINDS.map(k => <span key={k.kind}><i style={{ background: k.color }} />{k.icon} {k.kind}</span>)}</div>
+        <div className="cal-legend">{[...EVENT_KINDS, { ...TASK_KIND, kind: '업무 마감' }].map(k => <span key={k.kind}><i style={{ background: k.color }} />{k.icon} {k.kind}</span>)}</div>
         <div className="cal-grid">
           {WEEKDAYS.map((w, i) => <div key={w} className={`cal-wd${i === 0 ? ' sun' : i === 6 ? ' sat' : ''}`}>{w}</div>)}
           {days.map(day => {
@@ -95,8 +104,8 @@ function CalendarPage() {
                 <div className={`cal-num${d.getDay() === 0 ? ' sun' : d.getDay() === 6 ? ' sat' : ''}`}>{d.getDate()}</div>
                 {list.slice(0, 4).map(e => (
                   <button key={e.id} className={`cal-chip${e._type === 'meeting' ? ' meeting' : ''}`} style={{ '--c': kindInfo(e.kind).color }}
-                    onClick={ev => { ev.stopPropagation(); if (e._type === 'meeting') location.hash = `#/meetings/${e.meetingId}`; else setEditing(e); }}
-                    title={e._type === 'meeting' ? `CX 미팅 로그: ${e.title}` : `${e.kind} · ${eventLabel(e)}${e.memo ? '\n' + e.memo : ''}`}>
+                    onClick={ev => { ev.stopPropagation(); if (e._type === 'meeting') location.hash = `#/meetings/${e.meetingId}`; else if (e._type === 'task') location.hash = '#/tasks'; else setEditing(e); }}
+                    title={e._type === 'meeting' ? `CX 미팅 로그: ${e.title}` : e._type === 'task' ? `업무 보드 마감: ${eventLabel(e)} (누르면 업무 보드로)` : `${e.kind} · ${eventLabel(e)}${e.memo ? '\n' + e.memo : ''}`}>
                     {kindInfo(e.kind).icon} {eventLabel(e)}
                   </button>
                 ))}
