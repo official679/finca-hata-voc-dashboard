@@ -78,6 +78,8 @@ function NumCell({ value, onChange }) {
 
 // ---------- 업로드 데이터 → CS 데일리 자동 계산 ----------
 // 업로드 데이터의 플랫폼 → CS 데일리 칸 (자사몰은 아임웹 칸으로. 카페24로 옮기면 여기만 바꾸면 됨)
+// 하타는 오클릭에 주문 등록만 하고 취소 등 처리는 오클릭에서 안 함 → 출고전 취소는 손 입력 유지 (자동 채우기가 덮어쓰지 않음)
+const CANCEL_MANUAL_BRANDS = ['하타'];
 const UPLOAD_PLATFORM_TO_DAILY = { '29CM': '29CM', '아임웹': '아임웹', '카페24': '아임웹', '무신사': '무신사', 'W컨셉': 'W컨셉', 'EQL': 'EQL' };
 
 // 보고일 → 데이터 날짜 범위 (전일 기준, 월요일 보고일 = 금~일)
@@ -167,7 +169,7 @@ function DailyEntryPage() {
         platforms.forEach(p => {
           const c = got.byPlatform[p] || {};
           const v = { ...next[p] };
-          if (got.has.orders) { v.orders = c.orders || 0; v.cancels = c.cancels || 0; }
+          if (got.has.orders) { v.orders = c.orders || 0; if (!CANCEL_MANUAL_BRANDS.includes(brand)) v.cancels = c.cancels || 0; }
           if (got.has.reviews) { v.reviews_total = c.reviews_total || 0; v.reviews_negative = c.reviews_negative || 0; v.reviews_positive = c.reviews_positive || 0; }
           if (got.has.board) { v.board_total = c.board_total || 0; }
           next[p] = v;
@@ -183,6 +185,7 @@ function DailyEntryPage() {
       setFillNote([
         filled.length ? `✅ ${dataLabel(date)} 데이터로 채웠어요: ${filled.join(' · ')}. 확인 후 저장을 눌러주세요.` : `${dataLabel(date)}에 해당하는 업로드 데이터가 없어요.`,
         skipped.length ? `올린 데이터가 없어서 그대로 둔 항목: ${skipped.join(', ')}` : '',
+        got.has.orders && CANCEL_MANUAL_BRANDS.includes(brand) ? `${brand}는 오클릭에서 취소 처리를 안 해서 출고전 취소는 그대로 뒀어요 (직접 입력).` : '',
         left.length || got.others.length ? `이 화면에 칸이 없어 빠진 플랫폼: ${[...left, ...got.others].join(', ')} (기준 관리 → 데일리 플랫폼에서 추가 가능)` : '',
       ].filter(Boolean).join('\n'));
       if (filled.length) setDirty(true);
