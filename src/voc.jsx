@@ -295,7 +295,7 @@ function downloadCsv(filename, header, rows) {
 
 function VocListPage({ initialFilter }) {
   const { cases, codeOptions, productById, products } = useApp();
-  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '', ...initialFilter });
+  const [f, setF] = useState({ from: '', to: '', brand: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '', ...initialFilter });
   const lineOptions = useMemo(() => [...new Set(products.map(p => p.line_type).filter(Boolean))].sort(), [products]);
   const [editing, setEditing] = useState(null);
   const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
@@ -304,7 +304,7 @@ function VocListPage({ initialFilter }) {
     const q = f.q.trim().toLowerCase();
     return cases.filter(c =>
       (!f.from || c.received_date >= f.from) && (!f.to || c.received_date <= f.to) &&
-      (!f.brand || c.brand === f.brand) && (!f.platform || c.platform === f.platform) &&
+      (!f.brand || c.brand === f.brand) && (!f.platform || c.platform === f.platform) && (!f.channel || c.consult_method === f.channel) &&
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
       (!f.reason || c.reason_category === f.reason) && (!f.category || caseCategory(c, productById) === f.category) &&
       (!f.line || caseLineType(c, productById) === f.line) &&
@@ -359,6 +359,7 @@ function VocListPage({ initialFilter }) {
           <input className="input" type="date" value={f.to} onChange={e => set('to')(e.target.value)} title="종료일" />
           <Select value={f.brand} onChange={set('brand')} options={codeOptions('brand', true)} placeholder="브랜드 전체" />
           <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
+          <Select value={f.channel} onChange={set('channel')} options={codeOptions('consult_method', true)} placeholder="문의 채널 전체" />
           <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
           <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
           {lineOptions.length > 0 && <Select value={f.line} onChange={set('line')} options={lineOptions} placeholder="추가분류 전체" />}
@@ -366,7 +367,7 @@ function VocListPage({ initialFilter }) {
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
           {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
           <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·내용 검색" />
-          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '' })}>필터 초기화</button>}
+          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '' })}>필터 초기화</button>}
         </div>
       </div>
       <div className="card" style={{ padding: 0 }}>

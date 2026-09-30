@@ -436,6 +436,27 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .dr-voc .dr-text { white-space: pre-line; line-height: 1.55; font-weight: 400; }
 .dr-voc img { width: 110px; height: 110px; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto; }
 .dr-meta { font-size: 11.5px; color: #6B7280; font-weight: 400; margin-top: 3px; }
+.dr-action { margin-top: 12px; background: #FFF8E6; border: 1px solid #F3D48A; border-radius: 8px; padding: 10px 14px; font-size: 13px; line-height: 1.7; }
+.dr-action-title { font-weight: 800; font-size: 14px; margin-bottom: 2px; }
+.dr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.dr-box { border: 1px solid #E5E8EE; border-radius: 8px; padding: 12px 14px; font-size: 13px; }
+.dr-box-title { font-weight: 800; font-size: 14px; margin-bottom: 8px; }
+.dr-box-title span, .dr-box-sub span { font-weight: 500; color: #6B7280; font-size: 12px; margin-left: 4px; }
+.dr-box-sub { font-weight: 700; margin: 12px 0 6px; }
+.dr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dr-chips span { background: #F1F3F7; border-radius: 12px; padding: 3px 10px; font-weight: 600; }
+.dr-chips span.hot { background: #FDECEC; color: #C0392B; }
+.dr-chips span.none { background: none; color: #9CA3AF; }
+.dr-mini { width: 100%; border-collapse: collapse; }
+.dr-mini td { padding: 4px 0; border-bottom: 1px dashed #E5E8EE; }
+.dr-mini td.n { text-align: right; width: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dr-mini td.muted { color: #6B7280; font-weight: 500; }
+.dr-ratio { display: flex; height: 26px; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 700; color: #fff; }
+.dr-ratio .pos { background: #2F9E6B; display: flex; align-items: center; padding-left: 8px; white-space: nowrap; }
+.dr-ratio .neg { background: #D64545; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; white-space: nowrap; }
+.dr-quote { margin-top: 8px; padding: 6px 10px; background: #FAFBFC; border-left: 3px solid #D64545; border-radius: 4px; font-size: 12.5px; line-height: 1.5; }
+.dr-quote b { color: #D99A2B; }
+.dr-note { color: #9CA3AF; font-size: 12.5px; }
 .dr-empty { font-size: 13px; color: #9CA3AF; padding: 12px 14px; border: 1px solid #E5E8EE; border-top: none; }
 .dr-voc-title + .dr-empty { border-top: 1px solid #E5E8EE; margin-top: 8px; border-radius: 6px; }
 /* 예약배송 일괄 처리 */

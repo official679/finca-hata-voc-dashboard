@@ -13,6 +13,24 @@ const BRAND_FIELDS = [
   { section: '전화 상담', fields: [['call_in', '총 인입'], ['call_delivery', '배송문의'], ['call_return', '반품/교환'], ['call_cancel', '취소/변경'], ['call_product', '상품'], ['call_etc', '기타'], ['call_out', '총 발신']] },
 ];
 const ALL_DAILY_FIELDS = [...PLATFORM_FIELDS, ...BRAND_FIELDS].flatMap(s => s.fields.map(f => f[0]));
+// 합계 칸은 직접 안 넣고 세부 칸을 더해서 자동 (VOC 상담·총 발신은 따로 세는 칸이라 합계에 안 들어감)
+const AUTO_TOTALS = {
+  ht_total: ['ht_only', 'ht_delivery', 'ht_return', 'ht_cancel', 'ht_product', 'ht_etc'],
+  call_in: ['call_delivery', 'call_return', 'call_cancel', 'call_product', 'call_etc'],
+};
+// 세부 칸이 하나라도 있으면 그 합계, 모두 0이면 예전에 합계만 넣어 둔 값을 그대로 둠
+const withAutoTotals = (v) => {
+  const out = { ...v };
+  Object.entries(AUTO_TOTALS).forEach(([t, parts]) => {
+    const sum = parts.reduce((a, f) => a + (Number(out[f]) || 0), 0);
+    if (sum > 0) out[t] = sum;
+  });
+  return out;
+};
+const isAutoTotal = (f) => f in AUTO_TOTALS;
+// 하타는 전화 상담이 없음 → 입력·리포트에서 전화 칸 숨김
+const NO_CALL_BRANDS = ['하타'];
+const brandFieldsOf = (brand) => BRAND_FIELDS.filter(s => !(NO_CALL_BRANDS.includes(brand) && s.section.startsWith('전화')));
 
 // 파생 지표 (기존 시트 계산식과 동일)
 const faultReturns = (r) => (r.return_defect || 0) + (r.return_misship || 0) + (r.return_etc || 0);
@@ -148,14 +166,14 @@ function DailyEntryPage() {
     const v = {};
     [...platforms, BRAND_TOTAL].forEach(p => {
       const row = daily.find(r => r.report_date === date && r.brand === brand && r.platform === p);
-      v[p] = Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, row ? row[f] || 0 : 0]));
+      v[p] = withAutoTotals(Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, row ? row[f] || 0 : 0])));
     });
     setValues(v);
     setDirty(false);
   }, [daily, date, brand, platforms.join('|')]);
 
   const exists = daily && daily.some(r => r.report_date === date && r.brand === brand);
-  const setVal = (p, f) => (n) => { setValues(prev => ({ ...prev, [p]: { ...prev[p], [f]: n } })); setDirty(true); };
+  const setVal = (p, f) => (n) => { setValues(prev => ({ ...prev, [p]: withAutoTotals({ ...prev[p], [f]: n }) })); setDirty(true); };
   const [filling, setFilling] = useState(false);
   const [fillNote, setFillNote] = useState('');
   const [showReport, setShowReport] = useState(false);
@@ -271,15 +289,20 @@ function DailyEntryPage() {
         </div>
 
         <div className="card" style={{ padding: 0 }}>
-          <div className="card-title" style={{ padding: '18px 20px 4px' }}>브랜드 전체 <small>해피톡·전화는 플랫폼 구분 없이 입력</small></div>
+          <div className="card-title" style={{ padding: '18px 20px 4px' }}>{brand} {NO_CALL_BRANDS.includes(brand) ? '해피톡' : '해피톡 · 전화'} <small>{brand}만 · 플랫폼 구분 없이 입력 · 합계는 자동</small></div>
           <div className="table-wrap">
             <table className="table entry-table">
               <tbody>
-                {BRAND_FIELDS.map(s => (
+                {brandFieldsOf(brand).map(s => (
                   <React.Fragment key={s.section}>
                     <tr className="section-row"><td colSpan={2}>{s.section}</td></tr>
                     {s.fields.map(([f, label]) => (
-                      <tr key={f}><td>{label}</td><td className="num"><NumCell value={values[BRAND_TOTAL]?.[f] || 0} onChange={setVal(BRAND_TOTAL, f)} /></td></tr>
+                      <tr key={f} className={isAutoTotal(f) ? 'derived' : ''}>
+                        <td>{label}{isAutoTotal(f) && <span className="muted" style={{ fontSize: 12 }}> (자동 합계)</span>}</td>
+                        <td className="num">{isAutoTotal(f)
+                          ? <b style={{ paddingRight: 10 }}>{values[BRAND_TOTAL]?.[f] || 0}</b>
+                          : <NumCell value={values[BRAND_TOTAL]?.[f] || 0} onChange={setVal(BRAND_TOTAL, f)} />}</td>
+                      </tr>
                     ))}
                   </React.Fragment>
                 ))}
