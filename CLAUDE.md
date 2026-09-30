@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~14 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~14 적용 완료, 15는 실행 대기, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -64,6 +64,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
   VOC 목록 칩 색·설명, VOC 현황 '추가분류별 VOC', 보고서 월 상세 '추가분류별 과실 VOC'에 반영.
 - 주문 업로드 (2026-09-30): 무신사 형식을 29CM보다 먼저 확인(순서 중요). 하타 상반기 파일용 형식 추가(29CM 옵션코드 없음, 아임웹 품목번호 없음=섹션상태, 무신사 일련번호 없음). 주문일시가 날짜가 아닌 줄은 제외(핀카 상반기 29CM 시트에 칸 밀린 2,126줄 있음). 하타 영어 상품명 대분류 키워드 추가. 9/28 보고일 CS 데일리 = 9/23~27 데이터 합산(사용자 확인).
 - VOC 사진 자동 줄이기 (2026-09-30, 사용자가 "조금 더 선명" 선택): lib.jsx `shrinkImage`, 긴 변 2500px · JPEG 0.85. HEIC 등 못 여는 형식은 원본. Supabase 무료 한도: DB 500MB · 파일 1GB.
+- 지난 주문은 요약으로 (2026-09-30, 사용자 선택 A): 상반기 주문은 order_monthly(월·브랜드·판매처·상품별 lines·qty·취소·반품·교환, 15 SQL)에만 저장, 업로드 화면 체크박스 '월·상품별 요약으로만 저장'. 7월부터는 order_items에 한 줄씩. 상반기 12.2만 줄 → 1.06만 줄.
 - 상품 추가분류(앵커/레귤러) = products.line_type (오클릭 카테고리 파일 '추가분류', 14 SQL). VOC 목록 칸·필터.
 - **README.md = 사용자용 안내서 겸 인수인계 자료**. 기능·메뉴·규칙을 바꾸면 README도 같이 고쳐서 항상 최신으로 유지 (계정·비밀번호는 넣지 않기).
 - 직원 이름 선택(공용 계정에서 "나는 누구", 직원 이름·부서·직급 등록): 사용자가 "아직"이라고 보류함.

@@ -66,6 +66,62 @@ const ORDER_UPLOAD = {
   }),
 };
 
+// 지난 주문(상반기 등)은 한 줄씩이 아니라 월·브랜드·판매처·상품별 개수로 묶어서 저장 (order_monthly, 15 SQL)
+function summarizeOrders(rows) {
+  const map = new Map();
+  rows.forEach(r => {
+    if (!r.when || !r.brand) return;
+    const ym = r.when.key.slice(0, 7);
+    const name = str(r.product_name) || '(상품명 없음)';
+    const k = [ym, r.brand, r.platform, name].join('|');
+    if (!map.has(k)) map.set(k, { ym, brand: r.brand, platform: r.platform, product_name: name, ...classifyItem(r.product_name, r.option_text), lines: 0, qty: 0, cancels: 0, returns: 0, exchanges: 0 });
+    const s = map.get(k);
+    const st = `${r.status || ''} ${r.claim_status || ''}`;
+    s.lines++; s.qty += r.qty || 1;
+    if (/취소/.test(st)) s.cancels++;
+    if (/반품/.test(st)) s.returns++;
+    if (/교환/.test(st)) s.exchanges++;
+  });
+  return [...map.values()];
+}
+
+// 요약 저장 결과 확인: 월·브랜드별 합계
+function OrderMonthlySummary() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    fetchAll(() => db.from('order_monthly').select('ym,brand,lines,cancels,returns,exchanges').order('id'))
+      .then(setRows).catch(() => setRows([]));
+  }, []);
+  if (!rows || !rows.length) return null;
+  const groups = countBy(rows, r => `${r.ym}|${r.brand}`).map(g => g.label).sort();
+  const sum = (key, f) => rows.filter(r => `${r.ym}|${r.brand}` === key).reduce((a, r) => a + r[f], 0);
+  return (
+    <div className="card" style={{ marginTop: 16, padding: 0 }}>
+      <div className="card-title" style={{ padding: '18px 20px 4px' }}>요약으로 저장한 지난 주문 <small>월·상품별로 묶어 저장 · 상·하반기 비교용</small></div>
+      <div className="table-wrap">
+        <table className="table report-table">
+          <thead><tr><th>월</th><th>브랜드</th><th className="num">주문 품목</th><th className="num">취소</th><th className="num">반품</th><th className="num">교환</th><th className="num">상품 수</th></tr></thead>
+          <tbody>
+            {groups.map(g => {
+              const [ym, b] = g.split('|');
+              return (
+                <tr key={g}>
+                  <td>{ym}</td><td>{b}</td>
+                  <td className="num">{sum(g, 'lines').toLocaleString()}</td>
+                  <td className="num">{sum(g, 'cancels').toLocaleString()}</td>
+                  <td className="num">{sum(g, 'returns').toLocaleString()}</td>
+                  <td className="num">{sum(g, 'exchanges').toLocaleString()}</td>
+                  <td className="num">{new Set(rows.filter(r => `${r.ym}|${r.brand}` === g).map(r => r.product_name)).size.toLocaleString()}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // 리뷰·게시판·주문을 한 곳에서 올리는 화면 (파일마다 종류를 알아서 구분)
 function DataUploadPage() {
   const [counts, setCounts] = useState({});
@@ -86,6 +142,7 @@ function DataUploadPage() {
       <ProductMasterUpload />
       <BackupCard />
       <OrderCategorySummary key={version} />
+      <OrderMonthlySummary key={'m' + version} />
     </>
   );
 }
@@ -93,7 +150,7 @@ function DataUploadPage() {
 // ---------- 백업: 주요 표를 엑셀 한 파일(표마다 시트)로 받기 · 마지막 백업일은 code_items('backup_log')에 기록 ----------
 const BACKUP_TABLES = [
   ['voc_cases', 'VOC'], ['cs_daily', 'CS데일리'], ['report_notes', '월간메모'], ['review_items', '리뷰'], ['board_items', '게시판'],
-  ['order_items', '주문'], ['preorder_products', '예약상품'], ['preorder_lines', '예약주문'], ['preorder_uploads', '예약업로드기록'],
+  ['order_items', '주문'], ['order_monthly', '주문요약'], ['preorder_products', '예약상품'], ['preorder_lines', '예약주문'], ['preorder_uploads', '예약업로드기록'],
   ['meetings', '회의록'], ['meeting_items', '논의사항'], ['tasks', '업무'], ['task_comments', '업무댓글'],
   ['manuals', '업무매뉴얼'], ['cx_guides', '응대주의사항'], ['code_items', '기준목록'], ['products', '상품마스터'],
 ];

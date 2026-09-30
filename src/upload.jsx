@@ -199,6 +199,7 @@ function UploadPanel({ configs, onDone, guide }) {
   const [sheets, setSheets] = useState(null);
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null);
+  const [summaryMode, setSummaryMode] = useState(false);   // 주문을 월·상품별 요약으로만 저장 (지난 주문용)
   const inputRef = useRef(null);
 
   const pick = async (files) => {
@@ -226,6 +227,19 @@ function UploadPanel({ configs, onDone, guide }) {
     try {
       for (const kind of kinds) {
         const cfg = configs[kind];
+        if (kind === 'order' && summaryMode) {
+          const lines = [];
+          ready.filter(s => s.format.kind === 'order').forEach(s => s.rows.forEach(r => lines.push({ ...r, brand: r.brand || brand })));
+          const sums = summarizeOrders(lines);
+          // 같은 월·브랜드·판매처·상품은 덮어씀 → 같은 파일을 다시 올려도 두 번 세지 않음
+          for (let i = 0; i < sums.length; i += 500) {
+            setBusy(`주문 요약 올리는 중... ${Math.min(i + 500, sums.length).toLocaleString()} / ${sums.length.toLocaleString()}`);
+            const { error } = await db.from('order_monthly').upsert(sums.slice(i, i + 500), { onConflict: 'ym,brand,platform,product_name' });
+            if (error) throw new Error(`주문 요약: ${error.message}`);
+          }
+          results.push({ kind, summary: true, lines: lines.length, inserted: sums.length });
+          continue;
+        }
         const rows = [];
         ready.filter(s => s.format.kind === kind).forEach(s => s.rows.forEach(r => {
           const b = r.brand || brand;
@@ -303,6 +317,16 @@ function UploadPanel({ configs, onDone, guide }) {
               </tbody>
             </table>
           </div>
+          {ready.some(s => s.format.kind === 'order') && (
+            <label className="card" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12, background: summaryMode ? 'var(--accent-soft)' : undefined, cursor: 'pointer' }}>
+              <input type="checkbox" checked={summaryMode} onChange={e => setSummaryMode(e.target.checked)} style={{ marginTop: 4 }} />
+              <span>
+                <b>주문은 월·상품별 요약으로만 저장</b> <span className="muted">(상반기처럼 지난 주문용)</span>
+                <div className="hint">한 줄씩 저장하지 않고 월·판매처·상품별 개수(주문·취소·반품·교환)만 저장해요. 용량이 약 1/20.
+                  대신 CS 데일리 자동 채우기·하루 단위 분석에는 쓰이지 않아요. <b>7월부터의 주문은 체크하지 마세요.</b></div>
+              </span>
+            </label>
+          )}
           {needsBrand && !brand && <div className="login-error" style={{ textAlign: 'left' }}>브랜드가 없는 파일이 있어요. 위에서 브랜드를 골라주세요.</div>}
           <div className="form-actions">
             <button className="btn" onClick={() => setSheets(null)}>취소</button>
@@ -317,7 +341,9 @@ function UploadPanel({ configs, onDone, guide }) {
         <div className="card" style={{ marginTop: 16, background: 'var(--success-soft)', border: 'none' }}>
           {result.map(r => (
             <div key={r.kind} style={{ marginBottom: 4 }}>
-              ✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b>
+              {r.summary
+                ? <>✅ <b>주문 요약</b> {r.lines.toLocaleString()}줄 → 월·상품별 <b>{r.inserted.toLocaleString()}줄</b>로 묶어 저장 (아래 '요약으로 저장한 지난 주문'에서 확인)</>
+                : <>✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b></>}
               {r.skipped > 0 && <> · 이미 있던 {r.skipped.toLocaleString()}건은 건너뜀</>}
               {r.dup > 0 && <> · 파일 안 중복 {r.dup.toLocaleString()}건 제외</>}
               {r.extra && <div style={{ marginTop: 4 }}>{r.extra}</div>}
