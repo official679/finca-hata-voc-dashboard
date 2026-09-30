@@ -1,6 +1,6 @@
 // 플랫폼 다운로드 파일(엑셀·CSV) 읽기 · 형식 자동 인식 · 업로드
 
-const PLATFORM_NAMES = { '29cm': '29CM', 'w컨셉': 'W컨셉', 'wconcept': 'W컨셉', 'eql': 'EQL', '무신사': '무신사', '아임웹': '아임웹', '카페24': '카페24' };
+const PLATFORM_NAMES = { '29cm': '29CM', 'w컨셉': 'W컨셉', 'wconcept': 'W컨셉', 'eql': 'EQL', '무신사': '무신사', '아임웹': '아임웹', '카페24': '카페24', 'eql/h패션몰': 'EQL' };
 const normPlatform = (p) => PLATFORM_NAMES[String(p || '').trim().toLowerCase()] || String(p || '').trim();
 const normBrand = (b) => {
   const s = String(b || '').trim().toLowerCase();

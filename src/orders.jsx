@@ -43,12 +43,22 @@ FILE_FORMATS.push(
   // 주문건은 판매처보조번호(= 판매처의 품목 번호)로 다시 묶어서 셈 (2026-09-30 사용자 결정: 모든 판매처 '상품 수'로 통일)
   { kind: 'order', label: '오클릭 주문', numberDupKeys: true,
     headers: ['주문번호', '주문구분', '브랜드', '품명', '바코드', '주문수량', '판매처명', '판매처주문번호', '판매처보조번호', '입력일'],
-    map: (r) => ({ key: r['주문번호'] ? 'OC' + hashText(`${r['주문번호']}|${r['판매처보조번호']}|${r['바코드']}|${r['주문구분']}|${r['교환']}`) : '',
+    // 하타 줄은 건너뜀: 하타 주문은 사방넷 파일로 올림 (오클릭에는 등록만 하고 처리는 사방넷)
+    map: (r) => ({ key: r['주문번호'] && normBrand(r['브랜드']) !== '하타' ? 'OC' + hashText(`${r['주문번호']}|${r['판매처보조번호']}|${r['바코드']}|${r['주문구분']}|${r['교환']}`) : '',
       brand: normBrand(r['브랜드']), platform: oclickPlatform(r['판매처명']),
       order_no: r['판매처주문번호'] || r['주문번호'], item_no: r['판매처보조번호'], barcode: r['바코드'],
       status: r['주문구분'], claim_status: r['교환'], product_name: r['품명'],
       option_text: [r['색상'], r['사이즈']].map(v => String(v || '').trim()).filter(Boolean).join(' / '),
       qty: num1(String(r['주문수량'] || '').replace('-', '')), when: oclickWhen(r) }) },
+  // 사방넷 주문 (하타 전용: 사방넷에 브랜드 칸이 없어 하타로 저장) · 한 줄 = 상품 1개
+  // 반품·교환이 생기면 '…회수…' 줄이 원래 줄과 별도로 생기고, 교환 재발송은 '교환발송…' 줄 → 주문건에서 제외
+  { kind: 'order', label: '사방넷 주문 (하타)',
+    headers: ['주문상태', '주문일자', '쇼핑몰', '쇼핑몰주문번호', '사방넷주문번호', '상품코드', '상품명', 'EA'],
+    map: (r) => ({ key: r['사방넷주문번호'] ? 'SB' + r['사방넷주문번호'] : '', brand: '하타', platform: normPlatform(r['쇼핑몰']),
+      order_no: r['쇼핑몰주문번호'], item_no: r['사방넷주문번호'], barcode: r['상품코드'],
+      status: r['주문상태'], claim_status: /회수/.test(r['주문상태'] || '') ? '회수' : /교환발송/.test(r['주문상태'] || '') ? '교환발송' : '',
+      product_name: r['상품명'], qty: num1(r['EA']),
+      when: parseWhen(String(r['주문일자'] || '').replace(/^(\d{4})(\d{2})(\d{2}).*$/, '$1-$2-$3')) }) },
 );
 FILE_FORMATS.push(
   { kind: 'order', label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],

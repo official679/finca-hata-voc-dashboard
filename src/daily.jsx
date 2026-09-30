@@ -111,11 +111,13 @@ async function countUploadsForReport(reportDate, brand) {
     const cancelled = /취소/.test(r.status || '');
     // 판매처 파일(품목 번호 없음): 한 줄 = 주문 1, 취소 상태면 출고전 취소도 1 (예전 방식)
     if (!r.item_no) { bump(r.platform, 'orders'); if (cancelled) bump(r.platform, 'cancels'); return; }
-    // 오클릭: 취소는 '주문' 줄과 짝을 이루는 별도 '취소' 줄로 들어옴
-    if (r.claim_status && /교환/.test(r.claim_status)) return;
+    // 오클릭·사방넷: 교환 재발송 줄, 사방넷 반품·교환 회수 줄은 새 주문이 아님
+    // 오클릭 취소는 '주문' 줄과 짝을 이루는 별도 '취소' 줄로 들어옴
+    if (r.claim_status && /교환|회수/.test(r.claim_status)) return;
     const item = `${r.platform}|${r.order_no}|${r.item_no}`;
-    if (cancelled) { if (!seenCancel.has(item)) { seenCancel.add(item); bump(r.platform, 'cancels'); } }
-    else if (r.status === '주문' && !seenOrder.has(item)) { seenOrder.add(item); bump(r.platform, 'orders'); }
+    // 사방넷 '취소접수·취소완료'는 원래 주문 줄 자체 → 주문 1 + 취소 1 (오클릭 '취소' 줄은 취소만)
+    if (cancelled && !seenCancel.has(item)) { seenCancel.add(item); bump(r.platform, 'cancels'); }
+    if ((!cancelled || r.status !== '취소') && !/분실/.test(r.status || '') && !seenOrder.has(item)) { seenOrder.add(item); bump(r.platform, 'orders'); }
   });
   reviews.forEach(r => { bump(r.platform, 'reviews_total'); bump(r.platform, r.rating !== null && r.rating <= 3 ? 'reviews_negative' : 'reviews_positive'); });
   const inquiries = board.filter(r => r.inquiry_type !== ANSWER_TYPE && !isStaffAnswer(r.content));
