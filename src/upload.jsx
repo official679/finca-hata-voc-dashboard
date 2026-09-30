@@ -85,6 +85,12 @@ const FILE_FORMATS = [
     map: (r) => ({ key: 'MB' + hashText(['작성일', '판매처', '브랜드', '상품명', '문의유형', '제목', '문의 내용'].map(k => String(r[k] ?? '').trim()).join('|')),
       brand: normBrand(r['브랜드']), platform: normPlatform(r['판매처']), product_name: r['상품명'], platform_category: r['문의유형'], title: r['제목'],
       content: r['문의 내용'] || r['제목'] || r['문의유형'] || '(내용 없음)', when: parseWhen(r['작성일']) }) },
+  // EQL 관리자 화면에서 받은 문의 파일
+  { kind: 'board', label: 'EQL 게시판', headers: ['문의일시', '문의번호', '문의내용', '상품명'],
+    map: (r) => ({ key: r['문의번호'] ? 'EQL' + r['문의번호'] : '', brand: normBrand(r['브랜드명']), platform: 'EQL', product_name: r['상품명'], content: r['문의내용'], when: parseWhen(r['문의일시']) }) },
+  // W컨셉 문의 목록을 긁은 것 (번호·등록일·문의자·주문번호·제목·상품명·브랜드) · 문의자·주문번호는 읽지 않음
+  { kind: 'board', label: 'W컨셉 게시판', headers: ['등록일', '주문번호', '제목', '상품명'], numberDupKeys: true,
+    map: (r) => ({ key: 'WC' + hashText(`${r['등록일']}|${r['제목']}|${r['상품명']}|${r['번호'] ?? ''}`), brand: normBrand(r['브랜드']), platform: 'W컨셉', product_name: r['상품명'], title: r['제목'], content: r['제목'], when: parseWhen(r['등록일']) }) },
   { kind: 'board', label: '29CM 게시판', headers: ['브랜드', '상품', '문의 내용', '등록일시'],
     map: (r) => ({ brand: normBrand(r['브랜드']), platform: '29CM', product_name: r['상품'], content: r['문의 내용'], when: parseWhen(r['등록일시']) }) },
   { kind: 'board', label: '무신사 게시판', headers: ['상품명', '문의구분', '제목', '문의내용', '작성일'],
@@ -119,8 +125,8 @@ async function readUploadFile(file, kind) {
         .map(r => {
           const obj = Object.fromEntries(header.map((k, i) => [k, r[i]]));
           const m = format.map(obj);
-          // 형식에 브랜드가 없으면: 시트의 '브랜드'·'브랜드명' 칸 → 상품명이 HaTA로 시작하면 하타 (그래도 없으면 파일 이름·선택)
-          if (!m.brand) m.brand = normBrand(obj['브랜드'] || obj['브랜드명'] || obj['브랜드 명']) || (/^\s*(\[[^\]]*\]\s*)*hata\b/i.test(String(m.product_name || '')) ? '하타' : '');
+          // 형식에 브랜드가 없으면: 시트의 '브랜드'·'브랜드명' 칸 → 상품명이 HaTA로 시작하면 하타 → 시트 이름('하타 아임웹' 등) (그래도 없으면 파일 이름·선택)
+          if (!m.brand) m.brand = normBrand(obj['브랜드'] || obj['브랜드명'] || obj['브랜드 명']) || (/^\s*(\[[^\]]*\]\s*)*hata\b/i.test(String(m.product_name || '')) ? '하타' : '') || normBrand(name);
           return m;
         })
         // 리뷰·게시판은 내용이 있어야, 주문·반품처럼 key(품목 번호)가 있는 형식은 key가 있어야 저장
