@@ -94,7 +94,12 @@ function Shell({ session }) {
   else if (data.loadError) page = (
     <div className="card" style={{ color: 'var(--danger)' }}>
       데이터를 불러오지 못했어요: {data.loadError}
-      <div className="hint">DB 설정 SQL(01_phase1_schema.sql)을 실행했는지 확인해 주세요.</div>
+      <div className="hint">
+        {/JWT/i.test(data.loadError)
+          ? '로그인 정보 확인이 잠깐 어긋났어요. 새로고침하면 대부분 해결돼요. 계속되면 로그아웃 후 다시 로그인하거나, PC 시계가 맞는지 확인해 주세요.'
+          : '잠시 후 새로고침해 보세요. 계속되면 인터넷 연결이나 DB 설정을 확인해 주세요.'}
+      </div>
+      <button className="btn" style={{ marginTop: 10 }} onClick={() => location.reload()}>🔄 새로고침</button>
     </div>
   );
   else if (SOON_PAGES[route]) page = <><PageHeader title={ALL_NAV.find(n => n.key === route).label} /><ComingSoon {...SOON_PAGES[route]} /></>;

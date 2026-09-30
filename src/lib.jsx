@@ -139,18 +139,25 @@ function useAppData(session) {
   useEffect(() => {
     if (!userId) return;
     (async () => {
-      try {
-        const [prods] = await Promise.all([
-          fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender,line_type').order('id')),
-          loadCodes(),
-          loadCases(),
-        ]);
-        setProducts(prods);
-      } catch (e) {
-        setLoadError(e.message || String(e));
-      } finally {
-        setReady(true);
+      // 로그인 직후 'JWT issued at future'(서버끼리 시계가 1~2초 어긋남)는 잠깐 기다리면 풀림 → 3번까지 다시 시도
+      for (let attempt = 1; ; attempt++) {
+        try {
+          const [prods] = await Promise.all([
+            fetchAll(() => db.from('products').select('id,product_name,brand,category,size_gender,line_type').order('id')),
+            loadCodes(),
+            loadCases(),
+          ]);
+          setProducts(prods);
+          setLoadError('');
+          break;
+        } catch (e) {
+          const msg = e.message || String(e);
+          if (/JWT/i.test(msg) && attempt < 3) { await new Promise(r => setTimeout(r, 2000 * attempt)); continue; }
+          setLoadError(msg);
+          break;
+        }
       }
+      setReady(true);
     })();
   }, [userId, loadCodes, loadCases]);
 
