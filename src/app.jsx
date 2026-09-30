@@ -10,6 +10,7 @@ const NAV = [
     { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
     { key: 'preorder', label: '예약배송 관리', icon: '📦' },
+    { key: 'hold-sheet', label: '예약배송 상품 현황', icon: '📊' },
     // 예전 주소(#/upload-reviews 등)로 들어와도 데이터 업로드 화면으로 (메뉴에는 안 보임)
     { key: 'upload-reviews', label: '데이터 업로드', hidden: true },
     { key: 'upload-board', label: '데이터 업로드', hidden: true },
@@ -113,6 +114,7 @@ function Shell({ session }) {
     kpi: <KpiPage />,
     tasks: <TasksPage />,
     plan: <PlanPage />,
+    'hold-sheet': <HoldSheetPage />,
     upload: <DataUploadPage />,
     'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
