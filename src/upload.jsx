@@ -140,13 +140,14 @@ function productMatcher(products) {
   return (name) => map.get(normProductName(name)) || null;
 }
 
-const KIND_LABEL = { review: '리뷰', board: '게시판 문의', order: '주문 품목' };
+const KIND_LABEL = { review: '리뷰', board: '게시판 문의', order: '주문 품목', return: '반품·교환' };
 
 // 업로드 안내: 종류별로 무엇이 되는지 + 알아보는 파일 형식(필수 칸)은 FILE_FORMATS에서 자동으로 만듦
 const KIND_GUIDE = {
   review: { icon: '⭐', title: '리뷰', does: '긍정·부정 자동 분류 · 새로 들어온 1~3점 리뷰는 VOC 접수로 자동 등록 · 고객 이름·아이디는 저장 안 함' },
   board: { icon: '💬', title: '게시판 문의', does: '재입고·배송·교환/반품 등 문의 유형 자동 분류 · 우리 답변 글은 집계에서 제외 · 작성자 정보는 저장 안 함' },
-  order: { icon: '🛒', title: '주문', does: '대분류(베딩·러그·바스·홈데코·웨어·잡화·키친)와 세트 여부 자동 분류 · 주문자·수령자·연락처는 저장 안 함' },
+  order: { icon: '🛒', title: '주문', does: '핀카 = 오클릭 주문 파일, 하타 = 사방넷 파일 · 대분류(베딩·러그·바스·홈데코·웨어·잡화·키친) 자동 분류 · 주문자·수령자·연락처는 저장 안 함 · 판매처 주문 파일은 지난 기간 요약용으로만' },
+  return: { icon: '↩️', title: '반품·교환', does: '판매처 반품·교환 파일 그대로 · 사유 자동 묶기(과실 = 불량·파손·오배송·누락) · 29CM는 주문번호로 올려 둔 주문에서 상품을 찾아 채움 · 철회 건 제외' },
 };
 
 // 양식 파일 받기: 첫 줄 = 꼭 있어야 하는 칸 이름, 둘째 줄 = 예시(있으면). 이 양식에 맞춰 채워서 올리면 알아봄
@@ -171,7 +172,7 @@ function UploadGuide({ kinds }) {
         <b>이렇게 올리면 돼요</b>
         <ul>
           <li>플랫폼에서 받은 <b>엑셀·CSV 파일을 그대로</b> 올리세요. 칸을 지우거나 순서를 바꿀 필요 없어요.</li>
-          <li>리뷰·게시판·주문 파일을 <b>한 번에 여러 개</b> 골라도 돼요. 시트마다 종류를 알아서 구분해요.</li>
+          <li>리뷰·게시판·주문·반품교환 파일을 <b>한 번에 여러 개</b> 골라도 돼요. 시트마다 종류를 알아서 구분해요.</li>
           <li>한 파일에 플랫폼별 시트가 여러 개 있어도 괜찮아요. <b>첫 줄(제목 줄)의 칸 이름</b>으로 형식을 알아봐요.</li>
           <li>같은 파일·같은 기간을 다시 올려도 <b>중복 저장되지 않아요.</b></li>
           <li>핀카·하타는 파일의 브랜드 칸(오클릭·29CM 등)이나 <b>파일 이름</b>('핀카'·'하타')으로 알아서 나눠요. 둘 다 없는 파일이 있을 때만 브랜드를 고르는 칸이 나와요.</li>
@@ -238,6 +239,9 @@ function UploadPanel({ configs, onDone, guide }) {
 
   const ready = sheets ? sheets.filter(s => s.format && s.rows.length) : [];
   const needsBrand = ready.some(s => s.rows.some(r => !r.brand));
+  // 판매처 주문 파일(29CM·아임웹 등)은 요약 저장일 때만 (주문은 오클릭·사방넷 기준이라 그대로 올리면 두 번 셈)
+  const legacyOrders = ready.some(s => s.format.kind === 'order' && s.format.legacy);
+  const blockLegacy = legacyOrders && !summaryMode;
 
   // 종류(리뷰·게시판·주문)별로 나눠서 각자의 표에 저장
   const upload = async () => {
@@ -259,15 +263,14 @@ function UploadPanel({ configs, onDone, guide }) {
           results.push({ kind, summary: true, lines: lines.length, inserted: sums.length });
           continue;
         }
-        const rows = [];
-        ready.filter(s => s.format.kind === kind).forEach(s => s.rows.forEach(r => {
-          const b = r.brand || brand;
-          if (!b) return;
-          rows.push({
-            ...cfg.toRow(r), brand: b, platform: r.platform,
-            source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
-            ...(cfg.linkProducts === false ? {} : { product_id: match(r.product_name) }),
-          });
+        let src = [];
+        ready.filter(s => s.format.kind === kind).forEach(s => s.rows.forEach(r => { const b = r.brand || brand; if (b) src.push({ ...r, brand: b }); }));
+        // 저장 전 보충 (예: 29CM 반품은 주문번호만 있어 올려 둔 주문에서 상품을 찾아 채움)
+        if (cfg.prepare && src.length) { setBusy(`${KIND_LABEL[kind]} 정리 중...`); src = await cfg.prepare(src); }
+        const rows = src.map(r => ({
+          ...cfg.toRow(r), brand: r.brand, platform: r.platform,
+          source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
+          ...(cfg.linkProducts === false ? {} : { product_id: match(r.product_name) }),
         }));
         if (!rows.length) continue;
         // 같은 파일 안의 중복 제거
@@ -349,10 +352,11 @@ function UploadPanel({ configs, onDone, guide }) {
               </span>
             </label>
           )}
+          {blockLegacy && <div className="login-error" style={{ textAlign: 'left' }}>판매처 주문 파일(29CM·무신사 등)이 있어요. 7월부터 주문은 <b>핀카 = 오클릭, 하타 = 사방넷</b> 파일만 올려요 (그대로 올리면 두 번 세어져요). 지난 기간 요약용이면 위의 <b>요약으로만 저장</b>에 체크해 주세요.</div>}
           {needsBrand && !brand && <div className="login-error" style={{ textAlign: 'left' }}>브랜드가 없는 파일이 있어요. 위에서 브랜드를 골라주세요.</div>}
           <div className="form-actions">
             <button className="btn" onClick={() => setSheets(null)}>취소</button>
-            <button className="btn btn-primary" disabled={!ready.length || (needsBrand && !brand)} onClick={upload}>
+            <button className="btn btn-primary" disabled={!ready.length || (needsBrand && !brand) || blockLegacy} onClick={upload}>
               ⬆ {ready.reduce((a, s) => a + s.rows.length, 0).toLocaleString()}건 업로드
             </button>
           </div>

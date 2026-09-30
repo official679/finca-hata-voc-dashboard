@@ -25,6 +25,7 @@ const num1 = (v) => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); 
 
 // 주문 파일 형식 (개인정보 칸은 읽지 않음)
 // 순서 중요: 무신사(클레임상태 칸 있음)를 먼저 확인해야 29CM로 잘못 알아보지 않음
+// legacy = 판매처 주문 파일: 7월부터 주문은 오클릭(핀카)·사방넷(하타)만 → 지난 기간 요약 저장할 때만 쓸 수 있음 (두 번 세기 방지)
 
 // 오클릭 판매처명 → 플랫폼 ('2. 29CM(하타)' → 29CM). 시딩·샘플·B2B·오프라인은 이름 그대로 (CS 데일리에는 안 들어감)
 function oclickPlatform(name) {
@@ -61,27 +62,27 @@ FILE_FORMATS.push(
       when: parseWhen(String(r['주문일자'] || '').replace(/^(\d{4})(\d{2})(\d{2}).*$/, '$1-$2-$3')) }) },
 );
 FILE_FORMATS.push(
-  { kind: 'order', label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],
+  { kind: 'order', legacy: true, label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],
     map: (r) => ({ key: r['주문일련번호'], platform: '무신사',
       order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
   // 하타 상반기 파일처럼 주문일련번호가 없는 무신사 파일
-  { kind: 'order', label: '무신사 주문 (일련번호 없음)', headers: ['주문일시', '주문번호', '주문상태', '클레임상태', '상품번호', '상품명', '옵션', '수량'],
+  { kind: 'order', legacy: true, label: '무신사 주문 (일련번호 없음)', headers: ['주문일시', '주문번호', '주문상태', '클레임상태', '상품번호', '상품명', '옵션', '수량'],
     map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션']}`) : '', platform: '무신사',
       order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
   // 옵션코드 칸은 없어도 됨 (하타 29CM 파일)
-  { kind: 'order', label: '29CM 주문', headers: ['주문번호', '주문상태', '상품번호', '상품명', '옵션', '수량', '주문일시'],
+  { kind: 'order', legacy: true, label: '29CM 주문', headers: ['주문번호', '주문상태', '상품번호', '상품명', '옵션', '수량', '주문일시'],
     map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션코드'] || ''}|${r['옵션']}`) : '', brand: normBrand(r['브랜드']), platform: '29CM',
       order_no: r['주문번호'], status: r['주문상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
-  { kind: 'order', label: '아임웹 주문', headers: ['주문번호', '주문상태', '주문섹션품목번호', '구매수량', '상품명', '주문일'],
+  { kind: 'order', legacy: true, label: '아임웹 주문', headers: ['주문번호', '주문상태', '주문섹션품목번호', '구매수량', '상품명', '주문일'],
     map: (r) => ({ key: r['주문섹션품목번호'], brand: normBrand(r['판매채널']), platform: '아임웹',
       order_no: r['주문번호'], status: r['주문상태'], product_name: r['상품명'], option_text: r['옵션명'], qty: num1(r['구매수량']), when: parseWhen(r['주문일']),
       cancel_reason: [r['취소사유'], r['취소상세사유']].filter(Boolean).join(' / '), return_reason: [r['반품사유'], r['반품 상세사유']].filter(Boolean).join(' / ') }) },
   // 하타 상반기 파일처럼 품목번호·주문상태 대신 섹션상태만 있는 아임웹 파일
-  { kind: 'order', label: '아임웹 주문 (품목번호 없음)', headers: ['판매채널', '주문번호', '구매수량', '상품명', '주문일', '섹션상태'],
+  { kind: 'order', legacy: true, label: '아임웹 주문 (품목번호 없음)', headers: ['판매채널', '주문번호', '구매수량', '상품명', '주문일', '섹션상태'],
     map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품명']}|${r['옵션명']}`) : '', brand: normBrand(r['판매채널']), platform: '아임웹',
       order_no: r['주문번호'], status: r['섹션상태'], product_name: r['상품명'], option_text: r['옵션명'], qty: num1(r['구매수량']), when: parseWhen(r['주문일']),
       cancel_reason: [r['취소사유'], r['취소상세사유']].filter(Boolean).join(' / '), return_reason: [r['반품사유'], r['반품 상세사유']].filter(Boolean).join(' / ') }) },
-  { kind: 'order', label: '카페24 주문', headers: ['주문번호', '품목별 주문번호', '주문상품명', '수량', '발주일'],
+  { kind: 'order', legacy: true, label: '카페24 주문', headers: ['주문번호', '품목별 주문번호', '주문상품명', '수량', '발주일'],
     map: (r) => ({ key: r['품목별 주문번호'], platform: '카페24',
       order_no: r['주문번호'], product_name: r['주문상품명'],
       option_text: String(r['주문상품명(옵션포함)'] || '').replace(String(r['주문상품명'] || ''), '').replace(/^\(|\)$/g, '').trim(),
@@ -164,16 +165,16 @@ function DataUploadPage() {
   const [counts, setCounts] = useState({});
   const [version, setVersion] = useState(0);
   useEffect(() => {
-    Promise.all(['review_items', 'board_items', 'order_items'].map(t => db.from(t).select('id', { count: 'exact', head: true }).then(({ count }) => [t, count])))
+    Promise.all(['review_items', 'board_items', 'order_items', 'return_items'].map(t => db.from(t).select('id', { count: 'exact', head: true }).then(({ count }) => [t, count])))
       .then(rs => setCounts(Object.fromEntries(rs)));
   }, [version]);
   const n = (t) => (counts[t] === undefined ? '...' : (counts[t] || 0).toLocaleString());
   return (
     <>
-      <PageHeader title="데이터 업로드" desc={`지금까지 저장: 리뷰 ${n('review_items')}건 · 게시판 문의 ${n('board_items')}건 · 주문 품목 ${n('order_items')}줄`} />
+      <PageHeader title="데이터 업로드" desc={`지금까지 저장: 리뷰 ${n('review_items')}건 · 게시판 문의 ${n('board_items')}건 · 주문 품목 ${n('order_items')}줄 · 반품·교환 ${n('return_items')}건`} />
       <UploadPanel
-        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD }}
-        guide={<UploadGuide kinds={['review', 'board', 'order']} />}
+        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD, return: RETURN_UPLOAD }}
+        guide={<UploadGuide kinds={['review', 'board', 'order', 'return']} />}
         onDone={() => setVersion(v => v + 1)}
       />
       <ProductMasterUpload />
@@ -187,7 +188,7 @@ function DataUploadPage() {
 // ---------- 백업: 주요 표를 엑셀 한 파일(표마다 시트)로 받기 · 마지막 백업일은 code_items('backup_log')에 기록 ----------
 const BACKUP_TABLES = [
   ['voc_cases', 'VOC'], ['cs_daily', 'CS데일리'], ['report_notes', '월간메모'], ['review_items', '리뷰'], ['board_items', '게시판'],
-  ['order_items', '주문'], ['order_monthly', '주문요약'], ['preorder_products', '예약상품'], ['preorder_lines', '예약주문'], ['preorder_uploads', '예약업로드기록'],
+  ['order_items', '주문'], ['order_monthly', '주문요약'], ['return_items', '반품교환'], ['preorder_products', '예약상품'], ['preorder_lines', '예약주문'], ['preorder_uploads', '예약업로드기록'],
   ['meetings', '회의록'], ['meeting_items', '논의사항'], ['tasks', '업무'], ['task_comments', '업무댓글'],
   ['manuals', '업무매뉴얼'], ['cx_guides', '응대주의사항'], ['code_items', '기준목록'], ['products', '상품마스터'],
 ];

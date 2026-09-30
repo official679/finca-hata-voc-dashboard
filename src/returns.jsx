@@ -23,6 +23,93 @@ function returnReasonGroup(raw, detail) {
   return { group: '기타', fault: false };
 }
 
+// ---------- 반품·교환 파일 업로드 (데이터 업로드 화면) ----------
+// 상반기 가져오기와 같은 키 → 같은 건을 다시 올려도 두 번 저장되지 않음
+const retStr = (v) => (v === undefined || v === null ? '' : String(v).trim());
+const retDateFromNo = (no) => { const m = retStr(no).match(/(20\d{2})(\d{2})(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null; };
+const retDate = (v) => { const w = parseWhen(v); return w ? w.key.slice(0, 10) : null; };
+const retClean = (t) => { t = retStr(t); return /<|font-|sans-serif|href=/.test(t) ? '' : t.slice(0, 300); };
+const RETURN_FORMATS = [
+  // 29CM: 주문번호·사유만 → 저장할 때 올려 둔 주문(오클릭·사방넷)에서 상품을 찾음 (prepare)
+  ...[['반품', '반품 사유'], ['교환', '교환 사유']].map(([kind, col]) => ({
+    kind: 'return', label: `29CM ${kind}`, headers: ['CS 처리상태', '주문번호', col],
+    map: (r) => ({ key: /철회/.test(retStr(r['CS 처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}`,
+      brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']),
+      reason_raw: retStr(r[col]), reason_detail: retClean(r['상세 사유'] || r['상세사유']), claim_status: retStr(r['CS 처리상태']), needs_product: true, when: {} }),
+  })),
+  // 아임웹: 주문 내역 중 반품사유가 있는 줄 = 반품 (주문 파일과 칸이 같아서 반품사유 없는 줄은 건너뜀)
+  { kind: 'return', label: '아임웹 반품', headers: ['판매채널', '주문번호', '구매수량', '상품명', '반품사유'],
+    map: (r) => ({ key: !retStr(r['반품사유']) ? '' : '반품|' + (retStr(r['주문섹션품목번호']) || `${retStr(r['주문번호'])}|${retStr(r['상품명'])}|${retStr(r['옵션명'])}`),
+      brand: normBrand(r['판매채널']), platform: '아임웹', ret_kind: '반품', order_no: retStr(r['주문번호']),
+      product_name: retStr(r['상품명']), option_text: retStr(r['옵션명']), qty: parseInt(r['구매수량'], 10) || 1,
+      reason_raw: retStr(r['반품사유']), reason_detail: retClean(r['반품 상세사유']), claim_status: retStr(r['주문상태']) || null,
+      order_date: retDate(r['주문일']) || retDateFromNo(r['주문번호']), when: {} }) },
+  // 무신사: 환불완료 = 반품, 교환완료 = 교환 (핀카·하타 파일 칸 이름이 조금 다름)
+  ...[['사유', '상세 사유'], ['반품사유', '상세사유']].map(([rc, dc], i) => ({
+    kind: 'return', label: i ? '무신사 반품·교환 (하타)' : '무신사 반품·교환', headers: ['주문번호', '클레임상태', rc, '상품명', '수량'],
+    map: (r) => {
+      const st = retStr(r['클레임상태']); const kind = /교환/.test(st) ? '교환' : '반품';
+      return { key: retStr(r['주문번호']) ? `${kind}|${retStr(r['주문번호'])}|${retStr(r['상품명'])}` : '', platform: '무신사', ret_kind: kind,
+        order_no: retStr(r['주문번호']), product_name: retStr(r['상품명']), qty: parseInt(r['수량'], 10) || 1,
+        reason_raw: retStr(r[rc]), reason_detail: retClean(r[dc] || r[dc + ' ']), claim_status: st,
+        order_date: retDateFromNo(r['주문번호']), claim_date: retDate(r['요청일시']), when: {} };
+    },
+  })),
+];
+// 판매처 주문 파일(아임웹 등)과 칸이 겹치므로 주문 형식보다 먼저 확인
+FILE_FORMATS.unshift(...RETURN_FORMATS);
+
+// 29CM 반품·교환: 올려 둔 주문에서 같은 주문번호의 상품 줄을 찾아 채움
+//   하타(사방넷) = 상태가 반품…/교환…인 줄, 핀카(오클릭) = 교환은 '교환' 재발송 줄, 그 외 상품이 하나뿐일 때만. 못 찾으면 (상품 확인 불가)
+async function prepareReturns(rows) {
+  const nos = [...new Set(rows.filter(r => r.needs_product).map(r => r.order_no))];
+  const lines = [];
+  for (let i = 0; i < nos.length; i += 200) {
+    const { data, error } = await db.from('order_items').select('brand,order_no,item_no,status,claim_status,product_name,option_text,qty,order_date').in('order_no', nos.slice(i, i + 200));
+    if (error) throw error;
+    lines.push(...data);
+  }
+  const byNo = new Map();
+  lines.forEach(l => { if (!byNo.has(l.order_no)) byNo.set(l.order_no, []); byNo.get(l.order_no).push(l); });
+  const out = [];
+  const seen = new Set();
+  rows.forEach(r => {
+    if (!r.needs_product) { out.push(r); return; }
+    const all = (byNo.get(r.order_no) || []).filter(l => !r.brand || l.brand === r.brand);
+    const kindRe = new RegExp(r.ret_kind);
+    let hit = all.filter(l => kindRe.test(l.status || '') && !/회수/.test(l.status || ''));   // 사방넷
+    if (!hit.length && r.ret_kind === '교환') hit = all.filter(l => /교환/.test(l.claim_status || '') && l.status === '주문');   // 오클릭 교환 재발송
+    if (!hit.length) {
+      const items = all.filter(l => !/취소/.test(l.status || '') && !/교환|회수/.test(l.claim_status || ''));
+      if (new Set(items.map(l => l.item_no)).size === 1) hit = [items[0]];
+    }
+    const uniq = [...new Map(hit.map(l => [`${l.item_no}|${l.product_name}|${l.option_text}`, l])).values()];
+    (uniq.length ? uniq : [null]).forEach((l, i) => {
+      const key = `${r.key}|${l ? l.item_no || l.product_name : 'x'}|${i}`;
+      if (seen.has(key)) return;   // 한 주문에 반품 줄이 여러 개인 파일
+      seen.add(key);
+      out.push({ ...r, key, brand: r.brand || (l && l.brand), product_name: l ? l.product_name : null, option_text: l ? l.option_text : null,
+        qty: l ? l.qty || 1 : 1, order_date: (l && l.order_date) || retDateFromNo(r.order_no) });
+    });
+  });
+  return out;
+}
+
+const RETURN_UPLOAD = {
+  table: 'return_items',
+  linkProducts: false,
+  prepare: prepareReturns,
+  toRow: (r) => {
+    const { group, fault } = returnReasonGroup(r.reason_raw, r.reason_detail);
+    return {
+      kind: r.ret_kind, order_no: r.order_no || null, product_name: r.product_name || null, option_text: r.option_text || null, qty: r.qty || 1,
+      reason_raw: r.reason_raw || null, reason_detail: r.reason_detail || null, reason_group: group, is_fault: fault,
+      claim_status: r.claim_status || null, order_date: r.order_date || null, claim_date: r.claim_date || null,
+      category: classifyItem(r.product_name, r.option_text).category,
+    };
+  },
+};
+
 const ORDER_SUMMARY_UNTIL = '2026-06';   // 이 달까지 주문은 order_monthly(요약)에만 있음
 
 // 판매된 상품 수 (반품·교환율 분모): 취소 뺀 주문
