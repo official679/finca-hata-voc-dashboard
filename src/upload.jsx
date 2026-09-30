@@ -78,9 +78,13 @@ const FILE_FORMATS = [
   { kind: 'board', label: '카페24 게시판', headers: ['게시물 제목', '내용', '게시물 작성일시'],
     map: (r) => ({ platform: '카페24', platform_category: r['카테고리'], title: r['게시물 제목'], content: stripHtml(r['내용']), when: parseWhen(r['게시물 작성일시']) }) },
   // 다운로드가 안 되는 판매처는 화면에서 긁어서 이 양식에 붙여넣기 (칸 순서 상관없음, 브랜드·상품명·제목·문의유형은 있으면 좋음)
-  { kind: 'board', label: '직접 정리한 게시판 (공통 양식)', headers: ['판매처', '작성일', '문의 내용'],
+  // 문의 내용은 없어도 됨 → 문의유형·제목으로 유형 분류 (긁기 힘든 곳은 개수·유형·상품만)
+  // 내용이 비슷한 글이 같은 날 여러 개일 수 있어 순번을 붙여 구분 (같은 파일을 다시 올리면 같은 순번 → 중복 안 됨)
+  { kind: 'board', label: '직접 정리한 게시판 (공통 양식)', headers: ['판매처', '작성일'], numberDupKeys: true,
     template: ['브랜드', '판매처', '작성일', '상품명', '문의유형', '제목', '문의 내용'],
-    map: (r) => ({ brand: normBrand(r['브랜드']), platform: normPlatform(r['판매처']), product_name: r['상품명'], platform_category: r['문의유형'], title: r['제목'], content: r['문의 내용'], when: parseWhen(r['작성일']) }) },
+    map: (r) => ({ key: 'MB' + hashText(['작성일', '판매처', '브랜드', '상품명', '문의유형', '제목', '문의 내용'].map(k => String(r[k] ?? '').trim()).join('|')),
+      brand: normBrand(r['브랜드']), platform: normPlatform(r['판매처']), product_name: r['상품명'], platform_category: r['문의유형'], title: r['제목'],
+      content: r['문의 내용'] || r['제목'] || r['문의유형'] || '(내용 없음)', when: parseWhen(r['작성일']) }) },
   { kind: 'board', label: '29CM 게시판', headers: ['브랜드', '상품', '문의 내용', '등록일시'],
     map: (r) => ({ brand: normBrand(r['브랜드']), platform: '29CM', product_name: r['상품'], content: r['문의 내용'], when: parseWhen(r['등록일시']) }) },
   { kind: 'board', label: '무신사 게시판', headers: ['상품명', '문의구분', '제목', '문의내용', '작성일'],
