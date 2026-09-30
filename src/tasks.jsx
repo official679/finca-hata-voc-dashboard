@@ -3,6 +3,7 @@
 
 const TASK_STATUSES = ['할 일', '진행중', '완료'];
 const TASK_COL = { '할 일': '#6B7280', '진행중': '#2563C9', '완료': '#2F9E6B' };
+const TASK_ICON = { '할 일': '📝', '진행중': '⏳', '완료': '✅' };
 
 function loadMe() { try { return localStorage.getItem('taskMe') || ''; } catch { return ''; } }
 function saveMe(v) { try { localStorage.setItem('taskMe', v); } catch {} }
@@ -83,29 +84,41 @@ function TasksPage() {
         {TASK_STATUSES.map(s => {
           const list = sortCol(shown.filter(t => t.status === s));
           return (
-            <div className="board-col" key={s}>
-              <div className="board-col-title"><span style={{ color: TASK_COL[s] }}>● {s}</span><span className="muted">{list.length}</span></div>
+            <div className="board-col" key={s} style={{ '--col': TASK_COL[s] }}>
+              <div className="board-col-title">
+                <span className="board-col-name">{TASK_ICON[s]} {s}</span>
+                <span className="board-col-count">{list.length}</span>
+              </div>
               {list.map(t => {
                 const due = dueInfo(t), i = TASK_STATUSES.indexOf(s), n = count(t.id);
+                const urgent = t.priority === '급함' && s !== '완료';
+                const preview = String(t.body || '').split('\n').map(x => x.trim()).find(Boolean);
                 return (
-                  <div key={t.id} className="board-card clickable" onClick={() => setOpenId(t.id)} style={t.priority === '급함' && s !== '완료' ? { borderLeft: '3px solid var(--danger)' } : null}>
-                    <div className="board-card-title">{t.priority === '급함' && s !== '완료' && <span className="chip chip-red" style={{ marginRight: 4 }}>급함</span>}{t.title}</div>
-                    <div className="board-card-meta">
-                      {t.assignee ? <span className="chip chip-blue">👤 {t.assignee}</span> : <span className="chip">담당자 없음</span>}
-                      {due && <span className={`chip ${due.cls}`}>{due.text}</span>}
-                      {n > 0 && <span className="chip">💬 {n}</span>}
+                  <div key={t.id} className={`board-card clickable${urgent ? ' urgent' : ''}${s === '완료' ? ' done' : ''}`} onClick={() => setOpenId(t.id)}>
+                    {(urgent || due) && (
+                      <div className="board-card-tags">
+                        {urgent && <span className="chip chip-red">🔥 급함</span>}
+                        {due && <span className={`chip ${due.cls}`}>📅 {due.text}</span>}
+                      </div>
+                    )}
+                    <div className="board-card-title">{s === '완료' && '✓ '}{t.title}</div>
+                    {preview && s !== '완료' && <div className="board-card-body">{preview}</div>}
+                    <div className="board-card-people">
+                      <span className="board-person" title="담당자"><span className="board-avatar">{(t.assignee || '?').slice(-2)}</span>{t.assignee || '담당자 없음'}</span>
+                      {t.requester && t.requester !== t.assignee && <span className="muted">← {t.requester} 요청</span>}
+                      {n > 0 && <span className="muted" style={{ marginLeft: 'auto' }}>💬 {n}</span>}
                     </div>
                     <div className="board-card-foot" onClick={e => e.stopPropagation()}>
-                      <span>{t.requester ? `${t.requester} 요청` : ''}{s === '완료' && t.done_at ? ` · ${fmtDate(t.done_at)} 완료` : ''}</span>
-                      <span style={{ display: 'flex', gap: 4 }}>
-                        {i > 0 && <button className="btn btn-sm" title={`${TASK_STATUSES[i - 1]}(으)로`} onClick={() => move(t, TASK_STATUSES[i - 1])}>◀</button>}
-                        {i < 2 && <button className="btn btn-sm btn-primary" onClick={() => move(t, TASK_STATUSES[i + 1])}>{i === 0 ? '시작 ▶' : '완료 ✓'}</button>}
+                      <span className="muted">{s === '완료' && t.done_at ? `${fmtDate(t.done_at)} 완료` : ''}</span>
+                      <span style={{ display: 'flex', gap: 6 }}>
+                        {i > 0 && <button className="btn btn-sm" title={`${TASK_STATUSES[i - 1]}(으)로 되돌리기`} onClick={() => move(t, TASK_STATUSES[i - 1])}>↩ {TASK_STATUSES[i - 1]}</button>}
+                        {i < 2 && <button className="btn btn-sm btn-primary" onClick={() => move(t, TASK_STATUSES[i + 1])}>{i === 0 ? '▶ 시작' : '✓ 완료'}</button>}
                       </span>
                     </div>
                   </div>
                 );
               })}
-              {!list.length && <div className="empty" style={{ padding: 16 }}>없음</div>}
+              {!list.length && <div className="board-empty">{s === '할 일' ? '할 일이 없어요 🙌' : s === '진행중' ? '진행 중인 업무가 없어요' : '최근 30일 완료가 없어요'}</div>}
             </div>
           );
         })}
