@@ -115,6 +115,7 @@ async function negativeReviewsToVoc(newReviews, products) {
 // 데이터 업로드 화면에서 쓰는 리뷰 저장 설정
 const REVIEW_UPLOAD = {
   table: 'review_items',
+  dedupeByContent: true,   // 파일마다 시간 표기가 달라도 같은 날·같은 내용이면 이미 있는 리뷰로 봄 (VOC 중복 등록 방지)
   toRow: (r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no) }),
   // 새로 저장된 1~3점 리뷰 → VOC 접수
   afterInsert: async (newRows, app) => {

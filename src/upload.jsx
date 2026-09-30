@@ -70,6 +70,12 @@ const FILE_FORMATS = [
     map: (r) => ({ platform: '29CM', product_name: r['상품명'], rating: num(r['별점']), content: r['리뷰 내용'], when: parseWhen(r['등록일시']), order_no: r['주문번호'] }) },
   { kind: 'review', label: '아임웹 리뷰', headers: ['리뷰작성일', '리뷰본문', '상품명', '리뷰별점'],
     map: (r) => ({ platform: '아임웹', product_name: r['상품명'], rating: num(r['리뷰별점']), content: r['리뷰본문'], when: parseWhen(r['리뷰작성일']), order_no: r['주문번호'] }) },
+  // 아임웹 리뷰를 게시판 모양으로 받은 파일 (하타) · 작성자·주문자 연락처 등은 읽지 않음
+  { kind: 'review', label: '아임웹 리뷰 (게시판형)', headers: ['글번호', '상품명', '글 내용', '작성시각', '평점'],
+    map: (r) => ({ key: r['글번호'] ? 'IWR' + r['글번호'] : '', platform: '아임웹', product_name: r['상품명'], rating: num(r['평점']), content: r['글 내용'], when: parseWhen(r['작성시각']), order_no: r['주문번호'] }) },
+  // W컨셉 리뷰 목록 (리뷰 글은 '제목' 칸)
+  { kind: 'review', label: 'W컨셉 리뷰', headers: ['작성일', '상품명', '제목', '평점', '주문번호'],
+    map: (r) => ({ brand: normBrand(r['브랜드']), platform: 'W컨셉', product_name: r['상품명'], rating: num(r['평점']), content: r['제목'], when: parseWhen(r['작성일']), order_no: r['주문번호'] }) },
   { kind: 'review', label: '무신사 리뷰', headers: ['상품명', '후기 내용', '평점', '등록일시'],
     map: (r) => ({ platform: '무신사', product_name: r['상품명'], rating: num(r['평점']), content: r['후기 내용'], when: parseWhen(r['등록일시']) }) },
 
@@ -223,6 +229,18 @@ function UploadGuide({ kinds }) {
   );
 }
 
+// 하타 상품 이름표: 하타 주문(사방넷 등)·상품 마스터의 이름에서 'HaTA'·말머리·기호를 빼고 비교 (앞 14글자가 같으면 같은 상품으로 봄)
+async function hataNameMatcher() {
+  const norm = (s) => String(s || '').toLowerCase().replace(/\[[^\]]*\]/g, '').replace(/\bhata\b/g, '').replace(/[^a-z0-9가-힣]/g, '');
+  const [orders, prods] = await Promise.all([
+    fetchAll(() => db.from('order_items').select('product_name').eq('brand', '하타').order('id')),
+    fetchAll(() => db.from('products').select('product_name,brand').order('id')),
+  ]);
+  const names = new Set([...orders.map(r => r.product_name), ...prods.filter(p => normBrand(p.brand) === '하타').map(p => p.product_name)].map(norm).filter(n => n.length >= 8));
+  const heads = new Set([...names].map(n => n.slice(0, 14)));
+  return (name) => { const n = norm(name); return n.length >= 8 && (names.has(n) || heads.has(n.slice(0, 14))); };
+}
+
 // 업로드 화면 (리뷰·게시판·주문 공통)
 // configs: { review: { table, toRow, linkProducts, afterInsert(newRows, app) }, board: {...}, order: {...} }
 function UploadPanel({ configs, onDone, guide }) {
@@ -250,6 +268,12 @@ function UploadPanel({ configs, onDone, guide }) {
           if (fileBrand) s.rows.forEach(r => { if (!r.brand) r.brand = fileBrand; });
           all.push({ ...s, file: file.name });
         });
+      }
+      // 그래도 브랜드가 빈 줄(무신사 리뷰처럼 상품명에 HaTA가 없는 경우): 올려 둔 하타 주문·상품 이름과 비슷하면 하타
+      if (all.some(s => s.rows.some(r => !r.brand && r.product_name))) {
+        setBusy('하타 상품인지 확인 중...');
+        const isHata = await hataNameMatcher();
+        all.forEach(s => s.rows.forEach(r => { if (!r.brand && isHata(r.product_name)) r.brand = '하타'; }));
       }
       setSheets(all);
     } catch (e) {
@@ -294,7 +318,23 @@ function UploadPanel({ configs, onDone, guide }) {
         }));
         if (!rows.length) continue;
         // 같은 파일 안의 중복 제거
-        const unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
+        let unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
+        // 이미 저장된 것과 같은 날·같은 판매처·같은 내용이면 건너뜀 (다른 형식의 파일로 같은 리뷰를 다시 올린 경우)
+        let sameContent = 0;
+        if (cfg.dedupeByContent && unique.length) {
+          setBusy(`${KIND_LABEL[kind]} 이미 있는지 확인 중...`);
+          const dayOf = (iso) => (iso ? toISODate(new Date(iso)) : '');
+          const norm = (s) => String(s || '').replace(/\s+/g, '').slice(0, 60);
+          const days = unique.map(r => dayOf(r.written_at)).filter(Boolean).sort();
+          if (days.length) {
+            const existing = await fetchAll(() => db.from(cfg.table).select('platform,written_at,content')
+              .gte('written_at', `${days[0]}T00:00:00+09:00`).lte('written_at', `${days[days.length - 1]}T23:59:59+09:00`).order('id'));
+            const seen = new Set(existing.map(e => `${e.platform}|${dayOf(e.written_at)}|${norm(e.content)}`));
+            const before = unique.length;
+            unique = unique.filter(r => !norm(r.content) || !seen.has(`${r.platform}|${dayOf(r.written_at)}|${norm(r.content)}`));
+            sameContent = before - unique.length;
+          }
+        }
         let inserted = 0;
         const newRows = [];
         for (let i = 0; i < unique.length; i += 500) {
@@ -307,7 +347,7 @@ function UploadPanel({ configs, onDone, guide }) {
         }
         let extra = null;
         if (cfg.afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await cfg.afterInsert(newRows, app); }
-        results.push({ kind, inserted, dup: rows.length - unique.length, skipped: unique.length - inserted, extra });
+        results.push({ kind, inserted, dup: rows.length - unique.length - sameContent, skipped: unique.length - inserted + sameContent, extra });
       }
       setResult(results);
       setSheets(null);
