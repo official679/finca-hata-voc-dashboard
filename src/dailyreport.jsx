@@ -25,11 +25,18 @@ function useReportPhotos(paths) {
   return urls;
 }
 
-function DailyReportPanel({ date, onClose }) {
+function DailyReportPanel({ date: startDate, onClose }) {
   const { daily, cases, productById } = useApp();
   const toast = useToast();
   const ref = useRef(null);
   const [busy, setBusy] = useState('');
+  // ◀ ▶ 로 지난 리포트 넘겨 보기 (보고일은 평일만: 토·일 건너뜀). 저장된 숫자로 다시 만들어서 보여줌
+  const [date, setDate] = useState(startDate);
+  const shiftDay = (n) => {
+    let x = addDays(parseDate(date), n);
+    while (x.getDay() === 0 || x.getDay() === 6) x = addDays(x, n);
+    setDate(toISODate(x));
+  };
   const [from, to] = dataRangeOf(date);
   const d = parseDate(date);
   // 전체 / 핀카만 / 하타만 (고른 브랜드만 이미지에 들어감)
@@ -84,6 +91,11 @@ function DailyReportPanel({ date, onClose }) {
         <div className="panel-head">
           <h2>데일리 리포트 · 슬랙 공유</h2>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button className="btn btn-sm" onClick={() => shiftDay(-1)} title="전 보고일">◀</button>
+              <b style={{ minWidth: 92, textAlign: 'center' }}>{fmtDate(date)} ({WEEKDAY[parseDate(date).getDay()]})</b>
+              <button className="btn btn-sm" onClick={() => shiftDay(1)} disabled={date >= today()} title="다음 보고일">▶</button>
+            </span>
             <Segmented options={[{ key: '', label: '전체' }, { key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={only} onChange={setOnly} />
             <button className="btn btn-primary" onClick={copy} disabled={!!busy}>📋 이미지 복사</button>
             <button className="btn" onClick={save} disabled={!!busy}>⬇ PNG 저장</button>
