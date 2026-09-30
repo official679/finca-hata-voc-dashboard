@@ -59,7 +59,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 백업: 데이터 업로드 > 📦 백업 받기(엑셀, 표마다 시트). 마지막 백업일 = code_items 'backup_log'. 30일 지나면 메인 '오늘 챙길 것'에 알림.
 - index.html의 CDN 라이브러리는 버전 고정 (React 18.3.1, Babel 7.29.9, supabase-js 2.117.2 등, 2026-09-30). 올릴 땐 한 번에 하나씩 확인 후.
 - 검색은 lib.jsx `matchQuery` (띄어 쓴 단어가 모두 들어 있으면 찾음). 새 검색창도 이걸 쓰기.
-- KPI 화면(kpi.jsx): 대표님 보고 + 팀 목표 공용. 목표값 = code_items 'kpi_target' (label '브랜드|지표키|값'), 기본값은 KPI_DEFS.def.
+- KPI 화면(kpi.jsx): 대표님 보고 + 팀 목표 공용. 목표값은 아직 기본값(임시) — 대표님과 논의 후 정하기로 함(2026-09-30). 목표값 = code_items 'kpi_target' (label '브랜드|지표키|값'), 기본값은 KPI_DEFS.def.
 - 양식 파일: upload.jsx `downloadTemplate`/`TemplateButton` (칸 이름만, 예시 줄 없음 — 예시가 실제 데이터로 들어가는 사고 방지).
 - 추가분류 뜻 (사용자 설명, 2026-09-30): **앵커** = 브랜드 대표 핵심 상품(대표성·고객 유입·매출) → VOC 우선 대응 ·
   **레귤러** = 일반 운영 상품 · **캐리오버** = 이전 시즌에서 이어지는 상품(누적 판매·재구매·재생산·품질 개선). `LINE_TYPE_INFO` in lib.jsx.
