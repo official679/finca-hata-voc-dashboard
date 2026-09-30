@@ -174,7 +174,7 @@ function UploadGuide({ kinds }) {
           <li>리뷰·게시판·주문 파일을 <b>한 번에 여러 개</b> 골라도 돼요. 시트마다 종류를 알아서 구분해요.</li>
           <li>한 파일에 플랫폼별 시트가 여러 개 있어도 괜찮아요. <b>첫 줄(제목 줄)의 칸 이름</b>으로 형식을 알아봐요.</li>
           <li>같은 파일·같은 기간을 다시 올려도 <b>중복 저장되지 않아요.</b></li>
-          <li>파일에 브랜드 칸이 없으면 위에서 고른 브랜드로 저장돼요. 파일 이름에 '핀카'·'하타'가 있으면 자동으로 골라져요.</li>
+          <li>핀카·하타는 파일의 브랜드 칸(오클릭·29CM 등)이나 <b>파일 이름</b>('핀카'·'하타')으로 알아서 나눠요. 둘 다 없는 파일이 있을 때만 브랜드를 고르는 칸이 나와요.</li>
           <li>직접 만들어 올릴 때는 아래 <b>📄 파일 형식 보기 · 양식 받기</b> 버튼 → 형식마다 있는 <b>📄 양식</b>을 받아 칸 이름을 그대로 두고 채우면 돼요.</li>
         </ul>
       </div>
@@ -221,9 +221,14 @@ function UploadPanel({ configs, onDone, guide }) {
     setBusy('파일 읽는 중...');
     try {
       const all = [];
+      setBrand('');
       for (const file of files) {
-        if (!brand) { const b = normBrand(file.name); if (b) setBrand(b); }
-        (await readUploadFile(file, kinds)).forEach(s => all.push({ ...s, file: file.name }));
+        // 파일에 브랜드 칸이 없으면 파일 이름('핀카'·'하타')으로 채움 → 그래도 없을 때만 화면에서 고름
+        const fileBrand = normBrand(file.name);
+        (await readUploadFile(file, kinds)).forEach(s => {
+          if (fileBrand) s.rows.forEach(r => { if (!r.brand) r.brand = fileBrand; });
+          all.push({ ...s, file: file.name });
+        });
       }
       setSheets(all);
     } catch (e) {
@@ -294,10 +299,13 @@ function UploadPanel({ configs, onDone, guide }) {
   return (
     <div className="card" style={{ maxWidth: 960 }}>
       <div className="form-grid" style={{ alignItems: 'end' }}>
-        <div className="field">
-          <label>브랜드 <span className="muted" style={{ fontWeight: 400 }}>(파일에 브랜드가 없을 때 사용)</span></label>
-          <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
-        </div>
+        {/* 브랜드는 파일에 브랜드 칸이 없는 시트가 있을 때만 고름 (오클릭·사방넷·29CM 등은 파일에 브랜드가 있음) */}
+        {sheets && needsBrand && (
+          <div className="field">
+            <label>브랜드 <span className="muted" style={{ fontWeight: 400 }}>(브랜드 칸이 없는 파일이 있어요)</span></label>
+            <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
+          </div>
+        )}
         <div className="field">
           <label>파일</label>
           <button className="btn btn-primary" onClick={() => inputRef.current.click()} disabled={!!busy}>📂 파일 선택 (엑셀·CSV, 여러 개 가능)</button>
