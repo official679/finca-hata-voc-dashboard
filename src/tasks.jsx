@@ -54,6 +54,7 @@ function TasksPage() {
   const [who, setWho] = useState('');          // 담당자 필터 ('' 전체, '__me' 나)
   const [openId, setOpenId] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [showDone, setShowDone] = useState(false);   // 완료 목록은 접어 둠
   const people = codeOptions('handler');
 
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>업무 보드를 불러오지 못했어요: {error}<div className="hint">DB 설정 SQL(13_tasks_schema.sql)을 실행했는지 확인해 주세요.</div></div>;
@@ -80,49 +81,50 @@ function TasksPage() {
         <button className="btn btn-primary" onClick={() => setCreating(true)}>+ 새 업무</button>
       </PageHeader>
 
-      <div className="board">
-        {TASK_STATUSES.map(s => {
-          const list = sortCol(shown.filter(t => t.status === s));
-          return (
-            <div className="board-col" key={s} style={{ '--col': TASK_COL[s] }}>
-              <div className="board-col-title">
-                <span className="board-col-name">{TASK_ICON[s]} {s}</span>
-                <span className="board-col-count">{list.length}</span>
-              </div>
-              {list.map(t => {
-                const due = dueInfo(t), i = TASK_STATUSES.indexOf(s), n = count(t.id);
-                const urgent = t.priority === '급함' && s !== '완료';
-                const preview = String(t.body || '').split('\n').map(x => x.trim()).find(Boolean);
-                return (
-                  <div key={t.id} className={`board-card clickable${urgent ? ' urgent' : ''}${s === '완료' ? ' done' : ''}`} onClick={() => setOpenId(t.id)}>
-                    {(urgent || due) && (
-                      <div className="board-card-tags">
-                        {urgent && <span className="chip chip-red">🔥 급함</span>}
-                        {due && <span className={`chip ${due.cls}`}>📅 {due.text}</span>}
+      {/* 세로 목록: 진행중 → 할 일 → 완료(접어 둠). 한 줄 = 업무 하나 */}
+      {['진행중', '할 일', '완료'].map(s => {
+        const list = sortCol(shown.filter(t => t.status === s));
+        const folded = s === '완료' && !showDone;
+        return (
+          <section className="task-section" key={s} style={{ '--col': TASK_COL[s] }}>
+            <button type="button" className="task-section-title" onClick={() => s === '완료' && setShowDone(v => !v)} style={{ cursor: s === '완료' ? 'pointer' : 'default' }}>
+              <span>{TASK_ICON[s]} {s}</span><span className="task-count">{list.length}</span>
+              {s === '완료' && <span className="muted" style={{ fontSize: 13, fontWeight: 500 }}>{showDone ? '▾ 접기' : '▸ 펼치기'} · 최근 30일</span>}
+            </button>
+            {!folded && (list.length ? (
+              <div className="task-list">
+                {list.map(t => {
+                  const due = dueInfo(t), i = TASK_STATUSES.indexOf(s), n = count(t.id);
+                  const urgent = t.priority === '급함' && s !== '완료';
+                  const preview = String(t.body || '').split('\n').map(x => x.trim()).find(Boolean);
+                  return (
+                    <div key={t.id} className={`task-row${urgent ? ' urgent' : ''}${s === '완료' ? ' done' : ''}`} onClick={() => setOpenId(t.id)}>
+                      <div className="task-main">
+                        <div className="task-title">
+                          {urgent && <span className="chip chip-red">🔥 급함</span>}
+                          <span>{s === '완료' && '✓ '}{t.title}</span>
+                        </div>
+                        {preview && s !== '완료' && <div className="task-preview">{preview}</div>}
                       </div>
-                    )}
-                    <div className="board-card-title">{s === '완료' && '✓ '}{t.title}</div>
-                    {preview && s !== '완료' && <div className="board-card-body">{preview}</div>}
-                    <div className="board-card-people">
-                      <span className="board-person" title="담당자"><span className="board-avatar">{(t.assignee || '?').slice(-2)}</span>{t.assignee || '담당자 없음'}</span>
-                      {t.requester && t.requester !== t.assignee && <span className="muted">← {t.requester} 요청</span>}
-                      {n > 0 && <span className="muted" style={{ marginLeft: 'auto' }}>💬 {n}</span>}
-                    </div>
-                    <div className="board-card-foot" onClick={e => e.stopPropagation()}>
-                      <span className="muted">{s === '완료' && t.done_at ? `${fmtDate(t.done_at)} 완료` : ''}</span>
-                      <span style={{ display: 'flex', gap: 6 }}>
+                      <div className="task-info">
+                        <span className="board-person" title="담당자"><span className="board-avatar">{(t.assignee || '?').slice(-2)}</span>{t.assignee || '담당자 없음'}</span>
+                        {t.requester && t.requester !== t.assignee && <span className="muted">← {t.requester} 요청</span>}
+                        {due && <span className={`chip ${due.cls}`}>📅 {due.text}</span>}
+                        {s === '완료' && t.done_at && <span className="muted">{fmtDate(t.done_at)} 완료</span>}
+                        {n > 0 && <span className="muted">💬 {n}</span>}
+                      </div>
+                      <div className="task-actions" onClick={e => e.stopPropagation()}>
                         {i > 0 && <button className="btn btn-sm" title={`${TASK_STATUSES[i - 1]}(으)로 되돌리기`} onClick={() => move(t, TASK_STATUSES[i - 1])}>↩ {TASK_STATUSES[i - 1]}</button>}
                         {i < 2 && <button className="btn btn-sm btn-primary" onClick={() => move(t, TASK_STATUSES[i + 1])}>{i === 0 ? '▶ 시작' : '✓ 완료'}</button>}
-                      </span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-              {!list.length && <div className="board-empty">{s === '할 일' ? '할 일이 없어요 🙌' : s === '진행중' ? '진행 중인 업무가 없어요' : '최근 30일 완료가 없어요'}</div>}
-            </div>
-          );
-        })}
-      </div>
+                  );
+                })}
+              </div>
+            ) : <div className="board-empty">{s === '할 일' ? '할 일이 없어요 🙌' : s === '진행중' ? '진행 중인 업무가 없어요' : '최근 30일 완료가 없어요'}</div>)}
+          </section>
+        );
+      })}
 
       {(creating || current) && <TaskPanel task={creating ? null : current} me={me} people={people} comments={current ? comments.filter(c => c.task_id === current.id) : []}
         onClose={() => { setCreating(false); setOpenId(null); }} reload={reload} onCreated={(id) => { setCreating(false); setOpenId(id); }} />}
