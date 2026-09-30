@@ -27,8 +27,23 @@ function PhotoPicker({ existing, onRemoveExisting, files, onAddFiles, onRemoveFi
   const [zoom, setZoom] = useState(null);
   const inputRef = useRef(null);
   const total = existing.length + files.length;
+  const [dragOver, setDragOver] = useState(false);
+  const addFiles = (list) => {
+    const imgs = [...list].filter(f => /^image\//.test(f.type)).slice(0, MAX_PHOTOS - total);
+    if (imgs.length) onAddFiles(imgs.map(file => Object.assign(file, { preview: URL.createObjectURL(file) })));
+    return imgs.length;
+  };
+  // 캡처한 이미지를 Ctrl+V로 바로 붙여넣기 (VOC 입력 창이 열려 있을 때)
+  const addRef = useRef(addFiles); addRef.current = addFiles;
+  useEffect(() => {
+    const onPaste = (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.some(f => /^image\//.test(f.type)) && addRef.current(fs)) e.preventDefault(); };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
   return (
-    <div>
+    <div onDragOver={e => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
+      onDrop={e => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
+      style={dragOver ? { outline: '2px dashed var(--accent)', outlineOffset: 4, borderRadius: 8 } : null}>
       <div className="photos">
         {existing.map(p => (
           <div className="photo" key={p}>
@@ -48,12 +63,8 @@ function PhotoPicker({ existing, onRemoveExisting, files, onAddFiles, onRemoveFi
           </div>
         )}
       </div>
-      <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={e => {
-        const picked = [...e.target.files].slice(0, MAX_PHOTOS - total);
-        onAddFiles(picked.map(file => Object.assign(file, { preview: URL.createObjectURL(file) })));
-        e.target.value = '';
-      }} />
-      <div className="hint">최대 {MAX_PHOTOS}장 · 사진을 누르면 크게 볼 수 있어요</div>
+      <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
+      <div className="hint">최대 {MAX_PHOTOS}장 · <b>캡처 후 Ctrl+V로 바로 붙여넣기</b> 또는 사진을 끌어다 놓아도 돼요 · 사진을 누르면 크게 볼 수 있어요</div>
       <Lightbox src={zoom} onClose={() => setZoom(null)} />
     </div>
   );
