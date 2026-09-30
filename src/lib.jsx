@@ -7,6 +7,31 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const PHOTO_BUCKET = 'voc-photos';
 
+// VOC 사진은 긴 변 2500px · JPEG로 줄여서 올림 (저장 공간 절약, 불량 부위 확대해도 보일 만큼 선명)
+// 이미 작거나, 줄여도 더 커지거나, 브라우저가 못 여는 형식(HEIC 등)이면 원본 그대로
+const PHOTO_MAX_PX = 2500;
+async function shrinkImage(file) {
+  if (!/^image\/(jpeg|png|webp)$/i.test(file.type)) return file;
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, PHOTO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+    if (scale === 1 && file.size < 1024 * 1024) return file;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);   // 투명 PNG 배경
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch (e) {
+    return file;
+  }
+}
+
 // 후속 조치(상품개선·리오더 지정) 기능은 아직 쓰지 않아 모든 화면에서 숨김. 다시 쓰려면 true로
 const SHOW_FOLLOWUP = false;
 

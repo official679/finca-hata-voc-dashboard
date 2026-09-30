@@ -120,8 +120,9 @@ function VocForm({ initial, onSaved, onCancel }) {
     setSaving(true);
     try {
       const uploaded = [];
-      for (const file of newFiles) {
-        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      for (const original of newFiles) {
+        const file = await shrinkImage(original);
+        const ext = file === original ? (file.name.split('.').pop() || 'jpg').toLowerCase() : 'jpg';
         const path = `${form.received_date.slice(0, 7)}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const { error } = await db.storage.from(PHOTO_BUCKET).upload(path, file, { contentType: file.type });
         if (error) throw new Error('사진 업로드 실패: ' + error.message);
