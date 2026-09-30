@@ -108,7 +108,13 @@ async function readUploadFile(file, kind) {
       if (!format) continue;
       const rows = grid.slice(h + 1)
         .filter(r => r.some(c => String(c).trim() !== ''))
-        .map(r => format.map(Object.fromEntries(header.map((k, i) => [k, r[i]]))))
+        .map(r => {
+          const obj = Object.fromEntries(header.map((k, i) => [k, r[i]]));
+          const m = format.map(obj);
+          // 형식에 브랜드가 없으면: 시트의 '브랜드'·'브랜드명' 칸 → 상품명이 HaTA로 시작하면 하타 (그래도 없으면 파일 이름·선택)
+          if (!m.brand) m.brand = normBrand(obj['브랜드'] || obj['브랜드명'] || obj['브랜드 명']) || (/^\s*(\[[^\]]*\]\s*)*hata\b/i.test(String(m.product_name || '')) ? '하타' : '');
+          return m;
+        })
         // 리뷰·게시판은 내용이 있어야, 주문·반품처럼 key(품목 번호)가 있는 형식은 key가 있어야 저장
         .filter(r => (r.key !== undefined ? !!r.key : r.content && String(r.content).trim()));
       // 품목 번호가 없는 형식(오클릭 등): 같은 내용 줄이 여러 개면 순번을 붙여 서로 다른 줄로 (파일을 다시 올려도 같은 순번 → 중복 안 됨)
@@ -175,7 +181,7 @@ function UploadGuide({ kinds }) {
           <li>리뷰·게시판·주문·반품교환 파일을 <b>한 번에 여러 개</b> 골라도 돼요. 시트마다 종류를 알아서 구분해요.</li>
           <li>한 파일에 플랫폼별 시트가 여러 개 있어도 괜찮아요. <b>첫 줄(제목 줄)의 칸 이름</b>으로 형식을 알아봐요.</li>
           <li>같은 파일·같은 기간을 다시 올려도 <b>중복 저장되지 않아요.</b></li>
-          <li>핀카·하타는 파일의 브랜드 칸(오클릭·29CM 등)이나 <b>파일 이름</b>('핀카'·'하타')으로 알아서 나눠요. 둘 다 없는 파일이 있을 때만 브랜드를 고르는 칸이 나와요.</li>
+          <li>핀카·하타는 <b>시트 안 '브랜드' 칸</b>(줄마다 핀카/하타), 상품명(HaTA로 시작하면 하타), <b>파일 이름</b>('핀카'·'하타') 순서로 알아서 나눠요. 한 파일에 섞여 있어도 돼요. 셋 다 없을 때만 브랜드를 고르는 칸이 나와요.</li>
           <li>직접 만들어 올릴 때는 아래 <b>📄 파일 형식 보기 · 양식 받기</b> 버튼 → 형식마다 있는 <b>📄 양식</b>을 받아 칸 이름을 그대로 두고 채우면 돼요.</li>
         </ul>
       </div>
