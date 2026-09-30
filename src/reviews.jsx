@@ -85,8 +85,9 @@ function findReviewProductId(name, brand, products) {
   const k = key(name);
   const same = k.length >= 3 && products.find(p => (!want || p.brand === want) && key(p.product_name) === k);
   if (same) return same.id;
-  const hit = inferProduct(coreName(name), brand, buildProductIndex(products));
-  return hit ? hit.id : null;
+  // 비슷한 이름 추측(inferProduct)은 쓰지 않음: '볼드스트라이프 페이크퍼 담요'가 '벨 스트라이프 베개커버'로 붙는 등 잘못 연결됨 (2026-09-30)
+  // 못 찾으면 (미분류) + 리뷰 상품명 그대로 → VOC에서 대분류를 직접 고르면 됨
+  return null;
 }
 
 // 리뷰에 연결된 VOC 번호 기록 (12번 SQL 전이면 조용히 건너뜀)
