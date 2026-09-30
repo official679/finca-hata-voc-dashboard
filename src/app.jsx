@@ -4,6 +4,7 @@
 const NAV = [
   { group: '', items: [
     { key: 'home', label: '메인 요약', icon: '🏠' },
+    { key: 'calendar', label: '팀 캘린더', icon: '📅' },
   ] },
   { group: '📅 매일 하는 일', items: [
     { key: 'upload', label: '데이터 업로드', icon: '📤' },
@@ -31,7 +32,6 @@ const NAV = [
   ] },
   { group: '👥 팀', items: [
     { key: 'tasks', label: '업무 보드', icon: '📌' },
-    { key: 'calendar', label: '팀 캘린더', icon: '📅' },
     { key: 'plan', label: '전사플랜', icon: '🗓️' },
     // 다른 대시보드는 새 창으로만 연결 (그쪽은 수정하지 않음)
     { key: 'ext-1inahundred', label: '원인어헌드레드 대시보드', icon: '🔗', href: 'https://1inahundred.netlify.app/' },
