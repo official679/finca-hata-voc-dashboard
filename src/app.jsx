@@ -143,7 +143,10 @@ function Shell({ session }) {
       {menuOpen && <div className="scrim" onClick={() => setMenuOpen(false)} />}
       <div className="layout">
         <aside className={`sidebar${menuOpen ? ' open' : ''}`}>
-          <a className="sidebar-brand" href="#/home" title="메인으로">FINCA·HaTA CX<small>CX 운영 대시보드</small></a>
+          {/* 로고 = 새로고침 (배포 직후 최신 화면 받기). 입력 중이던 내용이 사라질 수 있어 한 번 묻고, 메인으로 이동 */}
+          <a className="sidebar-brand" href="#/home" title="눌러서 새로고침 (최신 화면)"
+            onClick={e => { e.preventDefault(); if (confirm('새로고침할까요?\n저장하지 않은 입력은 사라져요.')) { location.hash = '#/home'; location.reload(); } }}>
+            FINCA·HaTA CX<small>CX 운영 대시보드 · 🔄 새로고침</small></a>
           {NAV.map(g => (
             <div className="nav-group" key={g.group}>
               {g.group && <div className="nav-group-title">{g.group}</div>}

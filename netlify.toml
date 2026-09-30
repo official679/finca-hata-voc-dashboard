@@ -13,18 +13,24 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
 
-# 화면 파일은 항상 최신 버전을 확인 (배포 직후에도 옛 화면이 남지 않게)
+# 화면 파일은 열 때마다 바뀌었는지 확인 (no-cache) → 평범한 새로고침(F5)·로고 클릭만으로 최신 화면
+# ("/" 주소도 따로 적어야 첫 화면에 적용됨)
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 [[headers]]
   for = "/index.html"
   [headers.values]
-    Cache-Control = "max-age=0, must-revalidate"
+    Cache-Control = "no-cache"
 
 [[headers]]
   for = "/src/*"
   [headers.values]
-    Cache-Control = "max-age=0, must-revalidate"
+    Cache-Control = "no-cache"
 
 [[headers]]
   for = "/app.css"
   [headers.values]
-    Cache-Control = "max-age=0, must-revalidate"
+    Cache-Control = "no-cache"
