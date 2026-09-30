@@ -78,9 +78,9 @@ function NumCell({ value, onChange }) {
 
 // ---------- 업로드 데이터 → CS 데일리 자동 계산 ----------
 // 업로드 데이터의 플랫폼 → CS 데일리 칸 (자사몰은 아임웹 칸으로. 카페24로 옮기면 여기만 바꾸면 됨)
-// 출고전 취소는 두 브랜드 모두 판매처 화면 숫자로 직접 입력 (2026-09-30): 핀카는 오클릭에 아침 8시쯤 수동 업로드라 그 전에 취소된 주문이 안 들어오고,
-// 하타는 사방넷에도 취소가 거의 안 잡힘 → 자동 채우기는 주문건만 채우고 취소는 덮어쓰지 않음
-const CANCEL_MANUAL_BRANDS = ['핀카', '하타'];
+// 출고전 취소도 오클릭(핀카)·사방넷(하타) 기준으로 자동 계산 (2026-09-30 사용자 결정, 주문건과 같은 기준)
+// 손 입력으로 되돌리려면 여기에 브랜드를 넣으면 됨 (자동 채우기가 취소 칸을 덮어쓰지 않음)
+const CANCEL_MANUAL_BRANDS = [];
 const UPLOAD_PLATFORM_TO_DAILY = { '29CM': '29CM', '아임웹': '아임웹', '카페24': '아임웹', '무신사': '무신사', 'W컨셉': 'W컨셉', 'EQL': 'EQL' };
 
 // 보고일 → 데이터 날짜 범위 (전일 기준, 월요일 보고일 = 금~일)
@@ -189,6 +189,7 @@ function DailyEntryPage() {
         filled.length ? `✅ ${dataLabel(date)} 데이터로 채웠어요: ${filled.join(' · ')}. 확인 후 저장을 눌러주세요.` : `${dataLabel(date)}에 해당하는 업로드 데이터가 없어요.`,
         skipped.length ? `올린 데이터가 없어서 그대로 둔 항목: ${skipped.join(', ')}` : '',
         got.has.orders && CANCEL_MANUAL_BRANDS.includes(brand) ? '출고전 취소는 판매처 화면 숫자로 직접 입력해 주세요 (자동 채우기는 주문건만 채워요).' : '',
+        got.has.orders && !CANCEL_MANUAL_BRANDS.includes(brand) ? '출고전 취소 = 오클릭·사방넷에 들어온 뒤 취소된 상품 수 (들어오기 전에 바로 취소된 주문은 주문건·취소 모두에서 빠져요).' : '',
         left.length || got.others.length ? `이 화면에 칸이 없어 빠진 플랫폼: ${[...left, ...got.others].join(', ')} (기준 관리 → 데일리 플랫폼에서 추가 가능)` : '',
       ].filter(Boolean).join('\n'));
       if (filled.length) setDirty(true);
