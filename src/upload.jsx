@@ -161,10 +161,10 @@ function UploadGuide({ kinds }) {
           <li>한 파일에 플랫폼별 시트가 여러 개 있어도 괜찮아요. <b>첫 줄(제목 줄)의 칸 이름</b>으로 형식을 알아봐요.</li>
           <li>같은 파일·같은 기간을 다시 올려도 <b>중복 저장되지 않아요.</b></li>
           <li>파일에 브랜드 칸이 없으면 위에서 고른 브랜드로 저장돼요. 파일 이름에 '핀카'·'하타'가 있으면 자동으로 골라져요.</li>
-          <li>직접 만들어 올릴 때는 아래 <b>형식 보기 → 📄 양식</b>을 받아 칸 이름을 그대로 두고 채우면 돼요.</li>
+          <li>직접 만들어 올릴 때는 아래 <b>📄 파일 형식 보기 · 양식 받기</b> 버튼 → 형식마다 있는 <b>📄 양식</b>을 받아 칸 이름을 그대로 두고 채우면 돼요.</li>
         </ul>
       </div>
-      <button className="btn-link" onClick={() => setOpen(!open)}>{open ? '▲ 알아보는 파일 형식 접기' : '▼ 알아보는 파일 형식 보기 (필수 칸 이름)'}</button>
+      <button className="btn btn-sm" onClick={() => setOpen(!open)}>{open ? '▲ 파일 형식·양식 접기' : '📄 파일 형식 보기 · 양식 받기'}</button>
       {open && (
         <div className="grid grid-2w" style={{ marginTop: 10 }}>
           {kinds.map(k => (
