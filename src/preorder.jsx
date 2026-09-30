@@ -121,7 +121,8 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
     const s = preorderStage(l, prod);
     const done = (l.notice1_date ? 1 : 0) + (l.notice2_date ? 1 : 0);
     const isGift = giftCodes.includes(l.barcode);
-    const low = l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
+    // 저재고 = 아직 출고대기인 상품만 (분리배송으로 먼저 나간 상품·취소한 상품은 빼고 판단)
+    const low = l.status === '출고대기' && l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
     return { ...l, prod, ...s, done, low, isGift, pending: l.status === '출고대기' && s.need > done };
   });
   const orders = new Map();
