@@ -25,6 +25,31 @@ const num1 = (v) => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); 
 
 // 주문 파일 형식 (개인정보 칸은 읽지 않음)
 // 순서 중요: 무신사(클레임상태 칸 있음)를 먼저 확인해야 29CM로 잘못 알아보지 않음
+
+// 오클릭 판매처명 → 플랫폼 ('2. 29CM(하타)' → 29CM). 시딩·샘플·B2B·오프라인은 이름 그대로 (CS 데일리에는 안 들어감)
+function oclickPlatform(name) {
+  const s = String(name || '').replace(/^\s*\d+\.\s*/, '').replace(/\((하타|핀카)\)\s*$/i, '').trim();
+  return normPlatform(s) || '기타';
+}
+// 오클릭 날짜: 판매처주문번호 안의 날짜(= 고객 주문일), 없으면 오클릭 입력일
+function oclickWhen(r) {
+  const m = String(r['판매처주문번호'] || '').match(/(20\d{2})(\d{2})(\d{2})/);
+  const byNo = m ? parseWhen(`${m[1]}-${m[2]}-${m[3]}`) : null;
+  return byNo || parseWhen(String(r['입력일'] || '').replace(/^(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
+}
+
+FILE_FORMATS.push(
+  // 오클릭 주문 (모든 판매처·핀카·하타가 한 파일) · 한 줄 = 바코드 1종 (세트는 구성품으로 나뉨)
+  // 주문건은 판매처보조번호(= 판매처의 품목 번호)로 다시 묶어서 셈 (2026-09-30 사용자 결정: 모든 판매처 '상품 수'로 통일)
+  { kind: 'order', label: '오클릭 주문', numberDupKeys: true,
+    headers: ['주문번호', '주문구분', '브랜드', '품명', '바코드', '주문수량', '판매처명', '판매처주문번호', '판매처보조번호', '입력일'],
+    map: (r) => ({ key: r['주문번호'] ? 'OC' + hashText(`${r['주문번호']}|${r['판매처보조번호']}|${r['바코드']}|${r['주문구분']}|${r['교환']}`) : '',
+      brand: normBrand(r['브랜드']), platform: oclickPlatform(r['판매처명']),
+      order_no: r['판매처주문번호'] || r['주문번호'], item_no: r['판매처보조번호'], barcode: r['바코드'],
+      status: r['주문구분'], claim_status: r['교환'], product_name: r['품명'],
+      option_text: [r['색상'], r['사이즈']].map(v => String(v || '').trim()).filter(Boolean).join(' / '),
+      qty: num1(String(r['주문수량'] || '').replace('-', '')), when: oclickWhen(r) }) },
+);
 FILE_FORMATS.push(
   { kind: 'order', label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],
     map: (r) => ({ key: r['주문일련번호'], platform: '무신사',
@@ -60,6 +85,7 @@ const ORDER_UPLOAD = {
   linkProducts: false,
   toRow: (r) => ({
     order_no: str(r.order_no), status: str(r.status), claim_status: str(r.claim_status),
+    item_no: str(r.item_no), barcode: str(r.barcode),
     product_name: str(r.product_name), option_text: str(r.option_text), qty: r.qty,
     ordered_at: r.when ? r.when.iso : null, order_date: r.when ? r.when.key.slice(0, 10) : null,
     cancel_reason: str(r.cancel_reason), return_reason: str(r.return_reason),

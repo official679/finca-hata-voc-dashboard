@@ -86,12 +86,14 @@ function dataRangeOf(reportDate) {
   return [toISODate(addDays(d, d.getDay() === 1 ? -3 : -1)), toISODate(addDays(d, -1))];
 }
 
-// 주문건 = 라인 수, 출고전 취소 = 상태에 '취소'가 들어간 라인, 부정 리뷰 = 1~3점, 게시판 = 우리 답변 글 제외
+// 주문건 = 상품 수 (모든 판매처 통일, 2026-09-30). 오클릭은 세트를 구성품으로 나누므로 판매처 품목 번호(item_no)로 다시 묶어 셈
+//   · 교환 재발송 줄(오클릭 '교환'·'맞교환')은 새 주문이 아니라서 제외 · 품목 번호가 없는 판매처 파일은 한 줄 = 1
+// 출고전 취소 = 상태에 '취소'가 들어간 상품 수, 부정 리뷰 = 1~3점, 게시판 = 우리 답변 글 제외
 async function countUploadsForReport(reportDate, brand) {
   const [from, to] = dataRangeOf(reportDate);
   const start = `${from}T00:00:00+09:00`, end = `${toISODate(addDays(parseDate(to), 1))}T00:00:00+09:00`;
   const [orders, reviews, board] = await Promise.all([
-    fetchAll(() => db.from('order_items').select('platform,status').eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
+    fetchAll(() => db.from('order_items').select('id,platform,status,claim_status,order_no,item_no').eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
     fetchAll(() => db.from('review_items').select('platform,rating').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     fetchAll(() => db.from('board_items').select('platform,inquiry_type,content').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
   ]);
@@ -102,14 +104,24 @@ async function countUploadsForReport(reportDate, brand) {
     byPlatform[p] = byPlatform[p] || {};
     byPlatform[p][field] = (byPlatform[p][field] || 0) + n;
   };
-  orders.forEach(r => { bump(r.platform, 'orders'); if (/취소/.test(r.status || '')) bump(r.platform, 'cancels'); });
+  const seenOrder = new Set(), seenCancel = new Set();
+  orders.forEach(r => {
+    const cancelled = /취소/.test(r.status || '');
+    // 판매처 파일(품목 번호 없음): 한 줄 = 주문 1, 취소 상태면 출고전 취소도 1 (예전 방식)
+    if (!r.item_no) { bump(r.platform, 'orders'); if (cancelled) bump(r.platform, 'cancels'); return; }
+    // 오클릭: 취소는 '주문' 줄과 짝을 이루는 별도 '취소' 줄로 들어옴
+    if (r.claim_status && /교환/.test(r.claim_status)) return;
+    const item = `${r.platform}|${r.order_no}|${r.item_no}`;
+    if (cancelled) { if (!seenCancel.has(item)) { seenCancel.add(item); bump(r.platform, 'cancels'); } }
+    else if (r.status === '주문' && !seenOrder.has(item)) { seenOrder.add(item); bump(r.platform, 'orders'); }
+  });
   reviews.forEach(r => { bump(r.platform, 'reviews_total'); bump(r.platform, r.rating !== null && r.rating <= 3 ? 'reviews_negative' : 'reviews_positive'); });
   const inquiries = board.filter(r => r.inquiry_type !== ANSWER_TYPE && !isStaffAnswer(r.content));
   inquiries.forEach(r => bump(r.platform, 'board_total'));
   return {
     byPlatform, others: [...others],
     has: { orders: orders.length > 0, reviews: reviews.length > 0, board: inquiries.length > 0 },
-    totals: { orders: orders.length, reviews: reviews.length, board: inquiries.length },
+    totals: { orders: Object.values(byPlatform).reduce((a, c) => a + (c.orders || 0), 0), reviews: reviews.length, board: inquiries.length },
   };
 }
 
@@ -162,7 +174,7 @@ function DailyEntryPage() {
         });
         return next;
       });
-      [['orders', '주문', '줄'], ['reviews', '리뷰', '건'], ['board', '게시판', '건']].forEach(([k, name, unit]) => {
+      [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건']].forEach(([k, name, unit]) => {
         if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}`); else skipped.push(name);
       });
       // 이 브랜드 CS 데일리에 칸이 없는 플랫폼(예: 핀카의 W컨셉)은 빠지므로 따로 알려줌

@@ -90,7 +90,16 @@ const FILE_FORMATS = [
 async function readUploadFile(file, kind) {
   const kinds = Array.isArray(kind) ? kind : [kind];
   // raw: CSV의 날짜 모양 글자를 멋대로 바꾸지 않고 글자 그대로 읽음 (엑셀 파일에는 영향 없음)
-  const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false, codepage: 65001, raw: /\.csv$/i.test(file.name) });
+  // CSV는 UTF-8이 아니면 한글 윈도우 방식(CP949, 오클릭 등)으로 다시 읽음
+  const buf = await file.arrayBuffer();
+  let wb;
+  if (/\.csv$/i.test(file.name)) {
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { text = new TextDecoder('euc-kr').decode(buf); }
+    wb = XLSX.read(text.replace(/^﻿/, ''), { type: 'string', cellDates: false, raw: true });
+  } else {
+    wb = XLSX.read(buf, { type: 'array', cellDates: false });
+  }
   return wb.SheetNames.map(name => {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
     for (let h = 0; h < Math.min(10, grid.length); h++) {
@@ -102,6 +111,11 @@ async function readUploadFile(file, kind) {
         .map(r => format.map(Object.fromEntries(header.map((k, i) => [k, r[i]]))))
         // 리뷰·게시판은 내용이 있어야, 주문·반품처럼 key(품목 번호)가 있는 형식은 key가 있어야 저장
         .filter(r => (r.key !== undefined ? !!r.key : r.content && String(r.content).trim()));
+      // 품목 번호가 없는 형식(오클릭 등): 같은 내용 줄이 여러 개면 순번을 붙여 서로 다른 줄로 (파일을 다시 올려도 같은 순번 → 중복 안 됨)
+      if (format.numberDupKeys) {
+        const seen = new Map();
+        rows.forEach(r => { const n = (seen.get(r.key) || 0) + 1; seen.set(r.key, n); if (n > 1) r.key = `${r.key}#${n}`; });
+      }
       // 주문: 주문일시 칸이 날짜가 아니면 칸이 밀린 줄 → 저장하지 않고 개수만 알려줌 (수량·상품명이 엉뚱하게 들어가는 것 방지)
       if (format.kind === 'order') {
         const good = rows.filter(r => r.when);

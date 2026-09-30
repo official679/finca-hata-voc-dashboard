@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~15 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~15 적용 완료, 16은 실행 대기, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -30,7 +30,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
   마리테(MRT…)는 고객이 구성하는 세트 → 옵션명으로 분류. 세트는 수만 개이고 오클릭에 구성 정보가 없어 단품으로 쪼개지 않음.
 - 게시판 파일(특히 카페24)에는 우리 답변 글이 섞여 있음 → inquiry_type '답변(제외)'로 집계 제외, 상품 연결에만 사용.
 - 후속 조치 보드와 담당 부서·완료일(목록)은 숨김(`SHOW_FOLLOWUP=false`). 사용자가 다시 요청하면 켜기.
-- CS 데일리 "업로드 데이터로 채우기": 주문건 = 주문 라인 수, 출고전 취소 = 주문상태에 "취소"가 들어간 라인. 자사몰은 지금 아임웹(카페24도 아임웹 칸으로 합산) — 연말 카페24 이전 시 사용자가 알려줌. 반품·교환·해피톡·전화는 수기.
+- **주문 기준 = 오클릭 (2026-09-30 사용자 결정)**: 7월부터 주문은 오클릭 주문 CSV(모든 판매처·핀카·하타 한 파일, CP949) 하나로 올림. 판매처 주문 파일과 섞어 올리지 않기(중복). 오클릭 한 줄 = 바코드 1종(세트는 구성품으로 나뉨) → **주문건 = 상품 수로 통일**: 판매처보조번호(item_no)로 묶어 셈(29CM·아임웹 모두). 오클릭 취소는 주문 줄과 짝인 별도 "취소" 줄, 교환·맞교환 줄(재발송)은 제외. 날짜 = 판매처주문번호 안 날짜(없으면 입력일). 시딩·샘플·B2B·오프라인은 CS 데일리 제외. 손 입력 원본은 cs_daily.orders_manual/cancels_manual(16 SQL). 비교: 29CM 파트너 검색 숫자보다 약 8% 적음(오클릭 수집 전 취소로 추정, 미확인), 아임웹은 예전 손 입력(주문 건수)의 약 2배. 자사몰 = 아임웹(카페24도 아임웹 칸). 반품·교환·해피톡·전화는 수기.
 - VOC 상품이 마스터에 없으면(세트 등) voc_cases.category·sub_category에 직접 고른 분류 저장 (07 SQL).
 - 예약배송 관리(preorder.jsx): 구글시트 '예약배송 자동정리' 스크립트 v1.7 계산을 옮김. 오클릭 미출고 파일을 올릴 때마다 파일에 없는 주문 = 출고완
   (판매처 누락·줄 수 30% 미만이면 확인). 지연 단계 = 구매일(판매처주문번호 날짜)과 n차 변경 공지일 비교.
