@@ -50,7 +50,8 @@ FILE_FORMATS.push(
     map: (r) => ({ key: r['품목별 주문번호'], platform: '카페24',
       order_no: r['주문번호'], product_name: r['주문상품명'],
       option_text: String(r['주문상품명(옵션포함)'] || '').replace(String(r['주문상품명'] || ''), '').replace(/^\(|\)$/g, '').trim(),
-      qty: num1(r['수량']), when: parseWhen(r['발주일']) }) },
+      // 발주일이 비어 있으면(발주 전 취소 등) 주문번호 앞 날짜(20260101-…)로
+      qty: num1(r['수량']), when: parseWhen(r['발주일']) || parseWhen(String(r['주문번호'] || '').replace(/^(\d{4})(\d{2})(\d{2})-.*$/, '$1-$2-$3')) }) },
 );
 
 // 데이터 업로드 화면에서 쓰는 주문 저장 설정 (고객 정보 칸은 저장하지 않음, 상품 마스터 연결 없음)

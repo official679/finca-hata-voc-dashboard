@@ -309,7 +309,7 @@ function UploadPanel({ configs, onDone, guide }) {
                       <td>{s.format ? <b>{KIND_LABEL[s.format.kind]}</b> : '-'}</td>
                       <td>{s.format ? <span className="chip chip-green">{s.format.label}</span> : s.empty ? <span className="chip">빈 시트</span> : <span className="chip chip-amber">형식을 알 수 없어 건너뜀</span>}</td>
                       <td>{[...new Set(s.rows.map(r => r.platform))].join(', ') || '-'}</td>
-                      <td className="num">{s.rows.length.toLocaleString()}{s.skipped > 0 && <div className="muted" style={{ fontSize: 12 }} title="주문일시 칸에 날짜가 없는 줄 (칸이 밀려 있음) — 파일에서 칸을 맞추면 다시 올릴 수 있어요">칸 밀린 {s.skipped.toLocaleString()}줄 제외</div>}</td>
+                      <td className="num">{s.rows.length.toLocaleString()}{s.skipped > 0 && <div className="muted" style={{ fontSize: 12 }} title="주문 날짜 칸이 비었거나 날짜가 아닌 줄 (칸이 밀렸을 수 있음) — 파일에서 고치면 다시 올릴 수 있어요">날짜 없는 {s.skipped.toLocaleString()}줄 제외</div>}</td>
                       <td>{dates.length ? `${dates[0].slice(0, 10)} ~ ${dates[dates.length - 1].slice(0, 10)}` : '-'}</td>
                     </tr>
                   );
