@@ -213,6 +213,7 @@ function PreorderPage() {
   const giftKey = codeOptions ? codeOptions('preorder_gift', true).join('\n') : '';
   const giftCodes = useMemo(() => giftCodesFrom(giftKey.split('\n')), [giftKey]);
   const [tab, setTab] = useState('todo');
+  const [preset, setPreset] = useState('');   // 위 카드로 들어온 목록 조건 ('low' = 저재고만)
   const [openOrder, setOpenOrder] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
 
@@ -240,15 +241,21 @@ function PreorderPage() {
   const needNotice = products.filter(p => p.status !== '종료' && ((p.change1_out && !p.change1_notice) || (p.change2_out && !p.change2_notice)));
   const last = uploads && uploads[0];
   const current = orders.find(o => o.order_no === openOrder);
+  // 위 카드 → 탭 이동 + 목록 조건 ('low' = 저재고 주문만) · 목록 쪽으로 스크롤
+  const goList = (t, p) => {
+    setTab(t); setPreset(p);
+    setTimeout(() => document.getElementById('preorder-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
 
   return (
     <>
       <PageHeader title="예약배송 관리" desc="예약상품 일정 + 오클릭 미출고 파일로 지연 단계·안내 대상을 자동 계산해요. 파일에서 빠진 주문은 출고완으로 바뀌어요." />
       <div className="grid grid-kpi">
-        <Kpi label="출고 대기 주문" value={open.length.toLocaleString()} sub={`예약상품 ${products.filter(p => p.status !== '종료').length}개 진행 중`} />
-        <Kpi label="안내 필요 주문" value={pending.length.toLocaleString()} alert={pending.length > 0} sub="지연됐는데 아직 안내 안 한 주문" />
-        <Kpi label="저재고 포함 주문" value={open.filter(o => o.low).length.toLocaleString()} sub={`가용재고 ${PREORDER_LOW_STOCK[0]}~${PREORDER_LOW_STOCK[1]} · 분리배송 검토`} />
-        <Kpi label="마지막 파일 반영" value={last ? fmtDate(last.snapshot_date) : '-'} sub={last ? `${last.line_count}줄 · 출고완 ${(last.shipped_orders || []).length}건` : '아직 올린 파일이 없어요'} alert={!last || last.snapshot_date < today()} />
+        {/* 카드를 누르면 그 주문들만 보이는 목록으로 */}
+        <Kpi label="출고 대기 주문" value={open.length.toLocaleString()} sub={`예약상품 ${products.filter(p => p.status !== '종료').length}개 진행 중 · 눌러서 보기`} onClick={() => goList('orders', '')} />
+        <Kpi label="안내 필요 주문" value={pending.length.toLocaleString()} alert={pending.length > 0} sub="지연됐는데 아직 안내 안 한 주문 · 눌러서 보기" onClick={() => goList('todo', '')} />
+        <Kpi label="저재고 포함 주문" value={open.filter(o => o.low).length.toLocaleString()} sub={`가용재고 ${PREORDER_LOW_STOCK[0]}~${PREORDER_LOW_STOCK[1]} · 분리배송 검토 · 눌러서 보기`} onClick={() => goList('orders', 'low')} />
+        <Kpi label="마지막 파일 반영" value={last ? fmtDate(last.snapshot_date) : '-'} sub={last ? `${last.line_count}줄 · 출고완 ${(last.shipped_orders || []).length}건` : '아직 올린 파일이 없어요'} alert={!last || last.snapshot_date < today()} onClick={() => goList('upload', '')} />
       </div>
       {needNotice.length > 0 && (
         <div className="card" style={{ marginBottom: 16, background: 'var(--warn-soft)', border: 'none' }}>
@@ -257,18 +264,18 @@ function PreorderPage() {
         </div>
       )}
 
-      <div style={{ marginBottom: 16 }}>
+      <div id="preorder-tabs" style={{ marginBottom: 16, scrollMarginTop: 12 }}>
         <Segmented options={[
           { key: 'todo', label: `📞 안내 대상 ${pending.length}` },
           { key: 'orders', label: '📋 전체 예약주문' },
           { key: 'products', label: `🗓️ 예약상품 일정 ${products.filter(p => p.status !== '종료').length}` },
           { key: 'upload', label: '📤 파일 올리기' },
           { key: 'guide', label: '📖 대응기준' },
-        ]} value={tab} onChange={setTab} />
+        ]} value={tab} onChange={t => { setTab(t); setPreset(''); }} />
       </div>
 
       {tab === 'todo' && <PreorderAllOrders key="todo" orders={pending} onOpen={setOpenOrder} reload={reload} todo />}
-      {tab === 'orders' && <PreorderAllOrders key="orders" orders={orders} onOpen={setOpenOrder} reload={reload} />}
+      {tab === 'orders' && <PreorderAllOrders key={`orders-${preset}`} orders={orders} onOpen={setOpenOrder} reload={reload} initLow={preset === 'low'} />}
       {tab === 'products' && <PreorderProducts products={products} lines={lines} productByCode={productByCode} onEdit={setEditProduct} reload={reload} />}
       {tab === 'upload' && <PreorderUpload lines={lines} products={products} uploads={uploads} reload={reload} />}
       {tab === 'guide' && <PreorderGuide />}
@@ -336,7 +343,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
 }
 
 // 주문 목록 + 조회(상태·단계·출고예정일·예약상품·검색) + 선택한 주문 일괄 처리
-function PreorderAllOrders({ orders, onOpen, reload, todo }) {
+function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const toast = useToast();
   const [status, setStatus] = useState(todo ? '' : '출고대기');
   const [stage, setStage] = useState('');
@@ -344,7 +351,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo }) {
   const [outFrom, setOutFrom] = useState('');
   const [outTo, setOutTo] = useState('');
   const [q, setQ] = useState('');
-  const [lowOnly, setLowOnly] = useState(false);   // 가용재고 0~10 상품이 든 주문만 (분리배송 검토)
+  const [lowOnly, setLowOnly] = useState(!!initLow);   // 가용재고 0~10 상품이 든 주문만 (분리배송 검토)
   const [selected, setSelected] = useState(() => new Set());
   const [method, setMethod] = useState('문자');
   const [busy, setBusy] = useState(false);

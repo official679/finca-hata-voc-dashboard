@@ -269,9 +269,10 @@ function Select({ value, onChange, options, placeholder, className = 'input' }) 
   );
 }
 
-function Kpi({ label, value, sub, alert }) {
+function Kpi({ label, value, sub, alert, onClick }) {
+  // onClick이 있으면 눌러서 해당 목록으로 이동 (메인 '오늘 챙길 것'과 같은 모양)
   return (
-    <div className={`kpi${alert ? ' alert' : ''}`}>
+    <div className={`kpi${alert ? ' alert' : ''}${onClick ? ' todo-kpi' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined} style={onClick ? { cursor: 'pointer' } : undefined}>
       <div className="kpi-label">{label}</div>
       <div className="kpi-value">{value}</div>
       {sub && <div className="kpi-sub">{sub}</div>}

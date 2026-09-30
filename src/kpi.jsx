@@ -6,11 +6,12 @@ const KPI_DEFS = [
     calc: (s) => (s.orders ? returnsExchanges(s) / s.orders * 100 : null) },
   { key: 'fault_rate', label: '과실률', unit: '%', lowerBetter: true, def: 0.5, desc: '과실 반품·교환 ÷ 주문건 (CS 데일리)',
     calc: (s) => (s.orders ? faults(s) / s.orders * 100 : null) },
-  { key: 'cancel_rate', label: '출고전 취소율', unit: '%', lowerBetter: true, def: 5, desc: '출고전 취소 ÷ 주문건 (CS 데일리)',
+  // needs: 이 칸들을 그달 한 번도 입력하지 않았으면 0%가 아니라 '미입력' (예: 8월 출고전 취소·전화는 입력 안 함)
+  { key: 'cancel_rate', label: '출고전 취소율', unit: '%', lowerBetter: true, def: 5, desc: '출고전 취소 ÷ 주문건 (CS 데일리)', needs: ['cancels'],
     calc: (s) => (s.orders ? s.cancels / s.orders * 100 : null) },
   { key: 'neg_review_rate', label: '부정 리뷰율', unit: '%', lowerBetter: true, def: 5, desc: '1~3점 리뷰 ÷ 작성 리뷰 (CS 데일리)',
     calc: (s) => (s.reviews_total ? s.reviews_negative / s.reviews_total * 100 : null) },
-  { key: 'inquiry_per_100', label: '주문 100건당 문의', unit: '건', lowerBetter: true, def: 8, desc: '(게시판+해피톡+전화 인입) ÷ 주문건 × 100',
+  { key: 'inquiry_per_100', label: '주문 100건당 문의', unit: '건', lowerBetter: true, def: 8, desc: '(게시판+해피톡+전화 인입) ÷ 주문건 × 100', needs: ['board_total', 'ht_total'],   // 전화는 하타처럼 없는 달도 있어서 제외
     calc: (s) => (s.orders ? (s.board_total + s.ht_total + s.call_in) / s.orders * 100 : null) },
   { key: 'voc_done_rate', label: 'VOC 처리 완료율', unit: '%', lowerBetter: false, def: 90, desc: '그달 접수 VOC 중 처리완료·보상완료 비율',
     calc: (s, v) => (v.total ? v.done / v.total * 100 : null) },
@@ -43,12 +44,13 @@ function KpiPage() {
   // 달마다 CS 데일리 합계 + VOC 접수·완료
   const rowsOf = (m) => { const [a, b] = monthRange(m); return daily.filter(r => r.brand === brand && r.report_date >= a && r.report_date <= b); };
   const vocOf = (m) => { const cs = cases.filter(c => c.brand === brand && (c.received_date || '').startsWith(m)); return { total: cs.length, done: cs.filter(c => DONE_STATUSES.includes(c.status)).length }; };
-  const valueOf = (d, m) => d.calc(sumRows(rowsOf(m)), vocOf(m));
+  // 미입력 = NaN (0%와 구분), 데이터 없음 = null
+  const valueOf = (d, m) => { const s = sumRows(rowsOf(m)); if (s.orders && (d.needs || []).some(f => !s[f])) return NaN; return d.calc(s, vocOf(m)); };
   const idx = months.indexOf(ym);
   const trendMonths = months.slice(Math.max(0, idx - 5), idx + 1);
   const prevYm = idx > 0 ? months[idx - 1] : null;
 
-  const fmt = (v, d) => (v === null || v === undefined || !Number.isFinite(v) ? '-' : `${v.toFixed(d.unit === '%' ? 1 : 1)}${d.unit === '%' ? '%' : '건'}`);
+  const fmt = (v, d) => (Number.isNaN(v) ? '미입력' : v === null || v === undefined || !Number.isFinite(v) ? '-' : `${v.toFixed(d.unit === '%' ? 1 : 1)}${d.unit === '%' ? '%' : '건'}`);
   const ok = (v, d, t) => (v === null || !Number.isFinite(v) ? null : d.lowerBetter ? v <= t : v >= t);
 
   const saveTargets = async () => {
@@ -95,7 +97,7 @@ function KpiPage() {
                       : <>{d.lowerBetter ? '≤ ' : '≥ '}{t}{d.unit === '%' ? '%' : '건'}</>}</td>
                     <td className="num kpi-cur">{fmt(cur, d)}</td>
                     <td className="num">{fmt(prev, d)}{better !== null && cur !== prev && <span style={{ color: better ? 'var(--success)' : 'var(--danger)', marginLeft: 4 }}>{better ? '▲좋아짐' : '▼나빠짐'}</span>}</td>
-                    <td>{pass === null ? <span className="muted">데이터 없음</span> : pass ? <span className="chip chip-green">✅ 달성</span> : <span className="chip chip-red">⚠️ 미달</span>}</td>
+                    <td>{pass === null ? <span className="muted">{Number.isNaN(cur) ? '미입력 (CS 데일리에 입력 필요)' : '데이터 없음'}</span> : pass ? <span className="chip chip-green">✅ 달성</span> : <span className="chip chip-red">⚠️ 미달</span>}</td>
                     <td><KpiTrend trend={trend} d={d} t={t} /></td>
                   </tr>
                 );
@@ -112,7 +114,7 @@ function KpiPage() {
           </table>
         </div>
       </div>
-      <div className="hint" style={{ marginTop: 10 }}>숫자는 CS 데일리에 저장된 값으로 계산돼요. 반품·교환·해피톡·전화를 입력하지 않은 날이 있으면 실제보다 낮게 나와요. 목표는 브랜드마다 따로 저장돼요.</div>
+      <div className="hint" style={{ marginTop: 10 }}>숫자는 CS 데일리에 저장된 값으로 계산돼요. 반품·교환·해피톡·전화를 입력하지 않은 날이 있으면 실제보다 낮게 나와요. 출고전 취소·게시판·해피톡을 그달 한 번도 입력하지 않았으면 '미입력'으로 보여요. 목표는 브랜드마다 따로 저장돼요.</div>
     </>
   );
 }
