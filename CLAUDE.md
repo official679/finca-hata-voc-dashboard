@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~16 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~17 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -68,9 +68,11 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 예약배송 상품 현황 메뉴 (2026-09-30): 예약배송 관리 아래, 구글 시트 "예약배송현황_발송 보류 건(FINCA&HaTA)" 임베드. plan.jsx `SheetEmbedPage` 공용(전사플랜과 같은 방식), 주소 = code_items 'embed_hold'. 시트에 고객 연락처가 있어 DB로 옮기지 않음.
 - 상품 추가분류(앵커/레귤러) = products.line_type (오클릭 카테고리 파일 '추가분류', 14 SQL). VOC 목록 칸·필터.
 - **README.md = 사용자용 안내서 겸 인수인계 자료**. 기능·메뉴·규칙을 바꾸면 README도 같이 고쳐서 항상 최신으로 유지 (계정·비밀번호는 넣지 않기).
+- **브레이크 역할** (2026-09-30 사용자 요청): 기능을 계속 추가하기만 하거나 실제 데이터 확인이 필요해 보이면 먼저 말하기 (로그인한 브라우저 패널에서 실제 숫자 대조 제안).
 - 직원 이름 선택(공용 계정에서 "나는 누구", 직원 이름·부서·직급 등록): 사용자가 "아직"이라고 보류함.
 
 ## 앞으로 할 일 (사용자가 급하지 않다고 함 — 대시보드 정리 먼저)
+- ✅ 상반기 반품·교환 가져오기 완료 (2026-09-30): return_items(17 SQL) 4,462건 — 29CM는 반품·교환 파일(주문번호·사유) + 상반기 주문 파일에서 상태가 반품/교환인 줄로 상품 채움, 철회 제외, 아임웹 = 전부 반품, 무신사 환불완료=반품·교환완료=교환, 카페24는 HTML 섞인 줄 버리고 "반품…" 상태만. 가져오기 스크립트는 저장소에 없음(한 번만). 사유 묶기 = returns.jsx `RETURN_REASON_GROUPS`(과실 = 불량·파손·오배송·누락), 사용자 확인 전 기본값. 반품·교환 분석 화면(returns.jsx, VOC·리뷰 메뉴). 반품·교환율 분모 = 6월까지 order_monthly(lines−cancels), 7월부터 order_items(취소·회수·교환 줄 제외).
 - 반품·교환 업로드 (29CM은 별도 파일 필요, 아임웹 주문 파일에는 반품사유 있음) — 데일리 업로드에 포함해 CS 데일리 반품·교환 칸 자동 채우기 +
   상품별·사유별 집계. 사용자가 현재 데일리 29CM 반품/교환 파일(상품명·상세사유 포함 최신 형식)·아임웹·무신사 예시를 줄 예정.
   상반기 원본은 사용자 PC `OneDrive\Desktop\2026 상반기 자료\핀카|하타\(주문·리뷰·게시판·반품교환·해피톡)` — 29CM 상반기 반품·교환은

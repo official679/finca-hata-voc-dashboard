@@ -19,6 +19,7 @@ const NAV = [
   { group: '🔍 VOC · 리뷰', items: [
     { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
     { key: 'report', label: 'VOC 현황', icon: '📉' },
+    { key: 'returns', label: '반품·교환 분석', icon: '↩️' },
     { key: 'review-list', label: '리뷰 목록', icon: '💬' },
     { key: 'reviews', label: '리뷰 분석', icon: '📊' },
     { key: 'board', label: '게시판 분석', icon: '🔎' },
@@ -115,6 +116,7 @@ function Shell({ session }) {
     tasks: <TasksPage />,
     plan: <PlanPage />,
     'hold-sheet': <HoldSheetPage />,
+    returns: <ReturnsPage />,
     upload: <DataUploadPage />,
     'upload-reviews': <DataUploadPage />,
     reviews: <ReviewAnalysisPage />,
