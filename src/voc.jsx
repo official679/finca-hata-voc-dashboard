@@ -222,12 +222,16 @@ function VocForm({ initial, onSaved, onCancel }) {
           <div className="hint">
             {form.product_name.trim() === '' ? `${form.brand} 상품 ${brandProducts.length.toLocaleString()}개에서 검색돼요`
               : matchedProduct ? `✓ 상품 마스터와 연결됨 (대분류 ${matchedProduct.category || '-'} · 중분류 ${matchedProduct.size_gender || '-'})`
-              : '상품 마스터에 없는 이름이에요. 아래에서 대분류·중분류를 직접 골라 주세요.'}
+              : '상품 마스터에 없는 이름이에요. 아래 대분류·중분류를 직접 골라 주세요.'}
           </div>
         </div>
-        {!matchedProduct && form.product_name.trim() !== '' && <>
-          {field('대분류 (직접 선택)', <Select className="" value={form.category} onChange={v => setForm(prev => ({ ...prev, category: v, sub_category: '' }))} options={withCurrent(allCategories, form.category)} placeholder="선택" />)}
-          {field('중분류 (직접 선택)', <Select className="" value={form.sub_category} onChange={set('sub_category')} options={withCurrent(subCategories, form.sub_category)} placeholder={form.category ? '선택' : '대분류 먼저'} />)}
+        {/* 대분류·중분류는 항상 보임: 상품 마스터와 연결되면 상품 분류로 자동(고칠 수 없음), 아니면 직접 고름 */}
+        {matchedProduct ? <>
+          {field('대분류 (상품에서 자동)', <input value={matchedProduct.category || '-'} disabled />)}
+          {field('중분류 (상품에서 자동)', <input value={matchedProduct.size_gender || '-'} disabled />)}
+        </> : <>
+          {field('대분류', <Select className="" value={form.category} onChange={v => setForm(prev => ({ ...prev, category: v, sub_category: '' }))} options={withCurrent(allCategories, form.category)} placeholder="선택" />)}
+          {field('중분류', <Select className="" value={form.sub_category} onChange={set('sub_category')} options={withCurrent(subCategories, form.sub_category)} placeholder={form.category ? '선택' : '대분류 먼저'} />)}
         </>}
         {field('VOC 구분', <Select className="" value={form.voc_type} onChange={set('voc_type')} options={withCurrent(codeOptions('voc_type'), form.voc_type)} placeholder="선택" />)}
         {field('문의 채널', <Select className="" value={form.consult_method} onChange={set('consult_method')} options={withCurrent(codeOptions('consult_method'), form.consult_method)} placeholder="선택" />)}
