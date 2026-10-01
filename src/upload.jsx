@@ -91,6 +91,9 @@ const FILE_FORMATS = [
     map: (r) => ({ key: 'MB' + hashText(['작성일', '판매처', '브랜드', '상품명', '문의유형', '제목', '문의 내용'].map(k => String(r[k] ?? '').trim()).join('|')),
       brand: normBrand(r['브랜드']), platform: normPlatform(r['판매처']), product_name: r['상품명'], platform_category: r['문의유형'], title: r['제목'],
       content: r['문의 내용'] || r['제목'] || r['문의유형'] || '(내용 없음)', when: parseWhen(r['작성일']) }) },
+  // 아임웹 게시판을 필요한 칸만 남겨 정리한 파일 (답글 칸 없음) · 기존 아임웹 게시판과 같은 키(작성 시각+제목+내용)라 겹쳐도 중복 안 됨
+  { kind: 'board', label: '아임웹 게시판 (간단)', headers: ['상품명', '문의제목', '문의내용', '작성일자'],
+    map: (r) => ({ platform: '아임웹', product_name: r['상품명'], title: r['문의제목'], content: r['문의내용'], when: parseWhen(r['작성일자']) }) },
   // EQL 관리자 화면에서 받은 문의 파일
   { kind: 'board', label: 'EQL 게시판', headers: ['문의일시', '문의번호', '문의내용', '상품명'],
     map: (r) => ({ key: r['문의번호'] ? 'EQL' + r['문의번호'] : '', brand: normBrand(r['브랜드명']), platform: 'EQL', product_name: r['상품명'], content: r['문의내용'], when: parseWhen(r['문의일시']) }) },
