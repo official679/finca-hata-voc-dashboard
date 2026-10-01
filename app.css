@@ -215,6 +215,10 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .cal-today .cal-chip { width: auto; font-size: 13px; padding: 4px 10px; }
 .cal-chip.meeting { background: #fff; border: 1px dashed var(--c); border-left: 3px solid var(--c); }
 .cal-chip:hover { filter: brightness(0.96); }
+.cal-num-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cal-holiday { font-size: 11.5px; font-weight: 600; color: #D64545; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-day.holiday { background: #FFF6F6; }
+.cal-day.holiday.out { background: #FBF3F3; }
 .cal-more { font-size: 11.5px; color: var(--muted); padding-left: 4px; }
 .cal-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
 .cal-kind { border: 1px solid var(--border); background: #fff; border-radius: 18px; padding: 6px 12px; font-size: 13px; cursor: pointer; font-family: inherit; }
