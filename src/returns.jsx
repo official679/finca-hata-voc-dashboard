@@ -114,7 +114,8 @@ const RETURN_UPLOAD = {
     return {
       kind: r.ret_kind, order_no: r.order_no || null, product_name: r.product_name || null, option_text: r.option_text || null, qty: r.qty || 1,
       reason_raw: r.reason_raw || null, reason_detail: r.reason_detail || null, reason_group: group, is_fault: fault,
-      claim_status: r.claim_status || null, order_date: r.order_date || null, claim_date: r.claim_date || null,
+      // 접수일 칸이 없는 파일(아임웹 등)은 데일리 파일 = 전일 접수 건 → 올린 날의 전날로 (2026-10-01 사용자 확인)
+      claim_status: r.claim_status || null, order_date: r.order_date || null, claim_date: r.claim_date || toISODate(addDays(new Date(), -1)),
       category: classifyItem(r.product_name, r.option_text).category,
     };
   },

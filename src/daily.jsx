@@ -113,10 +113,12 @@ function dataRangeOf(reportDate) {
 async function countUploadsForReport(reportDate, brand) {
   const [from, to] = dataRangeOf(reportDate);
   const start = `${from}T00:00:00+09:00`, end = `${toISODate(addDays(parseDate(to), 1))}T00:00:00+09:00`;
-  const [orders, reviews, board] = await Promise.all([
+  const [orders, reviews, board, returns] = await Promise.all([
     fetchAll(() => db.from('order_items').select('id,platform,status,claim_status,order_no,item_no').eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
     fetchAll(() => db.from('review_items').select('platform,rating').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     fetchAll(() => db.from('board_items').select('platform,inquiry_type,content').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
+    // 반품·교환: 접수일 기준 (데일리 파일 = 전일 접수 건, 접수일 칸이 없으면 올린 날의 전날로 저장됨)
+    fetchAll(() => db.from('return_items').select('platform,kind,reason_group').eq('brand', brand).gte('claim_date', from).lte('claim_date', to).order('id')).catch(() => []),
   ]);
   const byPlatform = {}, others = new Set();
   const bump = (platform, field, n = 1) => {
@@ -141,10 +143,18 @@ async function countUploadsForReport(reportDate, brand) {
   reviews.forEach(r => { bump(r.platform, 'reviews_total'); bump(r.platform, r.rating !== null && r.rating <= 3 ? 'reviews_negative' : 'reviews_positive'); });
   const inquiries = board.filter(r => r.inquiry_type !== ANSWER_TYPE && !isStaffAnswer(r.content));
   inquiries.forEach(r => bump(r.platform, 'board_total'));
+  // 반품·교환 → 단순 / 과실·상품이상(불량·파손) / 과실·오배송(오배송·누락). '과실·기타'는 직접 입력
+  const returnPlatforms = new Set();
+  returns.forEach(r => {
+    const pre = r.kind === '교환' ? 'exchange' : 'return';
+    const f = r.reason_group === '불량·파손' ? `${pre}_defect` : r.reason_group === '오배송·누락' ? `${pre}_misship` : `${pre}_simple`;
+    bump(r.platform, f);
+    if (UPLOAD_PLATFORM_TO_DAILY[r.platform]) returnPlatforms.add(UPLOAD_PLATFORM_TO_DAILY[r.platform]);
+  });
   return {
-    byPlatform, others: [...others],
-    has: { orders: orders.length > 0, reviews: reviews.length > 0, board: inquiries.length > 0 },
-    totals: { orders: Object.values(byPlatform).reduce((a, c) => a + (c.orders || 0), 0), reviews: reviews.length, board: inquiries.length },
+    byPlatform, others: [...others], returnPlatforms: [...returnPlatforms],
+    has: { orders: orders.length > 0, reviews: reviews.length > 0, board: inquiries.length > 0, returns: returns.length > 0 },
+    totals: { orders: Object.values(byPlatform).reduce((a, c) => a + (c.orders || 0), 0), reviews: reviews.length, board: inquiries.length, returns: returns.length },
   };
 }
 
@@ -193,11 +203,13 @@ function DailyEntryPage() {
           if (got.has.orders) { v.orders = c.orders || 0; if (!CANCEL_MANUAL_BRANDS.includes(brand)) v.cancels = c.cancels || 0; }
           if (got.has.reviews) { v.reviews_total = c.reviews_total || 0; v.reviews_negative = c.reviews_negative || 0; v.reviews_positive = c.reviews_positive || 0; }
           if (got.has.board) { v.board_total = c.board_total || 0; }
+          // 반품·교환은 파일을 올린 판매처만 채움 (안 올린 판매처는 손으로 넣은 값 그대로)
+          if (got.returnPlatforms.includes(p)) ['return_simple', 'return_defect', 'return_misship', 'exchange_simple', 'exchange_defect', 'exchange_misship'].forEach(f => { v[f] = c[f] || 0; });
           next[p] = v;
         });
         return next;
       });
-      [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건']].forEach(([k, name, unit]) => {
+      [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건'], ['returns', '반품·교환', '건']].forEach(([k, name, unit]) => {
         if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}`); else skipped.push(name);
       });
       // 이 브랜드 CS 데일리에 칸이 없는 플랫폼(예: 핀카의 W컨셉)은 빠지므로 따로 알려줌
