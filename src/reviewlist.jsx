@@ -22,7 +22,8 @@ function ReviewListPage() {
   const toast = useToast();
   const init = useMemo(() => new URLSearchParams(location.hash.split('?')[1] || ''), []);
   const [brand, setBrand] = useState(init.get('brand') || '핀카');
-  const [period, setPeriod] = useState(init.get('period') || '1');
+  // 기본 = 최근 7일 (월초에 '이번 달'이 비어 보이지 않게)
+  const [period, setPeriod] = useState(init.get('period') || '7d');
   const [platform, setPlatform] = useState('');
   const [stars, setStars] = useState(init.get('stars') || '');
   const [check, setCheck] = useState(init.get('check') || '');
@@ -103,7 +104,7 @@ function ReviewListPage() {
   const hasFilter = platform || stars || check || theme || product || q;
   return (
     <>
-      <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · ${rows.length.toLocaleString()}건 · 부정·체크필요로 표시하면 VOC로 보낼 수 있어요`}>
+      <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : from === to ? fmtDate(from) : `${fmtDate(from)} ~${to < '2999' ? ' ' + fmtDate(to) : ''}`} · ${rows.length.toLocaleString()}건 · 부정·체크필요로 표시하면 VOC로 보낼 수 있어요`}>
         <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
         <Segmented options={REVIEW_LIST_PERIODS} value={period} onChange={setPeriod} />
       </PageHeader>
