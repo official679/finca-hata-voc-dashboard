@@ -126,7 +126,8 @@ async function readUploadFile(file, kind) {
   return wb.SheetNames.map(name => {
     const grid = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });
     for (let h = 0; h < Math.min(10, grid.length); h++) {
-      const header = grid[h].map(c => String(c).trim());
+      // 칸 이름 안 줄바꿈(Alt+Enter)은 없애고 비교 ('CS 처리\n상태' → 'CS 처리상태')
+      const header = grid[h].map(c => String(c).replace(/\s*\r?\n\s*/g, '').trim());
       const format = FILE_FORMATS.find(f => kinds.includes(f.kind) && f.headers.every(x => header.includes(x)));
       if (!format) continue;
       const rows = grid.slice(h + 1)

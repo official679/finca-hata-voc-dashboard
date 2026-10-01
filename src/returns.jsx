@@ -35,7 +35,8 @@ const RETURN_FORMATS = [
     kind: 'return', label: `29CM ${kind}`, headers: ['CS 처리상태', '주문번호', col],
     map: (r) => ({ key: /철회/.test(retStr(r['CS 처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}`,
       brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']),
-      reason_raw: retStr(r[col]), reason_detail: retClean(r['상세 사유'] || r['상세사유']), claim_status: retStr(r['CS 처리상태']), needs_product: true, when: {} }),
+      reason_raw: retStr(r[col]), reason_detail: retClean(r['상세 사유'] || r['상세사유']), claim_status: retStr(r['CS 처리상태']),
+      claim_date: retDate(r[`${kind} 접수일`] || r[`${kind}접수일`] || r['접수일']), needs_product: true, when: {} }),
   })),
   // 29CM 데일리 반품·교환 정리 파일 (처리상태·주문번호·반품사유/교환사유·주문자·반품접수일/교환접수일·브랜드, 불량이면 '상세사유' 칸 추가)
   // 같은 반품이 접수→수거중→완료로 여러 날 올라와도 주문번호로 묶여서 한 번만 저장 · 주문자 이름은 읽지 않음
