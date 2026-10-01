@@ -160,6 +160,61 @@ function OrderMonthlySummary() {
   );
 }
 
+// 업로드 기록: 최근 7일 동안 언제 무엇을 올렸는지 (저장된 시각 created_at 기준) · 양이 많아서 버튼을 눌렀을 때만 불러옴
+const HISTORY_SOURCES = [
+  { table: 'order_items', label: '주문', unit: '줄', dateCol: 'order_date' },
+  { table: 'review_items', label: '리뷰', unit: '건', dateCol: 'written_at' },
+  { table: 'board_items', label: '게시판', unit: '건', dateCol: 'written_at' },
+  { table: 'return_items', label: '반품·교환', unit: '건', dateCol: 'order_date' },
+];
+function UploadHistory() {
+  const [rows, setRows] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const load = async () => {
+    setLoading(true);
+    const since = `${toISODate(addDays(new Date(), -6))}T00:00:00+09:00`;
+    const out = [];
+    for (const s of HISTORY_SOURCES) {
+      const data = await fetchAll(() => db.from(s.table).select(`created_at,brand,platform,${s.dateCol}`).gte('created_at', since).order('id')).catch(() => []);
+      data.forEach(r => out.push({ src: s, day: toISODate(new Date(r.created_at)), brand: r.brand, platform: r.platform, dataDay: String(r[s.dateCol] || '').slice(0, 10) }));
+    }
+    setRows(out); setLoading(false);
+  };
+  const days = rows ? [...new Set(rows.map(r => r.day))].sort().reverse() : [];
+  const cell = (day, s) => {
+    const rs = rows.filter(r => r.day === day && r.src === s);
+    if (!rs.length) return <span className="muted">-</span>;
+    const groups = countBy(rs, r => `${r.brand} ${r.platform}`);
+    const dd = rs.map(r => r.dataDay).filter(Boolean).sort();
+    return (
+      <div>
+        <b>{rs.length.toLocaleString()}{s.unit}</b>
+        <div className="hint" style={{ margin: 0 }}>{groups.map(g => `${g.label} ${g.count.toLocaleString()}`).join(' · ')}</div>
+        {dd.length > 0 && <div className="hint" style={{ margin: 0 }}>데이터 {fmtDate(dd[0]).slice(3)}~{fmtDate(dd[dd.length - 1]).slice(3)}</div>}
+      </div>
+    );
+  };
+  return (
+    <div className="card" style={{ maxWidth: 960, marginTop: 16, padding: rows ? 0 : 20 }}>
+      <div className="card-title" style={rows ? { padding: '18px 20px 4px' } : null}>
+        📋 업로드 기록 <small>최근 7일 · 올린 날짜별로 무엇이 몇 건 저장됐는지 (중복으로 건너뛴 건 제외)</small>
+        {!rows && <button className="btn btn-sm" style={{ marginLeft: 10 }} onClick={load} disabled={loading}>{loading ? '불러오는 중...' : '기록 보기'}</button>}
+      </div>
+      {rows && (days.length ? (
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>올린 날</th>{HISTORY_SOURCES.map(s => <th key={s.table}>{s.label}</th>)}</tr></thead>
+            <tbody>{days.map(day => (
+              <tr key={day}><td style={{ whiteSpace: 'nowrap' }}><b>{fmtDate(day)}</b> ({'일월화수목금토'[parseDate(day).getDay()]})</td>
+                {HISTORY_SOURCES.map(s => <td key={s.table}>{cell(day, s)}</td>)}</tr>
+            ))}</tbody>
+          </table>
+        </div>
+      ) : <div className="empty">최근 7일 동안 올린 데이터가 없어요</div>)}
+    </div>
+  );
+}
+
 // 리뷰·게시판·주문을 한 곳에서 올리는 화면 (파일마다 종류를 알아서 구분)
 function DataUploadPage() {
   const [counts, setCounts] = useState({});
@@ -177,6 +232,7 @@ function DataUploadPage() {
         guide={<UploadGuide kinds={['review', 'board', 'order', 'return']} />}
         onDone={() => setVersion(v => v + 1)}
       />
+      <UploadHistory key={'h' + version} />
       <ProductMasterUpload />
       <BackupCard />
       <OrderCategorySummary key={version} />
