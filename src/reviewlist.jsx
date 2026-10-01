@@ -33,7 +33,8 @@ function ReviewListPage() {
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState(null);
   const [SIZE, setSize] = usePageSize('reviews', 15);
-  const [reviews, setReviews] = useSince('review_items', '*', period === 'all' ? null : reviewPeriodStart(period)[0]);
+  // 한국 시간 0시부터 (오늘·전일처럼 하루 단위로 볼 때 새벽 리뷰가 빠지지 않게)
+  const [reviews, setReviews] = useSince('review_items', '*', period === 'all' ? null : `${reviewPeriodStart(period)[0]}T00:00:00+09:00`);
   const negMax = loadNegMax();
 
   const nameOf = (r) => (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)';
@@ -44,7 +45,7 @@ function ReviewListPage() {
   const [from, to] = reviewPeriodStart(period);
   const rows = useMemo(() => {
     const t = q.trim().toLowerCase();
-    const list = (reviews || []).filter(r => r.brand === brand && r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to &&
+    const list = (reviews || []).filter(r => r.brand === brand && r.written_at && toISODate(new Date(r.written_at)) >= from && toISODate(new Date(r.written_at)) <= to &&
       (!platform || r.platform === platform) &&
       (!stars || (stars === 'neg' ? r.rating !== null && r.rating <= negMax : stars === 'pos' ? r.rating > negMax : r.rating === Number(stars))) &&
       (!check || (check === '미확인' ? !r.check_status : r.check_status === check)) &&
@@ -104,7 +105,7 @@ function ReviewListPage() {
     <>
       <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · ${rows.length.toLocaleString()}건 · 부정·체크필요로 표시하면 VOC로 보낼 수 있어요`}>
         <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
-        <Segmented options={REVIEW_PERIODS} value={period} onChange={setPeriod} />
+        <Segmented options={REVIEW_LIST_PERIODS} value={period} onChange={setPeriod} />
       </PageHeader>
 
       <div className="card" style={{ marginBottom: 12 }}>

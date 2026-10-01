@@ -130,8 +130,13 @@ const REVIEW_UPLOAD = {
 const REVIEW_PERIODS = [
   { key: '1', label: '이번 달' }, { key: '-1', label: '지난 달' }, { key: '3', label: '최근 3개월' }, { key: '6', label: '최근 6개월' }, { key: 'all', label: '전체' },
 ];
+// 리뷰 목록은 매일 보는 화면이라 오늘·전일·최근 7일을 앞에 둠
+const REVIEW_LIST_PERIODS = [{ key: 'today', label: '오늘' }, { key: 'yday', label: '전일' }, { key: '7d', label: '최근 7일' }, ...REVIEW_PERIODS];
 function reviewPeriodStart(key) {
   const now = new Date();
+  if (key === 'today') return [toISODate(now), '2999-12-31'];
+  if (key === 'yday') { const y = toISODate(addDays(now, -1)); return [y, y]; }
+  if (key === '7d') return [toISODate(addDays(now, -6)), '2999-12-31'];
   if (key === 'all') return ['2000-01-01', '2999-12-31'];
   if (key === '-1') return [toISODate(new Date(now.getFullYear(), now.getMonth() - 1, 1)), toISODate(new Date(now.getFullYear(), now.getMonth(), 0))];
   return [toISODate(new Date(now.getFullYear(), now.getMonth() - (Number(key) - 1), 1)), '2999-12-31'];
