@@ -30,6 +30,18 @@ const retDateFromNo = (no) => { const m = retStr(no).match(/(20\d{2})(\d{2})(\d{
 const retDate = (v) => { const w = parseWhen(v); return w ? w.key.slice(0, 10) : null; };
 const retClean = (t) => { t = retStr(t); return /<|font-|sans-serif|href=/.test(t) ? '' : t.slice(0, 300); };
 const RETURN_FORMATS = [
+  // 직접 정리한 반품·교환 (공통 양식): 파일로 안 받아지는 건(아임웹 교환 등)을 화면 보고 옮겨 적을 때
+  { kind: 'return', label: '직접 정리한 반품·교환 (공통 양식)', headers: ['판매처', '구분', '주문번호', '상품명', '사유'],
+    template: ['판매처', '브랜드', '구분', '주문번호', '상품명', '옵션', '수량', '사유', '상세사유', '접수일', '처리상태'],
+    map: (r) => {
+      const kind = /교환/.test(retStr(r['구분'])) ? '교환' : '반품';
+      const no = retStr(r['주문번호']);
+      return { key: no ? `${kind}|${no}|${retStr(r['상품명'])}|${retStr(r['옵션'])}` : '',
+        brand: normBrand(r['브랜드']), platform: normPlatform(r['판매처']), ret_kind: kind, order_no: no,
+        product_name: retStr(r['상품명']), option_text: retStr(r['옵션']), qty: parseInt(r['수량'], 10) || 1,
+        reason_raw: retStr(r['사유']), reason_detail: retClean(r['상세사유']), claim_status: retStr(r['처리상태']) || null,
+        order_date: retDateFromNo(no), claim_date: retDate(r['접수일']), when: {} };
+    } },
   // 29CM: 주문번호·사유만 → 저장할 때 올려 둔 주문(오클릭·사방넷)에서 상품을 찾음 (prepare)
   ...[['반품', '반품 사유'], ['교환', '교환 사유']].map(([kind, col]) => ({
     kind: 'return', label: `29CM ${kind}`, headers: ['CS 처리상태', '주문번호', col],
