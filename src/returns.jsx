@@ -119,7 +119,50 @@ const RETURN_UPLOAD = {
       category: classifyItem(r.product_name, r.option_text).category,
     };
   },
+  // 새로 저장된 과실 반품·교환(불량·파손·오배송·누락) → VOC 접수 (2026-10-02 사용자 요청, 리뷰와 같은 방식)
+  afterInsert: async (newRows, app) => {
+    const created = await faultReturnsToVoc(newRows, app.products);
+    if (!created) return null;
+    app.setCases(prev => [...created, ...prev]);
+    return <>📝 과실 반품·교환(불량·파손·오배송·누락) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
+  },
 };
+
+const RETURN_VOC_NOTE = '반품·교환 자동 등록';
+const RETURN_PLATFORM_TO_VOC = { '아임웹': '자사몰', '카페24': '자사몰' };
+// 과실 반품·교환 한 건 → VOC 접수. 같은 주문번호 VOC가 이미 있으면(해피톡·게시판으로 먼저 접수 등) 건너뜀
+async function faultReturnsToVoc(rows, products) {
+  const src = rows.filter(r => r.is_fault);
+  if (!src.length) return null;
+  const orderNos = [...new Set(src.map(r => r.order_no).filter(Boolean))];
+  const known = new Set();
+  for (let i = 0; i < orderNos.length; i += 200) {
+    const { data } = await db.from('voc_cases').select('order_no').in('order_no', orderNos.slice(i, i + 200));
+    (data || []).forEach(v => known.add(v.order_no));
+  }
+  const vocRows = src.filter(r => !r.order_no || !known.has(r.order_no)).map(r => {
+    const misship = r.reason_group === '오배송·누락';
+    const text = `${r.reason_raw || ''} ${r.reason_detail || ''}`;
+    return {
+      received_date: r.claim_date || today(),
+      brand: r.brand,
+      platform: RETURN_PLATFORM_TO_VOC[r.platform] || r.platform,
+      order_no: r.order_no || null,
+      product_id: findReviewProductId(r.product_name, r.brand, products),
+      product_name: r.product_name || '(상품 확인 불가)',
+      voc_type: misship ? '오배송/누락' : '품질',
+      reason_category: misship ? '오배송/누락' : /파손|구멍|찢/.test(text) ? '파손/구멍/올나감' : null,
+      consult_method: '반품·교환',
+      status: '접수',
+      reason_detail: `[${r.kind} ${r.reason_group}] ${[r.reason_raw, r.reason_detail].filter(Boolean).join(' / ')}`,
+      note: RETURN_VOC_NOTE,
+    };
+  });
+  if (!vocRows.length) return null;
+  const { data, error } = await db.from('voc_cases').insert(vocRows).select();
+  if (error) throw new Error('과실 반품·교환 VOC 등록 실패: ' + error.message);
+  return data;
+}
 
 const ORDER_SUMMARY_UNTIL = '2026-06';   // 이 달까지 주문은 order_monthly(요약)에만 있음
 
