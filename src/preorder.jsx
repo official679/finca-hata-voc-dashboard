@@ -467,6 +467,14 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   const [split, setSplit] = useState(order.split || '');
   const [saving, setSaving] = useState(false);
   const setLine = (i, k) => (v) => setLs(prev => prev.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  // 분리배송: 상품 여러 개를 골라 상태를 한 번에 (저장을 눌러야 반영)
+  const [checked, setChecked] = useState(() => new Set());
+  const toggle = (id) => setChecked(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  const allChecked = ls.length > 0 && ls.every(l => checked.has(l.id));
+  const setCheckedStatus = (to) => {
+    setLs(prev => prev.map(l => (checked.has(l.id) ? { ...l, status: to, shipped_on: to === '출고완' ? (l.shipped_on || today()) : null } : l)));
+    setChecked(new Set());
+  };
 
   // 안내 완료: 지연된 예약상품 줄에 다음 차수 안내를 오늘 날짜로 기록
   const markNotice = (method) => setLs(prev => prev.map(l => {
@@ -520,12 +528,27 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
             <label>배송구분 (주문 전체)</label>
             <Select className="" value={split} onChange={setSplit} options={['합배송', '분리배송']} placeholder="선택 안 함" />
           </div>
+          {ls.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={allChecked} onChange={() => setChecked(allChecked ? new Set() : new Set(ls.map(l => l.id)))} /> 전체 선택
+              </label>
+              <span className="muted">{checked.size ? `${checked.size}개 선택 →` : '상품을 골라 상태를 한 번에 바꿔요'}</span>
+              <button className="btn btn-sm" disabled={!checked.size} onClick={() => setCheckedStatus('출고완')}>📦 출고완</button>
+              <button className="btn btn-sm" disabled={!checked.size} onClick={() => setCheckedStatus('출고대기')}>↩ 출고대기</button>
+              <button className="btn btn-sm" disabled={!checked.size} onClick={() => setCheckedStatus('취소')}>취소</button>
+            </div>
+          )}
           {ls.map((l, i) => {
             const e = order.lines[i];
             return (
               <div key={l.id} className="card" style={{ marginBottom: 10, background: '#FAFBFC' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <b>{l.product_name}{l.size && l.size !== '0' ? ` (${l.size})` : ''} × {l.qty}</b>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+                    {ls.length > 1 && <input type="checkbox" checked={checked.has(l.id)} onChange={() => toggle(l.id)} style={{ marginTop: 4 }} />}
+                    <b>{l.product_name}{l.size && l.size !== '0' ? ` (${l.size})` : ''} × {l.qty}</b>
+                    {l.status !== '출고대기' && <span className={'chip' + (l.status === '출고완' ? ' chip-green' : '')}>{l.status}</span>}
+                  </label>
                   <span>{e.prod ? <><StageChip stage={e.stage} sameDay={e.sameDay} /> <span className="muted">안내 {fmtDate(e.seen)} → 현재 {fmtDate(e.current)}</span></> : <span className="muted">일반상품</span>}{e.low && <span className="chip chip-amber" style={{ marginLeft: 6 }}>가용재고 {l.avail}</span>}</span>
                 </div>
                 {e.prod && (
