@@ -114,7 +114,7 @@ async function countUploadsForReport(reportDate, brand) {
   const [from, to] = dataRangeOf(reportDate);
   const start = `${from}T00:00:00+09:00`, end = `${toISODate(addDays(parseDate(to), 1))}T00:00:00+09:00`;
   const [orders, reviews, board, returns] = await Promise.all([
-    fetchAll(() => db.from('order_items').select('id,platform,status,claim_status,order_no,item_no').eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
+    fetchAll(() => db.from('order_items').select('id,platform,source_key,status,claim_status,order_no,item_no').eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
     fetchAll(() => db.from('review_items').select('platform,rating').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     fetchAll(() => db.from('board_items').select('platform,inquiry_type,content').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     // 반품·교환: 접수일 기준 (데일리 파일 = 전일 접수 건, 접수일 칸이 없으면 올린 날의 전날로 저장됨)
@@ -129,14 +129,15 @@ async function countUploadsForReport(reportDate, brand) {
   };
   const seenOrder = new Set(), seenCancel = new Set();
   orders.forEach(r => {
-    const cancelled = /취소/.test(r.status || '');
+    // 사방넷(하타)은 '취소완료'만 취소 (하타는 취소 요청 후 거부가 많음, 2026-10-02 사용자 결정)
+    const cancelled = String(r.source_key || '').startsWith('SB') ? /취소완료/.test(r.status || '') : /취소/.test(r.status || '');
     // 판매처 파일(품목 번호 없음): 한 줄 = 주문 1, 취소 상태면 출고전 취소도 1 (예전 방식)
     if (!r.item_no) { bump(r.platform, 'orders'); if (cancelled) bump(r.platform, 'cancels'); return; }
     // 오클릭·사방넷: 교환 재발송 줄, 사방넷 반품·교환 회수 줄은 새 주문이 아님
     // 오클릭 취소는 '주문' 줄과 짝을 이루는 별도 '취소' 줄로 들어옴
     if (r.claim_status && /교환|회수/.test(r.claim_status)) return;
     const item = `${r.platform}|${r.order_no}|${r.item_no}`;
-    // 사방넷 '취소접수·취소완료'는 원래 주문 줄 자체 → 주문 1 + 취소 1 (오클릭 '취소' 줄은 취소만)
+    // 사방넷 '취소완료'는 원래 주문 줄 자체 → 주문 1 + 취소 1 (오클릭 '취소' 줄은 취소만)
     if (cancelled && !seenCancel.has(item)) { seenCancel.add(item); bump(r.platform, 'cancels'); }
     if ((!cancelled || r.status !== '취소') && !/분실/.test(r.status || '') && !seenOrder.has(item)) { seenOrder.add(item); bump(r.platform, 'orders'); }
   });

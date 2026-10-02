@@ -94,6 +94,8 @@ FILE_FORMATS.push(
 const ORDER_UPLOAD = {
   table: 'order_items',
   linkProducts: false,
+  // 사방넷은 취소·반품이 같은 줄의 주문상태로 바뀜 → 다시 올리면 상태를 새로 (오클릭은 취소가 별도 줄이라 필요 없음)
+  updateStatusOf: (r) => String(r.source_key || '').startsWith('SB'),
   toRow: (r) => ({
     order_no: str(r.order_no), status: str(r.status), claim_status: str(r.claim_status),
     item_no: str(r.item_no), barcode: str(r.barcode),

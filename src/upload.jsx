@@ -362,9 +362,27 @@ function UploadPanel({ configs, onDone, guide }) {
           inserted += data.length;
           newRows.push(...data);
         }
+        // 이미 있던 줄인데 상태가 바뀐 경우 새 상태로 (사방넷: 같은 주문 줄이 출고대기 → 취소완료 등으로 바뀜)
+        let statusUpdated = 0;
+        const recheck = cfg.updateStatusOf ? unique.filter(cfg.updateStatusOf) : [];
+        for (let i = 0; i < recheck.length; i += 200) {
+          setBusy(`바뀐 주문 상태 확인 중... ${Math.min(i + 200, recheck.length).toLocaleString()} / ${recheck.length.toLocaleString()}`);
+          const part = recheck.slice(i, i + 200);
+          const { data: cur, error } = await db.from(cfg.table).select('id,platform,source_key,status')
+            .in('source_key', part.map(r => r.source_key));
+          if (error) throw new Error('주문 상태 확인: ' + error.message);
+          const now = new Map(part.map(r => [r.platform + '|' + r.source_key, r.status]));
+          const changed = cur.filter(c => { const s = now.get(c.platform + '|' + c.source_key); return s && s !== c.status; });
+          for (let j = 0; j < changed.length; j += 10) {
+            const res = await Promise.all(changed.slice(j, j + 10).map(c => db.from(cfg.table).update({ status: now.get(c.platform + '|' + c.source_key) }).eq('id', c.id)));
+            const bad = res.find(x => x.error);
+            if (bad) throw new Error('주문 상태 바꾸기: ' + bad.error.message);
+          }
+          statusUpdated += changed.length;
+        }
         let extra = null;
         if (cfg.afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await cfg.afterInsert(newRows, app); }
-        results.push({ kind, inserted, dup: rows.length - unique.length - sameContent, skipped: unique.length - inserted + sameContent, orderFilled, extra });
+        results.push({ kind, inserted, dup: rows.length - unique.length - sameContent, skipped: unique.length - inserted + sameContent, orderFilled, statusUpdated, extra });
       }
       setResult(results);
       setSheets(null);
@@ -449,6 +467,7 @@ function UploadPanel({ configs, onDone, guide }) {
                 : <>✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b></>}
               {r.skipped > 0 && <> · 이미 있던 {r.skipped.toLocaleString()}건은 건너뜀</>}
               {r.orderFilled > 0 && <> (그중 {r.orderFilled.toLocaleString()}건은 비어 있던 주문번호를 채움)</>}
+              {r.statusUpdated > 0 && <> · 상태가 바뀐 {r.statusUpdated.toLocaleString()}건은 새 상태로 바꿈 (예: 출고대기 → 취소완료)</>}
               {r.dup > 0 && <> · 파일 안 중복 {r.dup.toLocaleString()}건 제외</>}
               {r.extra && <div style={{ marginTop: 4 }}>{r.extra}</div>}
             </div>
