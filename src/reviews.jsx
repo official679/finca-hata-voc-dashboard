@@ -79,6 +79,11 @@ function findReviewProductId(name, brand, products) {
   if (!products || !products.length || !name) return null;
   const exact = productMatcher(products)(name);
   if (exact) return exact;
+  // 옵션(' / FREE')·브랜드 머리말('HaTA ')만 다른 같은 상품 (예: 무신사 'Halter Neck Bikini Set_Sky Blue / FREE' = 'HaTA Halter Neck Bikini Set_Sky Blue')
+  const bare = (n) => normProductName(String(n || '').split(' / ')[0].replace(/^\s*(HaTA|FINCA|핀카|하타)\s+/i, '')).replace(/size\w+$/, '');
+  const b = bare(name);
+  const sameBare = b.length >= 6 && products.find(p => bare(p.product_name) === b);
+  if (sameBare) return sameBare.id;
   // 말머리·옵션·색상 수를 뺀 핵심 이름이 같은 상품 (예: '베이직 에코백 8COLORS' = '베이직 에코백_블랙')
   const want = PRODUCT_BRAND[brand];
   const key = (n) => coreName(n).replace(/\s+/g, '').toLowerCase();

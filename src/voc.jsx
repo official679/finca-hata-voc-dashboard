@@ -98,6 +98,23 @@ const emptyCase = () => ({
   note: '', action_required: '', photos: [], handling: '', department: '', completed_at: '', category: '', sub_category: '',
 });
 
+// 상품 마스터에 없는 이름의 분류 추천: 이름의 단어마다 그 단어가 들어간 같은 브랜드 상품을 모아,
+// 분류가 거의 하나로 모이는(80% 이상, 2개 이상) 단어 중 가장 드문 단어의 분류를 고름 (예: 'Halter' → SW · TP 투피스/셋업)
+function guessCategory(name, products) {
+  const words = [...new Set(coreName(name).toLowerCase().split(/[\s_/,·&+()-]+/).filter(w => w.length >= 2 && !/^\d+$/.test(w)))];
+  let best = null;
+  words.forEach(word => {
+    const hits = products.filter(p => p.category && String(p.product_name || '').toLowerCase().includes(word));
+    if (hits.length < 2) return;
+    const count = {};
+    hits.forEach(p => { const k = `${p.category}|${p.size_gender && p.size_gender !== 'null' ? p.size_gender : ''}`; count[k] = (count[k] || 0) + 1; });
+    const [top, n] = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+    if (n / hits.length < 0.8) return;
+    if (!best || hits.length < best.n) { const [category, sub] = top.split('|'); best = { word, n: hits.length, category, sub }; }
+  });
+  return best;
+}
+
 function VocForm({ initial, onSaved, onCancel }) {
   const { products, productById, codeOptions, setCases } = useApp();
   const toast = useToast();
@@ -125,6 +142,10 @@ function VocForm({ initial, onSaved, onCancel }) {
   const subCategories = useMemo(() => [...new Set(products.filter(p => p.category === form.category).map(p => p.size_gender).filter(v => v && v !== 'null'))].sort(), [products, form.category]);
 
   const withCurrent = (opts, current) => (current && !opts.includes(current) ? [...opts, current] : opts);
+  // 마스터에 없는 상품 → 이름에 같은 단어가 들어간 상품들의 분류를 추천 (자동 적용은 안 함, 버튼으로)
+  const categoryHint = useMemo(
+    () => (matchedProduct || !form.product_name.trim() ? null : guessCategory(form.product_name, brandProducts)),
+    [matchedProduct, form.product_name, brandProducts]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -232,6 +253,12 @@ function VocForm({ initial, onSaved, onCancel }) {
         </> : <>
           {field('대분류', <Select className="" value={form.category} onChange={v => setForm(prev => ({ ...prev, category: v, sub_category: '' }))} options={withCurrent(allCategories, form.category)} placeholder="선택" />)}
           {field('중분류', <Select className="" value={form.sub_category} onChange={set('sub_category')} options={withCurrent(subCategories, form.sub_category)} placeholder={form.category ? '선택' : '대분류 먼저'} />)}
+          {categoryHint && (form.category !== categoryHint.category || form.sub_category !== (categoryHint.sub || '')) && (
+            <div className="hint" style={{ gridColumn: '1 / -1' }}>
+              💡 이름에 <b>'{categoryHint.word}'</b>가 들어간 상품 {categoryHint.n}개는 <b>{categoryHint.category}{categoryHint.sub ? ` · ${categoryHint.sub}` : ''}</b>이에요{' '}
+              <button type="button" className="btn btn-sm" onClick={() => setForm(prev => ({ ...prev, category: categoryHint.category, sub_category: categoryHint.sub || '' }))}>이 분류로 넣기</button>
+            </div>
+          )}
         </>}
         {field('VOC 구분', <Select className="" value={form.voc_type} onChange={set('voc_type')} options={withCurrent(codeOptions('voc_type'), form.voc_type)} placeholder="선택" />)}
         {field('문의 채널', <Select className="" value={form.consult_method} onChange={set('consult_method')} options={withCurrent(codeOptions('consult_method'), form.consult_method)} placeholder="선택" />)}
