@@ -99,20 +99,22 @@ const emptyCase = () => ({
 });
 
 // 상품 마스터에 없는 이름의 분류 추천: 이름의 단어마다 그 단어가 들어간 같은 브랜드 상품을 모아,
-// 분류가 거의 하나로 모이는(80% 이상, 2개 이상) 단어 중 가장 드문 단어의 분류를 고름 (예: 'Halter' → SW · TP 투피스/셋업)
+// 분류가 거의 하나로 모이는(80% 이상, 2개 이상) 단어를 고름. 상품 종류는 보통 이름 끝에 오므로 뒤 단어부터 봄
+// (예: 'Halter Neck Bikini Set' → SW · TP 투피스/셋업). 무늬·색·소재 같은 꾸밈말은 건너뜀 (패턴 → 양말로 잘못 가는 것 방지)
+const GUESS_SKIP = /^(패턴|패턴즈|patterns?|스트라이프|stripe|체크|check|도트|dot|컬러|colors?|빈티지|vintage|베이직|basic|클래식|classic|코튼|cotton|순면|단독|기프트|gift|신규|new|리뉴얼|골라담기|핀카|hata|finca|하타)$/i;
 function guessCategory(name, products) {
-  const words = [...new Set(coreName(name).toLowerCase().split(/[\s_/,·&+()-]+/).filter(w => w.length >= 2 && !/^\d+$/.test(w)))];
-  let best = null;
-  words.forEach(word => {
+  const words = [...new Set(coreName(name).toLowerCase().split(/[\s_/,·&+()-]+/).filter(w => w.length >= 2 && !/^\d+$/.test(w) && !GUESS_SKIP.test(w)))].reverse();
+  for (const word of words) {
     const hits = products.filter(p => p.category && String(p.product_name || '').toLowerCase().includes(word));
-    if (hits.length < 2) return;
+    if (hits.length < 2) continue;
     const count = {};
     hits.forEach(p => { const k = `${p.category}|${p.size_gender && p.size_gender !== 'null' ? p.size_gender : ''}`; count[k] = (count[k] || 0) + 1; });
     const [top, n] = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
-    if (n / hits.length < 0.8) return;
-    if (!best || hits.length < best.n) { const [category, sub] = top.split('|'); best = { word, n: hits.length, category, sub }; }
-  });
-  return best;
+    if (n / hits.length < 0.8) continue;
+    const [category, sub] = top.split('|');
+    return { word, n: hits.length, category, sub };
+  }
+  return null;
 }
 
 function VocForm({ initial, onSaved, onCancel }) {
