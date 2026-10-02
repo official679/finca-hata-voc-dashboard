@@ -151,8 +151,9 @@ async function faultReturnsToVoc(rows, products) {
       product_id: findReviewProductId(r.product_name, r.brand, products),
       product_name: r.product_name || '(상품 확인 불가)',
       voc_type: misship ? '오배송/누락' : '품질',
-      reason_category: misship ? '오배송/누락' : /파손|구멍|찢/.test(text) ? '파손/구멍/올나감' : null,
-      consult_method: '반품·교환',
+      reason_category: misship ? '오배송/누락' : /얼룩|이염|오염|물빠짐/.test(text) ? '이염/오염/물빠짐' : /박음질|봉제|실밥/.test(text) ? '박음질불량'
+        : /지퍼|단추|스냅/.test(text) ? '부자재 불량(지퍼·단추·스냅)' : /프린팅|인쇄/.test(text) ? '프린팅불량' : /구멍|찢|올나감|뜯어짐/.test(text) ? '파손/구멍/올나감' : null,
+      consult_method: '사이트접수',   // 판매처 사이트에서 접수한 반품·교환 (사용자가 만든 채널)
       status: '접수',
       reason_detail: `[${r.kind} ${r.reason_group}] ${[r.reason_raw, r.reason_detail].filter(Boolean).join(' / ')}`,
       note: RETURN_VOC_NOTE,
