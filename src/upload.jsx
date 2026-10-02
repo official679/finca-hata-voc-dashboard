@@ -324,19 +324,32 @@ function UploadPanel({ configs, onDone, guide }) {
         // 같은 파일 안의 중복 제거
         let unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
         // 이미 저장된 것과 같은 날·같은 판매처·같은 내용이면 건너뜀 (다른 형식의 파일로 같은 리뷰를 다시 올린 경우)
-        let sameContent = 0;
+        let sameContent = 0, orderFilled = 0;
         if (cfg.dedupeByContent && unique.length) {
           setBusy(`${KIND_LABEL[kind]} 이미 있는지 확인 중...`);
           const dayOf = (iso) => (iso ? toISODate(new Date(iso)) : '');
           const norm = (s) => String(s || '').replace(/\s+/g, '').slice(0, 60);
           const days = unique.map(r => dayOf(r.written_at)).filter(Boolean).sort();
           if (days.length) {
-            const existing = await fetchAll(() => db.from(cfg.table).select('platform,written_at,content')
+            const existing = await fetchAll(() => db.from(cfg.table).select('id,platform,written_at,content,order_no')
               .gte('written_at', `${days[0]}T00:00:00+09:00`).lte('written_at', `${days[days.length - 1]}T23:59:59+09:00`).order('id'));
-            const seen = new Set(existing.map(e => `${e.platform}|${dayOf(e.written_at)}|${norm(e.content)}`));
+            const seen = new Map(existing.map(e => [`${e.platform}|${dayOf(e.written_at)}|${norm(e.content)}`, e]));
             const before = unique.length;
-            unique = unique.filter(r => !norm(r.content) || !seen.has(`${r.platform}|${dayOf(r.written_at)}|${norm(r.content)}`));
+            const fill = [];   // 이미 있는 리뷰인데 주문번호가 비어 있으면 이번 파일의 주문번호로 채움
+            unique = unique.filter(r => {
+              const e = norm(r.content) && seen.get(`${r.platform}|${dayOf(r.written_at)}|${norm(r.content)}`);
+              if (!e) return true;
+              if (!e.order_no && r.order_no) { fill.push({ id: e.id, order_no: r.order_no }); e.order_no = r.order_no; }
+              return false;
+            });
             sameContent = before - unique.length;
+            for (let i = 0; i < fill.length; i += 10) {
+              setBusy(`이미 있는 리뷰에 주문번호 채우는 중... ${Math.min(i + 10, fill.length).toLocaleString()} / ${fill.length.toLocaleString()}`);
+              const res = await Promise.all(fill.slice(i, i + 10).map(f => db.from(cfg.table).update({ order_no: f.order_no }).eq('id', f.id)));
+              const bad = res.find(x => x.error);
+              if (bad) throw new Error('주문번호 채우기: ' + bad.error.message);
+            }
+            orderFilled = fill.length;
           }
         }
         let inserted = 0;
@@ -351,7 +364,7 @@ function UploadPanel({ configs, onDone, guide }) {
         }
         let extra = null;
         if (cfg.afterInsert && newRows.length) { setBusy('후속 처리 중...'); extra = await cfg.afterInsert(newRows, app); }
-        results.push({ kind, inserted, dup: rows.length - unique.length - sameContent, skipped: unique.length - inserted + sameContent, extra });
+        results.push({ kind, inserted, dup: rows.length - unique.length - sameContent, skipped: unique.length - inserted + sameContent, orderFilled, extra });
       }
       setResult(results);
       setSheets(null);
@@ -435,6 +448,7 @@ function UploadPanel({ configs, onDone, guide }) {
                 ? <>✅ <b>주문 요약</b> {r.lines.toLocaleString()}줄 → 월·상품별 <b>{r.inserted.toLocaleString()}줄</b>로 묶어 저장 (아래 '요약으로 저장한 지난 주문'에서 확인)</>
                 : <>✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b></>}
               {r.skipped > 0 && <> · 이미 있던 {r.skipped.toLocaleString()}건은 건너뜀</>}
+              {r.orderFilled > 0 && <> (그중 {r.orderFilled.toLocaleString()}건은 비어 있던 주문번호를 채움)</>}
               {r.dup > 0 && <> · 파일 안 중복 {r.dup.toLocaleString()}건 제외</>}
               {r.extra && <div style={{ marginTop: 4 }}>{r.extra}</div>}
             </div>
