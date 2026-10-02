@@ -91,19 +91,38 @@ FILE_FORMATS.push(
 );
 
 // 데이터 업로드 화면에서 쓰는 주문 저장 설정 (고객 정보 칸은 저장하지 않음, 상품 마스터 연결 없음)
+// 출고전 취소인 줄: 사방넷(하타)은 '취소완료'만 (하타는 취소 요청 후 거부가 많음, 2026-10-02), 그 밖엔 상태에 '취소'
+const isCancelRow = (r) => String(r.source_key || '').startsWith('SB') ? /취소완료/.test(r.status || '') : /취소/.test(r.status || '');
+// 취소를 처음 확인한 데이터 날짜 = 올린 날의 전날 (CS 데일리는 전일 데이터). 늦게 확인된 취소도 지난 보고를 바꾸지 않고 그날 보고에 들어감
+// 8일보다 오래된 주문(지난 기간을 한꺼번에 다시 올릴 때)은 주문 날짜 그대로 → 오늘 보고에 몰리지 않게
+function cancelSeenDate(orderDate) {
+  const y = toISODate(addDays(new Date(), -1));
+  if (!orderDate) return y;
+  if (orderDate > y) return orderDate;
+  return orderDate >= toISODate(addDays(new Date(), -9)) ? y : orderDate;
+}
+
 const ORDER_UPLOAD = {
   table: 'order_items',
   linkProducts: false,
   // 사방넷은 취소·반품이 같은 줄의 주문상태로 바뀜 → 다시 올리면 상태를 새로 (오클릭은 취소가 별도 줄이라 필요 없음)
   updateStatusOf: (r) => String(r.source_key || '').startsWith('SB'),
-  toRow: (r) => ({
-    order_no: str(r.order_no), status: str(r.status), claim_status: str(r.claim_status),
-    item_no: str(r.item_no), barcode: str(r.barcode),
-    product_name: str(r.product_name), option_text: str(r.option_text), qty: r.qty,
-    ordered_at: r.when ? r.when.iso : null, order_date: r.when ? r.when.key.slice(0, 10) : null,
-    cancel_reason: str(r.cancel_reason), return_reason: str(r.return_reason),
-    ...classifyItem(r.product_name, r.option_text),
-  }),
+  // 상태가 바뀌어 처음으로 취소가 된 줄은 확인한 날도 같이 기록
+  statusPatch: (row, cur) => ({ status: row.status,
+    ...(isCancelRow(row) && !isCancelRow(cur) && !cur.cancel_seen_date ? { cancel_seen_date: cancelSeenDate(cur.order_date) } : {}) }),
+  toRow: (r) => {
+    const order_date = r.when ? r.when.key.slice(0, 10) : null;
+    return {
+      order_no: str(r.order_no), status: str(r.status), claim_status: str(r.claim_status),
+      item_no: str(r.item_no), barcode: str(r.barcode),
+      product_name: str(r.product_name), option_text: str(r.option_text), qty: r.qty,
+      ordered_at: r.when ? r.when.iso : null, order_date,
+      cancel_reason: str(r.cancel_reason), return_reason: str(r.return_reason),
+      ...classifyItem(r.product_name, r.option_text),
+    };
+  },
+  // 새로 저장하는 취소 줄에 확인한 날 기록 (source_key가 붙은 뒤라 사방넷인지 알 수 있음). 요약 저장·판매처 파일 등 품목 번호 없는 줄은 제외
+  finishRow: (row) => (row.item_no && isCancelRow(row) ? { ...row, cancel_seen_date: cancelSeenDate(row.order_date) } : row),
 };
 
 // 지난 주문(상반기 등)은 한 줄씩이 아니라 월·브랜드·판매처·상품별 개수로 묶어서 저장 (order_monthly, 15 SQL)

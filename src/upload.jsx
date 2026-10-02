@@ -319,7 +319,7 @@ function UploadPanel({ configs, onDone, guide }) {
           ...cfg.toRow(r), brand: r.brand, platform: r.platform,
           source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
           ...(cfg.linkProducts === false ? {} : { product_id: match(r.product_name) }),
-        }));
+        })).map(cfg.finishRow || (x => x));
         if (!rows.length) continue;
         // 같은 파일 안의 중복 제거
         let unique = [...new Map(rows.map(r => [r.platform + '|' + r.source_key, r])).values()];
@@ -368,13 +368,16 @@ function UploadPanel({ configs, onDone, guide }) {
         for (let i = 0; i < recheck.length; i += 200) {
           setBusy(`바뀐 주문 상태 확인 중... ${Math.min(i + 200, recheck.length).toLocaleString()} / ${recheck.length.toLocaleString()}`);
           const part = recheck.slice(i, i + 200);
-          const { data: cur, error } = await db.from(cfg.table).select('id,platform,source_key,status')
+          const { data: cur, error } = await db.from(cfg.table).select('id,platform,source_key,status,order_date,cancel_seen_date')
             .in('source_key', part.map(r => r.source_key));
           if (error) throw new Error('주문 상태 확인: ' + error.message);
-          const now = new Map(part.map(r => [r.platform + '|' + r.source_key, r.status]));
-          const changed = cur.filter(c => { const s = now.get(c.platform + '|' + c.source_key); return s && s !== c.status; });
+          const now = new Map(part.map(r => [r.platform + '|' + r.source_key, r]));
+          const changed = cur.filter(c => { const r = now.get(c.platform + '|' + c.source_key); return r && r.status && r.status !== c.status; });
           for (let j = 0; j < changed.length; j += 10) {
-            const res = await Promise.all(changed.slice(j, j + 10).map(c => db.from(cfg.table).update({ status: now.get(c.platform + '|' + c.source_key) }).eq('id', c.id)));
+            const res = await Promise.all(changed.slice(j, j + 10).map(c => {
+              const r = now.get(c.platform + '|' + c.source_key);
+              return db.from(cfg.table).update(cfg.statusPatch ? cfg.statusPatch(r, c) : { status: r.status }).eq('id', c.id);
+            }));
             const bad = res.find(x => x.error);
             if (bad) throw new Error('주문 상태 바꾸기: ' + bad.error.message);
           }
