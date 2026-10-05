@@ -78,6 +78,9 @@ const FILE_FORMATS = [
     map: (r) => ({ brand: normBrand(r['브랜드']), platform: 'W컨셉', product_name: r['상품명'], rating: num(r['평점']), content: r['제목'], when: parseWhen(r['작성일']), order_no: r['주문번호'] }) },
   { kind: 'review', label: '무신사 리뷰', headers: ['상품명', '후기 내용', '평점', '등록일시'],
     map: (r) => ({ platform: '무신사', product_name: r['상품명'], rating: num(r['평점']), content: r['후기 내용'], when: parseWhen(r['등록일시']) }) },
+  // 직접 정리한 리뷰 (상품명·후기내용·별점·작성일자) — 판매처는 '판매처' 칸, 없으면 시트 이름('무신사'·'w컨셉' 등)
+  { kind: 'review', label: '직접 정리한 리뷰 (공통 양식)', headers: ['상품명', '후기내용', '별점', '작성일자'], template: ['판매처', '브랜드', '상품명', '후기내용', '별점', '작성일자', '주문번호'],
+    map: (r) => ({ brand: normBrand(r['브랜드']), platform: normPlatform(r['판매처']), product_name: r['상품명'], rating: num(r['별점']), content: r['후기내용'], when: parseWhen(r['작성일자']), order_no: r['주문번호'] }) },
 
   { kind: 'board', label: '아임웹 게시판', headers: ['제목', '내용', '작성시각', '답글'],
     map: (r) => ({ platform: '아임웹', product_name: r['상품명'], option_text: r['옵션'], title: r['제목'], content: r['내용'], when: parseWhen(r['작성시각']), answer: r['답글'], answered: parseWhen(r['답글 작성시간']) }) },
@@ -136,6 +139,8 @@ async function readUploadFile(file, kind) {
           const obj = Object.fromEntries(header.map((k, i) => [k, r[i]]));
           const m = format.map(obj);
           // 형식에 브랜드가 없으면: 시트의 '브랜드'·'브랜드명' 칸 → 상품명이 HaTA로 시작하면 하타 → 시트 이름('하타 아임웹' 등) (그래도 없으면 파일 이름·선택)
+          // 판매처 칸이 없는 직접 정리 시트: 시트 이름('무신사'·'w컨셉'·'하타 아임웹' 등)에서 판매처
+          if (m.platform === '') m.platform = Object.entries(PLATFORM_NAMES).find(([k]) => name.toLowerCase().includes(k))?.[1] || '';
           if (!m.brand) m.brand = normBrand(obj['브랜드'] || obj['브랜드명'] || obj['브랜드 명']) || (/^\s*(\[[^\]]*\]\s*)*hata\b/i.test(String(m.product_name || '')) ? '하타' : '') || normBrand(name);
           return m;
         })
