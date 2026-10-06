@@ -127,6 +127,10 @@ async function countUploadsForReport(reportDate, brand) {
   const [from, to] = dataRangeOf(reportDate);
   const start = `${from}T00:00:00+09:00`, end = `${toISODate(addDays(parseDate(to), 1))}T00:00:00+09:00`;
   const ORDER_COLS = 'id,platform,source_key,status,claim_status,order_no,item_no,cancel_seen_date';
+  // 보고일(또는 그 뒤)에 올린 주문 파일이 없으면 주문·취소는 채우지 않음
+  //   (전날 아침 파일에 섞여 있던 일부 주문만 잡혀 반쪽짜리 숫자가 되는 것 방지, 2026-10-07)
+  const { data: fresh } = await db.from('order_items').select('id').eq('brand', brand).gte('created_at', `${reportDate}T00:00:00+09:00`).limit(1);
+  const ordersFresh = !!(fresh && fresh.length);
   const [orders, lateCancels, reviews, board, returns] = await Promise.all([
     fetchAll(() => db.from('order_items').select(ORDER_COLS).eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
     // 이 기간에 처음 확인된 취소 (주문 날짜는 더 이전일 수 있음, 19 SQL)
@@ -178,7 +182,8 @@ async function countUploadsForReport(reportDate, brand) {
   });
   return {
     byPlatform, others: [...others], returnPlatforms: [...returnPlatforms],
-    has: { orders: orders.length > 0, reviews: reviews.length > 0, board: inquiries.length > 0, returns: returns.length > 0 },
+    ordersStale: !ordersFresh && orders.length > 0,
+    has: { orders: ordersFresh && orders.length > 0, reviews: reviews.length > 0, board: inquiries.length > 0, returns: returns.length > 0 },
     totals: { orders: Object.values(byPlatform).reduce((a, c) => a + (c.orders || 0), 0), reviews: reviews.length, board: inquiries.length, returns: returns.length },
   };
 }
@@ -242,6 +247,7 @@ function DailyEntryPage() {
         .map(([p, c]) => `${p}(주문 ${c.orders || 0}·리뷰 ${c.reviews_total || 0}·게시판 ${c.board_total || 0})`);
       setFillNote([
         filled.length ? `✅ ${dataLabel(date)} 데이터로 채웠어요: ${filled.join(' · ')}. 확인 후 저장을 눌러주세요.` : `${dataLabel(date)}에 해당하는 업로드 데이터가 없어요.`,
+        got.ordersStale ? `⚠️ 오늘(${fmtDate(date)}) 올린 ${brand === '하타' ? '사방넷' : '오클릭'} 주문 파일이 아직 없어서 주문·출고전 취소는 채우지 않았어요. 주문 파일을 먼저 올리고 다시 눌러 주세요.` : '',
         skipped.length ? `올린 데이터가 없어서 그대로 둔 항목: ${skipped.join(', ')}` : '',
         got.has.orders && CANCEL_MANUAL_BRANDS.includes(brand) ? '출고전 취소는 판매처 화면 숫자로 직접 입력해 주세요 (자동 채우기는 주문건만 채워요).' : '',
         got.has.orders && !CANCEL_MANUAL_BRANDS.includes(brand) ? '출고전 취소 = 오클릭·사방넷에 들어온 뒤 취소된 상품 수 (들어오기 전에 바로 취소된 주문은 주문건·취소 모두에서 빠져요).' : '',
