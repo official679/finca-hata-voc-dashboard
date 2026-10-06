@@ -156,8 +156,30 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
   ];
   const table = ['| 항목 | 핀카 전주 → 금주 | 핀카 증감 | 하타 전주 → 금주 | 하타 증감 |', '| --- | --- | --- | --- | --- |',
     ...rows.map(([label, f]) => `| ${label} | ${[...f('핀카'), ...f('하타')].join(' | ')} |`)].join('\n');
+  // 주간 요약: 브랜드별 한 줄 + 크게 바뀐 것 (주문 ±20%·문의 ±20%(전주 10건 이상), 취소·반품교환율 ±1%p 이상, 부정 리뷰 +3건 이상)
+  const dayCount = (r) => (r ? Math.round((parseDate(r[1]) - parseDate(r[0])) / 86400000) + 1 : 0);
+  const [cd, pd] = [dayCount(ca), dayCount(pa)];
+  const pctOf = (p, c) => (p ? `${c - p >= 0 ? '+' : ''}${((c - p) / p * 100).toFixed(0)}%` : '-');
+  const summary = ['핀카', '하타'].map(b => {
+    const [p, c] = S[b];
+    if (!c.orders && !p.orders) return `  - **${b}**: 데이터 없음`;
+    const inq = (s) => s.board_total + s.ht_total + s.call_in;
+    const r = (s, f) => rate(f(s), s.orders) || 0;
+    const [rcp, rcc] = [r(p, returnsExchanges), r(c, returnsExchanges)], [ccp, ccc] = [r(p, s => s.cancels), r(c, s => s.cancels)];
+    const avg = cd && pd && cd !== pd ? ` (하루 평균 ${Math.round(p.orders / pd)} → ${Math.round(c.orders / cd)}건)` : '';
+    const line = `  - **${b}**: 주문 ${n(c.orders)}건 ${pctOf(p.orders, c.orders)}${avg} · 반품·교환율 ${rcc.toFixed(1)}% · 취소율 ${ccc.toFixed(1)}% · 문의 ${n(inq(c))}건 ${pctOf(inq(p), inq(c))} · 부정 리뷰 ${c.reviews_negative}건`;
+    const flags = [];
+    if (rcc - rcp >= 1) flags.push(`반품·교환율 **+${(rcc - rcp).toFixed(1)}%p** 상승`);
+    if (rcp - rcc >= 1) flags.push(`반품·교환율 ${(rcp - rcc).toFixed(1)}%p 개선`);
+    if (ccc - ccp >= 1) flags.push(`출고전 취소율 **+${(ccc - ccp).toFixed(1)}%p** 상승`);
+    if (inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) flags.push(`문의 ${inq(c) > inq(p) ? '**증가**' : '감소'} (${n(inq(p))} → ${n(inq(c))}건)`);
+    if (p.orders >= 10 && Math.abs(c.orders - p.orders) / p.orders >= 0.2 && !avg) flags.push(`주문 ${c.orders > p.orders ? '증가' : '**감소**'} (${pctOf(p.orders, c.orders)})`);
+    if (c.reviews_negative - p.reviews_negative >= 3) flags.push(`부정 리뷰 **${p.reviews_negative} → ${c.reviews_negative}건**`);
+    return line + (flags.length ? `\n    - 눈여겨볼 점: ${flags.join(' · ')}` : '');
+  }).join('\n');
+  const daysNote = cd && pd && cd !== pd ? `\n  - ※ 금주 ${cd}일치 · 전주 ${pd}일치 데이터라 건수는 하루 평균으로도 비교해 주세요` : '';
   // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
-  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${cur.label})\n${reviewVoc || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
+  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약** (자동, 필요하면 고쳐 주세요)\n${summary}${daysNote}\n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${cur.label})\n${reviewVoc || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
 }
 
 // ---------- 데이터 ----------
