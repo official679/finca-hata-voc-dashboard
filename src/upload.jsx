@@ -67,7 +67,8 @@ const FILE_FORMATS = [
   { kind: 'review', label: '29CM 리뷰', headers: ['front_brand_name', 'item_name', 'point', 'contents', 'insert_timestamp'],
     map: (r) => ({ brand: normBrand(r.front_brand_name), platform: '29CM', product_name: r.item_name, rating: num(r.point), content: r.contents, when: parseWhen(r.insert_timestamp), order_no: r.order_serial }) },
   { kind: 'review', label: '29CM 리뷰 (파트너 화면)', headers: ['리뷰번호', '상품명', '별점', '리뷰 내용', '등록일시'],
-    map: (r) => ({ platform: '29CM', product_name: r['상품명'], rating: num(r['별점']), content: r['리뷰 내용'], when: parseWhen(r['등록일시']), order_no: r['주문번호'] }) },
+    // 핀카·하타가 한 파일에 섞여 나옴: 29CM 하타 상품명엔 항상 'HaTA'가 들어감 → 없으면 핀카 (브랜드 선택 칸이 이 시트까지 덮어쓰지 않게, 2026-10-06)
+    map: (r) => ({ brand: /hata/i.test(String(r['상품명'] || '')) ? '하타' : '핀카', platform: '29CM', product_name: r['상품명'], rating: num(r['별점']), content: r['리뷰 내용'], when: parseWhen(r['등록일시']), order_no: r['주문번호'] }) },
   { kind: 'review', label: '아임웹 리뷰', headers: ['리뷰작성일', '리뷰본문', '상품명', '리뷰별점'],
     map: (r) => ({ platform: '아임웹', product_name: r['상품명'], rating: num(r['리뷰별점']), content: r['리뷰본문'], when: parseWhen(r['리뷰작성일']), order_no: r['주문번호'] }) },
   // 아임웹 리뷰를 게시판 모양으로 받은 파일 (하타) · 작성자·주문자 연락처 등은 읽지 않음
