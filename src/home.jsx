@@ -136,7 +136,9 @@ function HomePage() {
           items={weeks.map(w => ({ label: `${w.label}~`, bar: w.s.orders, line: ratio(returnsExchanges(w.s), w.s.orders) }))} />
         <div className="card">
           <div className="card-title">과실 VOC 사유 <small>최근 30일 · {faults30.length}건 {link('report')}</small></div>
-          <Bars items={countBy(faults30, x => x.reason_category).slice(0, 6)} color="var(--danger)" empty="최근 30일 과실 VOC가 없어요" />
+          {/* 막대를 누르면 그 사유의 과실 VOC 목록으로 ((미입력) 포함) */}
+          <Bars items={countBy(faults30, x => x.reason_category).slice(0, 6)} color="var(--danger)" empty="최근 30일 과실 VOC가 없어요"
+            onPick={(label) => { location.hash = `#/voc-list?${new URLSearchParams({ brand, from: since30, fault: '1', reason: label }).toString()}`; }} />
         </div>
         <div className="card">
           <div className="card-title">재입고 문의 많은 상품 <small>최근 90일 · 리오더 검토{unlinkedRestock ? ` · 상품 못 찾은 ${unlinkedRestock}건 제외` : ''} {link('board')}</small></div>

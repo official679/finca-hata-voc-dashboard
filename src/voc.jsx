@@ -349,9 +349,14 @@ function downloadCsv(filename, header, rows) {
   URL.revokeObjectURL(a.href);
 }
 
+const REASON_EMPTY = '(미입력)';   // 사유 카테고리를 안 넣은 VOC (리뷰에서 자동 등록된 건 등)
+
 function VocListPage({ initialFilter }) {
   const { cases, codeOptions, productById, products } = useApp();
-  const [f, setF] = useState({ from: '', to: '', brand: '', handler: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '', ...initialFilter });
+  // 다른 화면에서 조건을 넘겨 열기 (예: 메인 '과실 VOC 사유' 막대 → #/voc-list?brand=핀카&from=…&fault=1&reason=(미입력))
+  const EMPTY_FILTER = { from: '', to: '', brand: '', handler: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', fault: '', q: '' };
+  const urlFilter = useMemo(() => Object.fromEntries([...new URLSearchParams(location.hash.split('?')[1] || '')].filter(([k]) => k in EMPTY_FILTER)), []);
+  const [f, setF] = useState({ ...EMPTY_FILTER, ...initialFilter, ...urlFilter });
   const lineOptions = useMemo(() => [...new Set(products.map(p => p.line_type).filter(Boolean))].sort(), [products]);
   const [editing, setEditing] = useState(null);
   const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
@@ -362,7 +367,7 @@ function VocListPage({ initialFilter }) {
       (!f.from || c.received_date >= f.from) && (!f.to || c.received_date <= f.to) &&
       (!f.brand || c.brand === f.brand) && (!f.handler || c.handler === f.handler) && (!f.platform || c.platform === f.platform) && (!f.channel || c.consult_method === f.channel) &&
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
-      (!f.reason || c.reason_category === f.reason) && (!f.category || caseCategory(c, productById) === f.category) &&
+      (!f.reason || (f.reason === REASON_EMPTY ? !c.reason_category : c.reason_category === f.reason)) && (!f.fault || isFault(c.voc_type)) && (!f.category || caseCategory(c, productById) === f.category) &&
       (!f.line || caseLineType(c, productById) === f.line) &&
       (!f.action || (f.action === '__any' ? !!c.action_required : c.action_required === f.action)) &&
       matchQuery(q, caseProductName(c, productById), c.handler, c.order_no, c.orderer, c.receiver, c.reason_detail, c.note, c.voc_type, c.reason_category));
@@ -420,11 +425,12 @@ function VocListPage({ initialFilter }) {
           <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
           <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
           {lineOptions.length > 0 && <Select value={f.line} onChange={set('line')} options={lineOptions} placeholder="추가분류 전체" />}
-          <Select value={f.reason} onChange={set('reason')} options={codeOptions('reason', true)} placeholder="사유 전체" />
+          <Select value={f.reason} onChange={set('reason')} options={[...codeOptions('reason', true), REASON_EMPTY]} placeholder="사유 전체" />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><input type="checkbox" checked={!!f.fault} onChange={e => set('fault')(e.target.checked ? '1' : '')} /> 과실만</label>
           <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
           {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
           <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·처리자·내용 검색" />
-          {hasFilter && <button className="btn-link" onClick={() => setF({ from: '', to: '', brand: '', handler: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', q: '' })}>필터 초기화</button>}
+          {hasFilter && <button className="btn-link" onClick={() => setF(EMPTY_FILTER)}>필터 초기화</button>}
         </div>
       </div>
       <div className="card" style={{ padding: 0 }}>
