@@ -29,6 +29,8 @@ const retStr = (v) => (v === undefined || v === null ? '' : String(v).trim());
 const retDateFromNo = (no) => { const m = retStr(no).match(/(20\d{2})(\d{2})(\d{2})/); return m ? `${m[1]}-${m[2]}-${m[3]}` : null; };
 const retDate = (v) => { const w = parseWhen(v); return w ? w.key.slice(0, 10) : null; };
 const retClean = (t) => { t = retStr(t); return /<|font-|sans-serif|href=/.test(t) ? '' : t.slice(0, 300); };
+// 29CM 파일에 '상품명'(·'옵션') 칸을 넣으면 그 상품으로 저장 (주문번호로 찾으면 여러 상품 주문은 어느 상품인지 몰라서, 2026-10-07)
+const given29 = (r) => { const n = retStr(r['상품명']); return n ? { given_product: n, given_option: retStr(r['옵션'] || r['옵션명'] || r['옵션정보']) } : {}; };
 const RETURN_FORMATS = [
   // 직접 정리한 반품·교환 (공통 양식): 파일로 안 받아지는 건(아임웹 교환 등)을 화면 보고 옮겨 적을 때
   { kind: 'return', label: '직접 정리한 반품·교환 (공통 양식)', headers: ['판매처', '구분', '주문번호', '상품명', '사유'],
@@ -48,7 +50,7 @@ const RETURN_FORMATS = [
     map: (r) => ({ key: /철회/.test(retStr(r['CS 처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}`,
       brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']),
       reason_raw: retStr(r[col]), reason_detail: retClean(r['상세 사유'] || r['상세사유']), claim_status: retStr(r['CS 처리상태']),
-      claim_date: retDate(r[`${kind} 접수일`] || r[`${kind}접수일`] || r['접수일']), needs_product: true, when: {} }),
+      claim_date: retDate(r[`${kind} 접수일`] || r[`${kind}접수일`] || r['접수일']), ...given29(r), needs_product: true, when: {} }),
   })),
   // 29CM 데일리 반품·교환 정리 파일 (처리상태·주문번호·반품사유/교환사유·주문자·반품접수일/교환접수일·브랜드, 불량이면 '상세사유' 칸 추가)
   // 같은 반품이 접수→수거중→완료로 여러 날 올라와도 주문번호로 묶여서 한 번만 저장 · 주문자 이름은 읽지 않음
@@ -57,7 +59,7 @@ const RETURN_FORMATS = [
     map: (r) => ({ key: /철회/.test(retStr(r['처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}`,
       brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']),
       reason_raw: retStr(r[col]), reason_detail: retClean(r['상세사유'] || r['상세 사유'] || r[`${kind} 상세사유`]), claim_status: retStr(r['처리상태']),
-      claim_date: retDate(r[dateCol] || r['접수일']), needs_product: true, when: {} }),
+      claim_date: retDate(r[dateCol] || r['접수일']), ...given29(r), needs_product: true, when: {} }),
   })),
   // 아임웹: 주문 내역 중 반품사유가 있는 줄 = 반품 (주문 파일과 칸이 같아서 반품사유 없는 줄은 건너뜀)
   { kind: 'return', label: '아임웹 반품', headers: ['판매채널', '주문번호', '구매수량', '상품명', '반품사유'],
@@ -106,7 +108,33 @@ async function prepareReturns(rows) {
   lines.forEach(l => { if (!byNo.has(l.order_no)) byNo.set(l.order_no, []); byNo.get(l.order_no).push(l); });
   const out = [];
   const seen = new Set();
+  // 파일에 상품명이 있는 줄: 예전에 '(상품 확인 불가)'로 저장된 같은 접수 건이 있으면 그 줄에 상품만 채우고, 상품이 이미 있으면 건너뜀 (중복 방지)
+  const givenRows = rows.filter(r => r.needs_product && r.given_product);
+  const existing = new Map();
+  for (const r of givenRows) {
+    if (existing.has(r.key)) continue;
+    const { data } = await db.from('return_items').select('id,product_name,option_text,source_key').eq('platform', '29CM').like('source_key', `${r.key}|%`);
+    existing.set(r.key, data || []);
+  }
+  const fillIds = [], usedIds = new Set();
   rows.forEach(r => {
+    if (r.needs_product && r.given_product) {
+      const ex = existing.get(r.key) || [];
+      const same = ex.find(e => !usedIds.has(e.id) && e.product_name === r.given_product && (e.option_text || '') === (r.given_option || ''));
+      if (same) { usedIds.add(same.id); return; }   // 이미 이 상품으로 저장됨
+      const blank = ex.find(e => !e.product_name && !fillIds.some(f => f.id === e.id));
+      if (blank) { fillIds.push({ id: blank.id, product_name: r.given_product, option_text: r.given_option || null }); return; }
+      // 예전에 주문번호로 상품을 찾아 저장한 줄(오클릭 이름이라 글자가 다름)이 남아 있으면 그 줄로 봄
+      const matched = ex.find(e => e.product_name && !usedIds.has(e.id));
+      if (matched) { usedIds.add(matched.id); return; }
+      const key = `${r.key}|p|${r.given_product}|${r.given_option || ''}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const l = (byNo.get(r.order_no) || [])[0];
+      out.push({ ...r, key, brand: r.brand || (l && l.brand), product_name: r.given_product, option_text: r.given_option || null,
+        qty: 1, order_date: (l && l.order_date) || retDateFromNo(r.order_no) });
+      return;
+    }
     if (!r.needs_product) { out.push(r); return; }
     const all = (byNo.get(r.order_no) || []).filter(l => !r.brand || l.brand === r.brand);
     const kindRe = new RegExp(r.ret_kind);
@@ -125,6 +153,10 @@ async function prepareReturns(rows) {
         qty: l ? l.qty || 1 : 1, order_date: (l && l.order_date) || retDateFromNo(r.order_no) });
     });
   });
+  for (const f of fillIds) {
+    const { error } = await db.from('return_items').update({ product_name: f.product_name, option_text: f.option_text, category: classifyItem(f.product_name, f.option_text).category }).eq('id', f.id);
+    if (error) throw error;
+  }
   return out;
 }
 
