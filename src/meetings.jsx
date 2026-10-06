@@ -103,7 +103,8 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
   const inWeek = (iso, f, t) => { const d = toISODate(new Date(iso)); return d >= f && d <= t; };
   const top = (list, n = 3) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => `${k} ${c}건`).join(', ') || '-'; };
   const short = (name) => coreName(name || '').slice(0, 30);
-  return ['핀카', '하타'].map(brand => {
+  const info = {};   // 주간 요약 문장용 (부정 리뷰 증가·주요 불만·과실 VOC)
+  const text = ['핀카', '하타'].map(brand => {
     const cr = reviews.filter(r => r.brand === brand && inWeek(r.written_at, cf, ct));
     const pr = reviews.filter(r => r.brand === brand && !inWeek(r.written_at, cf, ct));
     const neg = cr.filter(r => r.rating !== null && r.rating <= negMax);
@@ -119,6 +120,9 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const quote = pos.filter(r => r.rating === 5 && reviewThemes(r.content, false).length && !reviewThemes(r.content, true).length && !/커요|작아요|아쉽|불편|별로|크게 나|작게 나/.test(String(r.content || "")) && String(r.content || '').trim().length >= 20)
       .sort((a, b) => reviewThemes(b.content, false).length - reviewThemes(a.content, false).length).slice(0, 2)
       .map(r => `"${String(r.content).replace(/\s+/g, ' ').trim().slice(0, 60)}${String(r.content).trim().length > 60 ? '…' : ''}" (${short(r.product_name)})`);
+    const negThemes = {}; neg.flatMap(r => reviewThemes(r.content, true)).forEach(t => { negThemes[t] = (negThemes[t] || 0) + 1; });
+    info[brand] = { neg: neg.length, pneg, topNeg: Object.entries(negThemes).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k),
+      fault: fault.length, avg: ca, pavg: pa, topPos: (() => { const m = {}; pos.flatMap(r => reviewThemes(r.content, false)).forEach(t => { m[t] = (m[t] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0]; })() };
     return `- **${brand}**\n` +
       `  - 리뷰 ${cr.length.toLocaleString()}건 · 평균 평점 **${avgText}** · 긍정 ${pos.length}건 (${cr.length ? (pos.length / cr.length * 100).toFixed(1) : 0}%)\n` +
       (pos.length ? `  - 👍 칭찬 포인트: ${top(pos.flatMap(r => reviewThemes(r.content, false)))}\n  - 👍 칭찬 많은 상품: ${top(pos.map(r => short(r.product_name)))}\n` : '') +
@@ -129,6 +133,7 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
       (fault.length ? `  - 과실 VOC 상품: ${top(fault.map(vname))}\n` : '') +
       `  - 의견: `;
   }).join('\n');
+  return { text, info };
 }
 
 function weeklyReportDraft(daily, meetingDate, reviewVoc) {
@@ -159,27 +164,51 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
   // 주간 요약: 브랜드별 한 줄 + 크게 바뀐 것 (주문 ±20%·문의 ±20%(전주 10건 이상), 취소·반품교환율 ±1%p 이상, 부정 리뷰 +3건 이상)
   const dayCount = (r) => (r ? Math.round((parseDate(r[1]) - parseDate(r[0])) / 86400000) + 1 : 0);
   const [cd, pd] = [dayCount(ca), dayCount(pa)];
-  const pctOf = (p, c) => (p ? `${c - p >= 0 ? '+' : ''}${((c - p) / p * 100).toFixed(0)}%` : '-');
-  const summary = ['핀카', '하타'].map(b => {
+  // 주간 요약 = 숫자 대신 짧은 문장 (사용자 요청 2026-10-06, 예: '핀카는 주문 증가와 함께 취소율·반품교환율이 모두 하락')
+  //   건수는 날짜 수가 다르면 하루 평균으로 비교 · 비율은 ±0.3%p 안이면 '비슷' · 건수는 ±5% 안이면 '비슷'
+  const josa = (b) => (b === '핀카' ? '는' : '는');
+  const cntDir = (p, c, pdays, cdays) => {
+    const [pp, cc] = pdays && cdays && pdays !== cdays ? [p / pdays, c / cdays] : [p, c];
+    if (!pp) return cc ? '증가' : null;
+    const ch = (cc - pp) / pp;
+    return ch >= 0.05 ? '증가' : ch <= -0.05 ? '감소' : '비슷';
+  };
+  const rateDir = (p, c) => (c - p >= 0.3 ? '상승' : p - c >= 0.3 ? '하락' : '비슷');
+  const ri = reviewVoc && reviewVoc.info ? reviewVoc.info : {};
+  const sentences = [];
+  ['핀카', '하타'].forEach(b => {
     const [p, c] = S[b];
-    if (!c.orders && !p.orders) return `  - **${b}**: 데이터 없음`;
+    if (!c.orders && !p.orders) return;
     const inq = (s) => s.board_total + s.ht_total + s.call_in;
     const r = (s, f) => rate(f(s), s.orders) || 0;
     const [rcp, rcc] = [r(p, returnsExchanges), r(c, returnsExchanges)], [ccp, ccc] = [r(p, s => s.cancels), r(c, s => s.cancels)];
-    const avg = cd && pd && cd !== pd ? ` (하루 평균 ${Math.round(p.orders / pd)} → ${Math.round(c.orders / cd)}건)` : '';
-    const line = `  - **${b}**: 주문 ${n(c.orders)}건 ${pctOf(p.orders, c.orders)}${avg} · 반품·교환율 ${rcc.toFixed(1)}% · 취소율 ${ccc.toFixed(1)}% · 문의 ${n(inq(c))}건 ${pctOf(inq(p), inq(c))} · 부정 리뷰 ${c.reviews_negative}건`;
-    const flags = [];
-    if (rcc - rcp >= 1) flags.push(`반품·교환율 **+${(rcc - rcp).toFixed(1)}%p** 상승`);
-    if (rcp - rcc >= 1) flags.push(`반품·교환율 ${(rcp - rcc).toFixed(1)}%p 개선`);
-    if (ccc - ccp >= 1) flags.push(`출고전 취소율 **+${(ccc - ccp).toFixed(1)}%p** 상승`);
-    if (inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) flags.push(`문의 ${inq(c) > inq(p) ? '**증가**' : '감소'} (${n(inq(p))} → ${n(inq(c))}건)`);
-    if (p.orders >= 10 && Math.abs(c.orders - p.orders) / p.orders >= 0.2 && !avg) flags.push(`주문 ${c.orders > p.orders ? '증가' : '**감소**'} (${pctOf(p.orders, c.orders)})`);
-    if (c.reviews_negative - p.reviews_negative >= 3) flags.push(`부정 리뷰 **${p.reviews_negative} → ${c.reviews_negative}건**`);
-    return line + (flags.length ? `\n    - 눈여겨볼 점: ${flags.join(' · ')}` : '');
-  }).join('\n');
-  const daysNote = cd && pd && cd !== pd ? `\n  - ※ 금주 ${cd}일치 · 전주 ${pd}일치 데이터라 건수는 하루 평균으로도 비교해 주세요` : '';
+    const od = cntDir(p.orders, c.orders, pd, cd), qd = cntDir(inq(p), inq(c), pd, cd);
+    const cdir = rateDir(ccp, ccc), rdir = rateDir(rcp, rcc);
+    // 1) 주문 + 취소율·반품교환율
+    const rates = cdir === rdir ? (cdir === '비슷' ? '취소율·반품교환율은 전주와 비슷' : `취소율·반품교환율이 모두 ${cdir}`)
+      : [cdir !== '비슷' && `취소율은 ${cdir}`, rdir !== '비슷' && `반품교환율은 ${rdir}`].filter(Boolean).join(', ');
+    const orderPart = od === '비슷' ? '주문은 전주와 비슷' : `주문 ${od}`;
+    const qPart = qd && qd !== '비슷' && qd === od ? `주문과 문의가 ${od === '증가' ? '증가했고' : '감소했으나'}` : null;
+    sentences.push(`${b}${josa(b)} ${qPart || (od === '비슷' ? orderPart + '하고' : orderPart + '와 함께')} ${rates}`);
+    // 2) 반품교환율이 높은 편이면 (8% 이상)
+    if (rcc >= 8) sentences.push(`${b}${josa(b)} 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '높아져' : '여전히'} 높은 수준`);
+    // 3) 문의가 따로 크게 바뀌면
+    if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(`${b} 고객 문의가 ${qd === '증가' ? '크게 늘어 문의 유형 확인 필요' : '줄어듦'}`);
+    // 4) 리뷰: 부정 증가·주요 불만 / 평점
+    const x = ri[b];
+    if (x) {
+      const themes = x.topNeg.length ? `${x.topNeg.join('·')} 등 ` : '';
+      if (x.neg - x.pneg >= 3) sentences.push(`${b}${josa(b)} 부정 리뷰가 늘어 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
+      else if (x.neg && x.topNeg.length) sentences.push(`${b}${josa(b)} 저평점 수보다 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
+      if (x.avg !== null && x.pavg !== null && Math.abs(x.avg - x.pavg) >= 0.05) sentences.push(`${b} 평균 평점은 ${x.avg.toFixed(2)}점으로 ${x.avg > x.pavg ? '올랐고' : '내려갔고'}${x.topPos ? `, 칭찬은 '${x.topPos}'이 가장 많음` : ''}`);
+      if (x.fault) sentences.push(`${b} 과실 VOC ${x.fault}건 → 상품별 원인 확인 필요`);
+    }
+  });
+  if (cd && pd && cd !== pd) sentences.push(`연휴로 금주 ${cd}일치·전주 ${pd}일치 데이터라 건수는 하루 평균으로 비교함`);
+  const summary = sentences.map(s => `  - ${s}`).join('\n') || '  - ';
+  const daysNote = '';
   // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
-  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약** (자동, 필요하면 고쳐 주세요)\n${summary}${daysNote}\n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${cur.label})\n${reviewVoc || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
+  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약** (자동 · 필요하면 고쳐 주세요)\n${summary}${daysNote}\n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${cur.label})\n${(reviewVoc && reviewVoc.text) || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
 }
 
 // ---------- 데이터 ----------
