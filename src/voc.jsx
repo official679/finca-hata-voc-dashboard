@@ -76,12 +76,21 @@ function ProductSearchInput({ value, onChange, products }) {
   // 판매처 이름을 그대로 붙여 넣어도 찾을 수 있게 말머리·상품번호·색상/사이즈 수·ver는 빼고 찾음
   //   예: '[29CM 단독] 시티워커 나일론스판 쇼츠 16COLORS' → '시티워커 나일론스판 쇼츠'
   const q = value.replace(/\[[^\]]*\]|\(\d{5,}\)/g, ' ').replace(/\b\d+\s*(colors?|sizes?|patterns?)\b|\bver\s*[\d.]+|\bsize\s*\w+/gi, ' ').trim();
-  const hits = value.trim() ? products.filter(p => matchQuery(value, p.product_name) || (q && matchQuery(q, p.product_name))).slice(0, 12) : [];
+  let hits = value.trim() ? products.filter(p => matchQuery(value, p.product_name) || (q && matchQuery(q, p.product_name))).slice(0, 12) : [];
+  // 단어가 모두 들어간 상품이 없으면 → 겹치는 단어가 많은 상품부터 (예: '시그니처 알러지케어 베개커버' → '… 베개커버 (알러지케어)')
+  if (!hits.length && q) {
+    const words = [...new Set(q.toLowerCase().split(/\s+/).filter(w => w.length >= 2))];
+    const need = Math.min(2, words.length);
+    hits = products.map(p => { const n = String(p.product_name || '').toLowerCase(); return { p, s: words.filter(w => n.includes(w)).length }; })
+      .filter(x => x.s >= need).sort((a, b) => b.s - a.s).slice(0, 12).map(x => x.p);
+  }
   const exact = products.some(p => p.product_name === value.trim());
   return (
     <div style={{ position: 'relative' }}>
       <input value={value} onChange={e => { onChange(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="상품명 단어 일부를 입력하고 목록에서 선택 (예: 블랙 차렵)" autoComplete="off" />
+        placeholder="상품명 단어 일부를 입력하고 목록에서 선택 (예: 블랙 차렵)" autoComplete="off" style={{ paddingRight: 64 }} />
+      {value && <button type="button" className="btn btn-sm" onMouseDown={e => e.preventDefault()} onClick={() => { onChange(''); setOpen(true); }}
+        style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)' }} title="상품명을 지우고 새로 검색">지우기</button>}
       {open && !exact && hits.length > 0 && (
         <div className="product-suggest">
           {hits.map(p => (
