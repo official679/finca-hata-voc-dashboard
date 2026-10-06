@@ -104,7 +104,8 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
   const top = (list, n = 3) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => `${k} ${c}건`).join(', ') || '-'; };
   const short = (name) => coreName(name || '').slice(0, 30);
   const info = {};   // 주간 요약 문장용 (부정 리뷰 증가·주요 불만·과실 VOC)
-  const text = ['핀카', '하타'].map(brand => {
+  const reviewLines = [], vocLines = [];
+  ['핀카', '하타'].forEach(brand => {
     const cr = reviews.filter(r => r.brand === brand && inWeek(r.written_at, cf, ct));
     const pr = reviews.filter(r => r.brand === brand && !inWeek(r.written_at, cf, ct));
     const neg = cr.filter(r => r.rating !== null && r.rating <= negMax);
@@ -123,16 +124,38 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const negThemes = {}; neg.flatMap(r => reviewThemes(r.content, true)).forEach(t => { negThemes[t] = (negThemes[t] || 0) + 1; });
     info[brand] = { neg: neg.length, pneg, topNeg: Object.entries(negThemes).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k),
       fault: fault.length, avg: ca, pavg: pa, topPos: (() => { const m = {}; pos.flatMap(r => reviewThemes(r.content, false)).forEach(t => { m[t] = (m[t] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0]; })() };
-    return `- **${brand}**\n` +
-      `  - 리뷰 ${cr.length.toLocaleString()}건 · 평균 평점 **${avgText}** · 긍정 ${pos.length}건 (${cr.length ? (pos.length / cr.length * 100).toFixed(1) : 0}%)\n` +
-      (pos.length ? `  - 👍 칭찬 포인트: ${top(pos.flatMap(r => reviewThemes(r.content, false)))}\n  - 👍 칭찬 많은 상품: ${top(pos.map(r => short(r.product_name)))}\n` : '') +
-      (quote.length ? `  - 👍 고객 한마디: ${quote.join(' / ')}\n` : '') +
-      `  - 👎 부정(${negMax}점 이하) **${neg.length}건 (${cr.length ? (neg.length / cr.length * 100).toFixed(1) : 0}%)** · 전주 부정 ${pneg}건\n` +
-      (neg.length ? `  - 👎 불만: ${top(neg.flatMap(r => reviewThemes(r.content, true)))}\n  - 👎 부정 리뷰 많은 상품: ${top(neg.map(r => short(r.product_name)))}\n` : '') +
-      `  - VOC ${vocs.length}건 (과실 **${fault.length}건**)${vocs.length ? ` · 구분: ${top(vocs.map(c => c.voc_type))}` : ''}\n` +
-      (fault.length ? `  - 과실 VOC 상품: ${top(fault.map(vname))}\n` : '') +
-      `  - 의견: `;
-  }).join('\n');
+    // 회의록 모양 (사용자 예시, 2026-10-06): 브랜드 한 줄(건수/평균/별점 분포) + 짧은 문장들
+    const names = (list, n) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k); };
+    const stars = [1, 2, 3, 4, 5].map(s => [s, cr.filter(r => r.rating === s).length]).filter(([, c]) => c).map(([s, c]) => `${s}점 ${c}건`).join('·');
+    const rl = [`  - ${brand}: ${cr.length.toLocaleString()}건 / 평균 ${ca === null ? '-' : ca.toFixed(2)}점${pa === null || ca === null ? '' : ` (전주 ${pa.toFixed(2)})`}${stars ? ` / ${stars}` : ''}`];
+    if (pos.length) {
+      const posThemes = names(pos.flatMap(r => reviewThemes(r.content, false)), 3);
+      rl.push(`    - 긍정 의견은 ${names(pos.map(r => short(r.product_name)), 2).join('·')}의 ${posThemes.length ? `**${posThemes.join(', ')}**` : '만족'}에 집중`);
+    }
+    if (quote.length) rl.push(`    - 고객 한마디: ${quote[0]}`);
+    // 부정 리뷰 상품별 한 줄: 불만 테마, 없으면 가장 낮은 리뷰 앞부분
+    const byProd = new Map();
+    neg.forEach(r => { const k = short(r.product_name); if (!byProd.has(k)) byProd.set(k, []); byProd.get(k).push(r); });
+    [...byProd.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 3).forEach(([prod, list]) => {
+      const th = names(list.flatMap(r => reviewThemes(r.content, true)), 2);
+      const low = list.slice().sort((a, b) => a.rating - b.rating)[0];
+      const what = th.length ? `**${th.join(', ')}** 리뷰 확인` : `"${String(low.content || '').replace(/\s+/g, ' ').trim().slice(0, 40)}…" 리뷰 확인`;
+      rl.push(`    - ${prod}: ${what}${list.length > 1 ? ` (${list.length}건)` : ''}`);
+    });
+    // 별점은 높은데 불만이 섞인 리뷰
+    const mixed = pos.filter(r => reviewThemes(r.content, true).length);
+    if (mixed.length >= 3) rl.push(`    - ${names(mixed.flatMap(r => reviewThemes(r.content, true)), 3).join('·')} 의견이 4~5점 리뷰에도 ${mixed.length}건 있어 별점만으로 불만을 구분하기 어려움`);
+    reviewLines.push(rl.join('\n'));
+    // VOC: 브랜드 한 줄 + 과실 상품
+    const vl = [`  - ${brand}: ${vocs.length}건 (과실 ${fault.length}건)${vocs.length ? ` / ${top(vocs.map(c => c.voc_type), 3)}` : ''}`];
+    const fByProd = new Map();
+    fault.forEach(c => { const k = vname(c); if (!fByProd.has(k)) fByProd.set(k, []); fByProd.get(k).push(c); });
+    [...fByProd.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 4).forEach(([prod, list]) => {
+      vl.push(`    - ${prod}: ${names(list.map(c => c.reason_category || c.voc_type), 2).join(', ')}${list.length > 1 ? ` (${list.length}건)` : ''}`);
+    });
+    vocLines.push(vl.join('\n'));
+  });
+  const text = `- **리뷰**\n${reviewLines.join('\n')}\n- **VOC**\n${vocLines.join('\n')}`;
   return { text, info };
 }
 
