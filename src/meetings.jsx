@@ -127,7 +127,7 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     // 회의록 모양 (사용자 예시, 2026-10-06): 브랜드 한 줄(건수/평균/별점 분포) + 짧은 문장들
     const names = (list, n) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k); };
     const stars = [1, 2, 3, 4, 5].map(s => [s, cr.filter(r => r.rating === s).length]).filter(([, c]) => c).map(([s, c]) => `${s}점 ${c}건`).join('·');
-    const rl = [`  - ${brand}: ${cr.length.toLocaleString()}건 / 평균 ${ca === null ? '-' : ca.toFixed(2)}점${pa === null || ca === null ? '' : ` (전주 ${pa.toFixed(2)})`}${stars ? ` / ${stars}` : ''}`];
+    const rl = [`  - **${brand}**: ${cr.length.toLocaleString()}건 / 평균 ${ca === null ? '-' : ca.toFixed(2)}점${pa === null || ca === null ? '' : ` (전주 ${pa.toFixed(2)})`}${stars ? ` / ${stars}` : ''}`];
     if (pos.length) {
       const posThemes = names(pos.flatMap(r => reviewThemes(r.content, false)), 3);
       rl.push(`    - 긍정 의견은 ${names(pos.map(r => short(r.product_name)), 2).join('·')}의 ${posThemes.length ? `**${posThemes.join(', ')}**` : '만족'}에 집중`);
@@ -147,7 +147,7 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     if (mixed.length >= 3) rl.push(`    - ${names(mixed.flatMap(r => reviewThemes(r.content, true)), 3).join('·')} 의견이 4~5점 리뷰에도 ${mixed.length}건 있어 별점만으로 불만을 구분하기 어려움`);
     reviewLines.push(rl.join('\n'));
     // VOC: 브랜드 한 줄 + 과실 상품
-    const vl = [`  - ${brand}: ${vocs.length}건 (과실 ${fault.length}건)${vocs.length ? ` / ${top(vocs.map(c => c.voc_type), 3)}` : ''}`];
+    const vl = [`  - **${brand}**: ${vocs.length}건 (과실 ${fault.length}건)${vocs.length ? ` / ${top(vocs.map(c => c.voc_type), 3)}` : ''}`];
     const fByProd = new Map();
     fault.forEach(c => { const k = vname(c); if (!fByProd.has(k)) fByProd.set(k, []); fByProd.get(k).push(c); });
     [...fByProd.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 4).forEach(([prod, list]) => {
@@ -212,18 +212,18 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
       : [cdir !== '비슷' && `취소율은 ${cdir}`, rdir !== '비슷' && `반품교환율은 ${rdir}`].filter(Boolean).join(', ');
     const orderPart = od === '비슷' ? '주문은 전주와 비슷' : `주문 ${od}`;
     const qPart = qd && qd !== '비슷' && qd === od ? `주문과 문의가 ${od === '증가' ? '증가했고' : '감소했으나'}` : null;
-    sentences.push(`${b}${josa(b)} ${qPart || (od === '비슷' ? orderPart + '하고' : orderPart + '와 함께')} ${rates}`);
+    sentences.push(`**${b}${josa(b)}** ${qPart || (od === '비슷' ? orderPart + '하고' : orderPart + '와 함께')} ${rates}`);
     // 2) 반품교환율이 높은 편이면 (8% 이상)
-    if (rcc >= 8) sentences.push(`${b}${josa(b)} 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '크게 높아져 원인 확인 필요' : '여전히 높은 수준'}`);
+    if (rcc >= 8) sentences.push(`**${b}${josa(b)}** 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '크게 높아져 원인 확인 필요' : '여전히 높은 수준'}`);
     // 3) 문의가 따로 크게 바뀌면
-    if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(`${b} 고객 문의가 ${qd === '증가' ? '크게 늘어 문의 유형 확인 필요' : '줄어듦'}`);
+    if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(`**${b}** 고객 문의가 ${qd === '증가' ? '크게 늘어 문의 유형 확인 필요' : '줄어듦'}`);
     // 4) 리뷰: 부정 증가·주요 불만 / 평점
     const x = ri[b];
     if (x) {
       const themes = x.topNeg.length ? `${x.topNeg.join(', ')} 등 ` : '';
-      if (x.neg - x.pneg >= 3) sentences.push(`${b}${josa(b)} 부정 리뷰가 늘어 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
-      else if (x.neg && x.topNeg.length) sentences.push(`${b}${josa(b)} 저평점 수보다 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
-      if (x.avg !== null && x.pavg !== null && Math.abs(x.avg - x.pavg) >= 0.05) sentences.push(`${b} 평균 평점은 ${x.avg.toFixed(2)}점으로 ${x.avg > x.pavg ? '올랐고' : '내려갔고'}${x.topPos ? `, 칭찬은 '${x.topPos}'이 가장 많음` : ''}`);
+      if (x.neg - x.pneg >= 3) sentences.push(`**${b}${josa(b)}** 부정 리뷰가 늘어 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
+      else if (x.neg && x.topNeg.length) sentences.push(`**${b}${josa(b)}** 저평점 수보다 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
+      if (x.avg !== null && x.pavg !== null && Math.abs(x.avg - x.pavg) >= 0.05) sentences.push(`**${b}** 평균 평점은 ${x.avg.toFixed(2)}점으로 ${x.avg > x.pavg ? '올랐고' : '내려갔고'}${x.topPos ? `, 칭찬은 '${x.topPos}'이 가장 많음` : ''}`);
 
     }
   });
