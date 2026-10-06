@@ -59,21 +59,25 @@ function HomePage() {
 
   // 이번 달 (보고서와 같은 주차 기준) vs 지난달 '같은 기간' (월 중간에도 공정하게 비교)
   const now = new Date();
-  const inMonth = (m) => { const w = monthWeeks(m); return d.filter(r => periodDate(r.report_date) >= w[0].from && periodDate(r.report_date) <= w[w.length - 1].to); };
-  let ym = weekOf(toISODate(now))?.ym || toISODate(now).slice(0, 7);
-  // 달이 바뀌었는데 이번 달 데이터가 아직 없으면 (예: 연휴 보고가 지난달 마지막 주에 들어간 경우) 지난달을 보여줌
-  if (!inMonth(ym).length) ym = toISODate(new Date(Number(ym.slice(0, 4)), Number(ym.slice(5)) - 2, 1)).slice(0, 7);
-  const mw = monthWeeks(ym);
-  const monthRows = inMonth(ym);
-  const s = sumRows(monthRows);
-  const lastDay = maxDate(monthRows.map(r => r.report_date)) || mw[0].from;
-  const elapsed = Math.round((parseDate(lastDay) - parseDate(mw[0].from)) / 86400000);
-  const prevYm = toISODate(new Date(Number(ym.slice(0, 4)), Number(ym.slice(5)) - 2, 1)).slice(0, 7);
-  const pw = monthWeeks(prevYm);
-  const pTo = [toISODate(addDays(parseDate(pw[0].from), elapsed)), pw[pw.length - 1].to].sort()[0];
-  const p = sumRows(d.filter(r => periodDate(r.report_date) >= pw[0].from && periodDate(r.report_date) <= pTo));
+  // 핵심 지표 = 가장 최근 데이터가 있는 주 vs 전주 같은 기간 (2026-10-06 사용자 요청: 지난달 대비 → 전주 대비)
+  const pdOf = (r) => periodDate(r.report_date);
+  const latest = maxDate(d.map(pdOf)) || toISODate(now);
+  const cw = weekOf(latest) || { label: '이번 주', from: latest, to: latest, ym: latest.slice(0, 7) };
+  const ym = cw.ym;
+  const curRows = d.filter(r => pdOf(r) >= cw.from && pdOf(r) <= latest);
+  const s = sumRows(curRows);
+  const elapsed = Math.round((parseDate(latest) - parseDate(cw.from)) / 86400000);
+  const pFrom = toISODate(addDays(parseDate(cw.from), -7));
+  const pTo = toISODate(addDays(parseDate(pFrom), elapsed));
+  const prevRows = d.filter(r => pdOf(r) >= pFrom && pdOf(r) <= pTo);
+  const p = sumRows(prevRows);
   const ratio = (a, n) => (n ? a / n : null);
-  const periodNote = `${dataLabel(mw[0].from).split('~')[0]}~${dataLabel(lastDay).split('~').pop()} · 지난달 같은 기간 대비`;
+  const span = (rows) => { const ds = [...new Set(rows.map(r => r.report_date))].sort(); return ds.length ? [dataRangeOf(ds[0])[0], dataRangeOf(ds[ds.length - 1])[1]] : null; };
+  const [cs, ps] = [span(curRows), span(prevRows)];
+  const md = (x) => fmtMD(parseDate(x));
+  const full = latest >= cw.to;
+  const vsLabel = full ? '전주' : '전주 같은 기간';
+  const periodNote = cs ? `데이터 ${md(cs[0])}~${md(cs[1])} · ${vsLabel}(${ps ? `${md(ps[0])}~${md(ps[1])}` : '-'}) 대비` : '';
 
   // 주간 추이 (최근 5주)
   const weeks = recentWeeks(5).map(w => ({ ...w, s: sumRows(d.filter(r => periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to)) }));
@@ -117,12 +121,12 @@ function HomePage() {
         ))}
       </div>
 
-      <div className="detail-section">📊 {Number(ym.slice(5))}월 핵심 지표 <small className="muted" style={{ fontWeight: 400 }}>{periodNote}</small></div>
+      <div className="detail-section">📊 {cw.label} 핵심 지표 <small className="muted" style={{ fontWeight: 400 }}>{periodNote}</small></div>
       <div className="grid grid-kpi">
-        <Kpi label="주문건" value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count vs="지난달 같은 기간" />} />
-        <Kpi label="반품·교환율" value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratio(returnsExchanges(s), s.orders)} prev={ratio(returnsExchanges(p), p.orders)} vs="지난달 같은 기간" />} />
-        <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} vs="지난달 같은 기간" />} />
-        <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} vs="지난달 같은 기간" />} />
+        <Kpi label="주문건" value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count vs={vsLabel} />} />
+        <Kpi label="반품·교환율" value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratio(returnsExchanges(s), s.orders)} prev={ratio(returnsExchanges(p), p.orders)} vs={vsLabel} />} />
+        <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} vs={vsLabel} />} />
+        <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} vs={vsLabel} />} />
       </div>
 
       <div className="grid home-bottom">
