@@ -92,9 +92,10 @@ function actualDataRange(daily, w) {
 }
 
 // 리뷰·VOC 요약 (데이터 날짜 월~일 기준, CS 데일리와 달리 연휴 영향 없음)
-async function weeklyReviewVocDraft(meetingDate, cases, productById) {
+async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = []) {
   const { cur, prev } = meetingWeeks(meetingDate);
-  const range = (w) => [toISODate(addDays(parseDate(w.from), -1)), toISODate(addDays(parseDate(w.to), -1))];
+  // 표와 같은 기간: CS 데일리가 있으면 실제 데이터 날짜(연휴 포함, 예: 9/28~10/5), 없으면 그 주 월~일
+  const range = (w) => actualDataRange(daily, w) || [toISODate(addDays(parseDate(w.from), -1)), toISODate(addDays(parseDate(w.to), -1))];
   const [cf, ct] = range(cur), [pf] = range(prev);
   const reviews = await fetchAll(() => db.from('review_items').select('brand,product_name,rating,content,written_at')
     .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
@@ -415,7 +416,7 @@ function MeetingForm({ meeting, onDone }) {
   const insertReport = async () => {
     if (!daily) { toast('CS 데일리 불러오는 중이에요. 잠시 후 다시 눌러주세요'); return; }
     let rv = null;
-    try { rv = await weeklyReviewVocDraft(f.meeting_date, cases, productById); } catch (e) { toast('⚠️ 리뷰·VOC 요약은 못 넣었어요: ' + (e.message || e), 'err'); }
+    try { rv = await weeklyReviewVocDraft(f.meeting_date, cases, productById, daily); } catch (e) { toast('⚠️ 리뷰·VOC 요약은 못 넣었어요: ' + (e.message || e), 'err'); }
     setF(prev => ({ ...prev, body: weeklyReportDraft(daily, prev.meeting_date, rv) + (prev.body ? '\n' + prev.body : '') }));
     toast('📊 주간 CX 리포트·리뷰·VOC 요약을 넣었어요 · 요약·의견은 직접 적어주세요');
   };
