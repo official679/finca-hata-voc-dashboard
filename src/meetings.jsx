@@ -84,8 +84,48 @@ function meetingWeeks(meetingDate) {
   return { cur: mk(t), prev: mk(addDays(t, -7)) };
 }
 
-function weeklyReportDraft(daily, meetingDate) {
+// 이 주에 들어간 보고일들의 실제 데이터 날짜 (연휴 보고가 주를 걸치면 분석 기간과 달라짐, 예: 10/2~4는 10/6 보고 = 다음 주)
+function actualDataRange(daily, w) {
+  const days = [...new Set(daily.filter(r => r.report_date >= w.from && r.report_date <= w.to).map(r => r.report_date))].sort();
+  if (!days.length) return null;
+  return [dataRangeOf(days[0])[0], dataRangeOf(days[days.length - 1])[1]];
+}
+
+// 리뷰·VOC 요약 (데이터 날짜 월~일 기준, CS 데일리와 달리 연휴 영향 없음)
+async function weeklyReviewVocDraft(meetingDate, cases, productById) {
   const { cur, prev } = meetingWeeks(meetingDate);
+  const range = (w) => [toISODate(addDays(parseDate(w.from), -1)), toISODate(addDays(parseDate(w.to), -1))];
+  const [cf, ct] = range(cur), [pf] = range(prev);
+  const reviews = await fetchAll(() => db.from('review_items').select('brand,product_name,rating,content,written_at')
+    .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
+  const negMax = loadNegMax();
+  const inWeek = (iso, f, t) => { const d = toISODate(new Date(iso)); return d >= f && d <= t; };
+  const top = (list, n = 3) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => `${k} ${c}건`).join(', ') || '-'; };
+  const short = (name) => coreName(name || '').slice(0, 30);
+  return ['핀카', '하타'].map(brand => {
+    const cr = reviews.filter(r => r.brand === brand && inWeek(r.written_at, cf, ct));
+    const pr = reviews.filter(r => r.brand === brand && !inWeek(r.written_at, cf, ct));
+    const neg = cr.filter(r => r.rating !== null && r.rating <= negMax);
+    const pneg = pr.filter(r => r.rating !== null && r.rating <= negMax).length;
+    const vocs = cases.filter(c => c.brand === brand && c.received_date >= cf && c.received_date <= ct);
+    const fault = vocs.filter(c => isFault(c.voc_type));
+    const vname = (c) => short((c.product_id && productById.get(c.product_id)?.product_name) || c.product_name);
+    return `- **${brand}**\n` +
+      `  - 리뷰 ${cr.length.toLocaleString()}건 · 부정(${negMax}점 이하) **${neg.length}건 (${cr.length ? (neg.length / cr.length * 100).toFixed(1) : 0}%)** · 전주 부정 ${pneg}건\n` +
+      (neg.length ? `  - 부정 리뷰 불만: ${top(neg.flatMap(r => reviewThemes(r.content, true)))}\n  - 부정 리뷰 많은 상품: ${top(neg.map(r => short(r.product_name)))}\n` : '') +
+      `  - VOC ${vocs.length}건 (과실 **${fault.length}건**)${vocs.length ? ` · 구분: ${top(vocs.map(c => c.voc_type))}` : ''}\n` +
+      (fault.length ? `  - 과실 VOC 상품: ${top(fault.map(vname))}\n` : '') +
+      `  - 의견: `;
+  }).join('\n');
+}
+
+function weeklyReportDraft(daily, meetingDate, reviewVoc) {
+  const { cur, prev } = meetingWeeks(meetingDate);
+  const [ca, pa] = [actualDataRange(daily, cur), actualDataRange(daily, prev)];
+  const labelOf = (r) => (r ? `${fmtMD(parseDate(r[0]))}~${fmtMD(parseDate(r[1]))}` : '-');
+  const shifted = [[pa, prev, '전주'], [ca, cur, '금주']].filter(([a, w]) => a && labelOf(a) !== w.label)
+    .map(([a, , name]) => `${name} ${labelOf(a)}`);
+  const note = shifted.length ? `\n- ⚠️ **연휴 때문에 실제로 들어간 데이터가 달라요: ${shifted.join(' · ')}** (연휴 다음 보고일에 쉬는 날 데이터가 합쳐져서 주가 어긋남)` : '';
   const sum = (brand, w) => sumRows(daily.filter(r => r.brand === brand && r.report_date >= w.from && r.report_date <= w.to));
   const S = { 핀카: [sum('핀카', prev), sum('핀카', cur)], 하타: [sum('하타', prev), sum('하타', cur)] };
   const n = (v) => v.toLocaleString();
@@ -105,7 +145,7 @@ function weeklyReportDraft(daily, meetingDate) {
   const table = ['| 항목 | 핀카 전주 → 금주 | 핀카 증감 | 하타 전주 → 금주 | 하타 증감 |', '| --- | --- | --- | --- | --- |',
     ...rows.map(([label, f]) => `| ${label} | ${[...f('핀카'), ...f('하타')].join(' | ')} |`)].join('\n');
   // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
-  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. [리뷰](#/reviews) / [VOC](#/report)\n- 핀카: \n- 하타: \n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
+  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약**\n  - \n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${cur.label})\n${reviewVoc || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
 }
 
 // ---------- 데이터 ----------
@@ -358,6 +398,7 @@ function MeetingDetail({ meeting, meetings, items, reload, onBack, onEdit, onDel
 function MeetingForm({ meeting, onDone }) {
   const toast = useToast();
   const daily = useDaily();
+  const { cases, productById } = useApp();
   const [f, setF] = useState(() => ({ meeting_date: today(), title: '', kind: 'CX 회의', attendees: '', status: '진행중', body: '', ...Object.fromEntries(Object.entries(meeting).map(([k, v]) => [k, v ?? ''])) }));
   const [preview, setPreview] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -371,10 +412,12 @@ function MeetingForm({ meeting, onDone }) {
     if (w) set('title')(`${w.label} VOC 회의`);
   }, []);
 
-  const insertReport = () => {
+  const insertReport = async () => {
     if (!daily) { toast('CS 데일리 불러오는 중이에요. 잠시 후 다시 눌러주세요'); return; }
-    setF(prev => ({ ...prev, body: weeklyReportDraft(daily, prev.meeting_date) + (prev.body ? '\n' + prev.body : '') }));
-    toast('📊 주간 CX 리포트를 넣었어요 · 요약은 직접 적어주세요');
+    let rv = null;
+    try { rv = await weeklyReviewVocDraft(f.meeting_date, cases, productById); } catch (e) { toast('⚠️ 리뷰·VOC 요약은 못 넣었어요: ' + (e.message || e), 'err'); }
+    setF(prev => ({ ...prev, body: weeklyReportDraft(daily, prev.meeting_date, rv) + (prev.body ? '\n' + prev.body : '') }));
+    toast('📊 주간 CX 리포트·리뷰·VOC 요약을 넣었어요 · 요약·의견은 직접 적어주세요');
   };
 
   const save = async (e) => {
