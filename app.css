@@ -263,6 +263,11 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .panel-head h2 { font-size: 18px; }
 .lightbox { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); z-index: 80; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
 .lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 6px; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 52px; height: 52px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.9); color: #222; font-size: 32px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.lightbox-nav:hover { background: #fff; }
+.lightbox-nav.prev { left: 24px; }
+.lightbox-nav.next { right: 24px; }
+.lightbox-count { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0, 0, 0, 0.5); padding: 4px 12px; border-radius: 12px; font-size: 14px; }
 
 /* 알림 */
 .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 100; max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 10px; font-weight: 500; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15); cursor: pointer; }

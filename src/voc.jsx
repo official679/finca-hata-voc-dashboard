@@ -15,9 +15,31 @@ function usePhotoUrls(paths) {
   return urls;
 }
 
-function Lightbox({ src, onClose }) {
+// 사진 크게 보기 · list를 주면 ‹ › 버튼(키보드 ←→)으로 다음 사진 (2026-10-06)
+function Lightbox({ src, list, onClose }) {
+  const all = list && list.length ? list : (src ? [src] : []);
+  const [i, setI] = useState(0);
+  useEffect(() => { setI(Math.max(0, all.indexOf(src))); }, [src]);
+  const n = all.length;
+  const move = (d) => setI(x => (x + d + n) % n);
+  useEffect(() => {
+    if (!src) return;
+    const onKey = (e) => { if (e.key === 'ArrowRight') move(1); else if (e.key === 'ArrowLeft') move(-1); else if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [src, n]);
   if (!src) return null;
-  return <div className="lightbox" onClick={onClose}><img src={src} alt="" /></div>;
+  const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+  return (
+    <div className="lightbox" onClick={onClose}>
+      <img src={all[i] || src} alt="" />
+      {n > 1 && <>
+        <button type="button" className="lightbox-nav prev" onClick={stop(() => move(-1))} title="이전 사진 (←)">‹</button>
+        <button type="button" className="lightbox-nav next" onClick={stop(() => move(1))} title="다음 사진 (→)">›</button>
+        <div className="lightbox-count">{i + 1} / {n}</div>
+      </>}
+    </div>
+  );
 }
 
 const MAX_PHOTOS = 5;
@@ -65,7 +87,7 @@ function PhotoPicker({ existing, onRemoveExisting, files, onAddFiles, onRemoveFi
       </div>
       <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
       <div className="hint">최대 {MAX_PHOTOS}장 · <b>캡처 후 Ctrl+V로 바로 붙여넣기</b> 또는 사진을 끌어다 놓아도 돼요 · 사진을 누르면 크게 볼 수 있어요</div>
-      <Lightbox src={zoom} onClose={() => setZoom(null)} />
+      <Lightbox src={zoom} list={[...existing.map(p => urls[p]).filter(Boolean), ...files.map(f => f.preview)]} onClose={() => setZoom(null)} />
     </div>
   );
 }
