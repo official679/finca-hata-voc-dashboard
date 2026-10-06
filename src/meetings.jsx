@@ -86,7 +86,7 @@ function meetingWeeks(meetingDate) {
 
 // 이 주에 들어간 보고일들의 실제 데이터 날짜 (연휴 보고가 주를 걸치면 분석 기간과 달라짐, 예: 10/2~4는 10/6 보고 = 다음 주)
 function actualDataRange(daily, w) {
-  const days = [...new Set(daily.filter(r => r.report_date >= w.from && r.report_date <= w.to).map(r => r.report_date))].sort();
+  const days = [...new Set(daily.filter(r => periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to).map(r => r.report_date))].sort();
   if (!days.length) return null;
   return [dataRangeOf(days[0])[0], dataRangeOf(days[days.length - 1])[1]];
 }
@@ -125,8 +125,8 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
   const labelOf = (r) => (r ? `${fmtMD(parseDate(r[0]))}~${fmtMD(parseDate(r[1]))}` : '-');
   const shifted = [[pa, prev, '전주'], [ca, cur, '금주']].filter(([a, w]) => a && labelOf(a) !== w.label)
     .map(([a, , name]) => `${name} ${labelOf(a)}`);
-  const note = shifted.length ? `\n- ⚠️ **연휴 때문에 실제로 들어간 데이터가 달라요: ${shifted.join(' · ')}** (연휴 다음 보고일에 쉬는 날 데이터가 합쳐져서 주가 어긋남)` : '';
-  const sum = (brand, w) => sumRows(daily.filter(r => r.brand === brand && r.report_date >= w.from && r.report_date <= w.to));
+  const note = shifted.length ? `\n- ※ **연휴로 실제 데이터 기간: ${shifted.join(' · ')}** (연휴 보고는 데이터가 시작하는 주에 포함)` : '';
+  const sum = (brand, w) => sumRows(daily.filter(r => r.brand === brand && periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to));
   const S = { 핀카: [sum('핀카', prev), sum('핀카', cur)], 하타: [sum('하타', prev), sum('하타', cur)] };
   const n = (v) => v.toLocaleString();
   const rate = (a, b) => (b ? a / b * 100 : null);

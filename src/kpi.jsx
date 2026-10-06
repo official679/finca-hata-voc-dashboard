@@ -42,7 +42,7 @@ function KpiPage() {
   };
 
   // 달마다 CS 데일리 합계 + VOC 접수·완료
-  const rowsOf = (m) => { const [a, b] = monthRange(m); return daily.filter(r => r.brand === brand && r.report_date >= a && r.report_date <= b); };
+  const rowsOf = (m) => { const [a, b] = monthRange(m); return daily.filter(r => r.brand === brand && periodDate(r.report_date) >= a && periodDate(r.report_date) <= b); };
   const vocOf = (m) => { const cs = cases.filter(c => c.brand === brand && (c.received_date || '').startsWith(m)); return { total: cs.length, done: cs.filter(c => DONE_STATUSES.includes(c.status)).length }; };
   // 미입력 = NaN (0%와 구분), 데이터 없음 = null
   const valueOf = (d, m) => { const s = sumRows(rowsOf(m)); if (s.orders && (d.needs || []).some(f => !s[f])) return NaN; return d.calc(s, vocOf(m)); };

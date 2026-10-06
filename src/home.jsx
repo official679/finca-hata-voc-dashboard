@@ -61,19 +61,19 @@ function HomePage() {
   const now = new Date();
   const ym = weekOf(toISODate(now))?.ym || toISODate(now).slice(0, 7);
   const mw = monthWeeks(ym);
-  const monthRows = d.filter(r => r.report_date >= mw[0].from && r.report_date <= mw[mw.length - 1].to);
+  const monthRows = d.filter(r => periodDate(r.report_date) >= mw[0].from && periodDate(r.report_date) <= mw[mw.length - 1].to);
   const s = sumRows(monthRows);
   const lastDay = maxDate(monthRows.map(r => r.report_date)) || mw[0].from;
   const elapsed = Math.round((parseDate(lastDay) - parseDate(mw[0].from)) / 86400000);
   const prevYm = toISODate(new Date(Number(ym.slice(0, 4)), Number(ym.slice(5)) - 2, 1)).slice(0, 7);
   const pw = monthWeeks(prevYm);
   const pTo = [toISODate(addDays(parseDate(pw[0].from), elapsed)), pw[pw.length - 1].to].sort()[0];
-  const p = sumRows(d.filter(r => r.report_date >= pw[0].from && r.report_date <= pTo));
+  const p = sumRows(d.filter(r => periodDate(r.report_date) >= pw[0].from && periodDate(r.report_date) <= pTo));
   const ratio = (a, n) => (n ? a / n : null);
   const periodNote = `${dataLabel(mw[0].from).split('~')[0]}~${dataLabel(lastDay).split('~').pop()} · 지난달 같은 기간 대비`;
 
   // 주간 추이 (최근 5주)
-  const weeks = recentWeeks(5).map(w => ({ ...w, s: sumRows(d.filter(r => r.report_date >= w.from && r.report_date <= w.to)) }));
+  const weeks = recentWeeks(5).map(w => ({ ...w, s: sumRows(d.filter(r => periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to)) }));
 
   // VOC
   const c = byBrand(cases);

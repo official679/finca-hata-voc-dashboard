@@ -105,6 +105,13 @@ const UPLOAD_PLATFORM_TO_DAILY = { '29CM': '29CM', '아임웹': '아임웹', '�
 
 // 보고일 → 데이터 날짜 범위: 지난 보고일(평일·공휴일 아님)부터 보고일 전날까지
 //   보통 = 전일, 월요일 = 금~일, 연휴 다음 날 = 연휴 전 마지막 근무일~전날 (공휴일 = calendar.jsx KR_HOLIDAYS)
+// 주간·월간 집계에 쓰는 날짜: 보고일 대신 '데이터 시작일 + 1일' (연휴 보고는 데이터가 시작하는 주에 넣음, 2026-10-06 사용자 결정)
+//   보통 보고일과 같음 · 월요일 보고(금~일) → 토요일 = 같은 주 · 10/6 보고(10/2~10/5) → 10/3 = 9/28~10/4 주 → 그 주는 10/5 데이터까지, 다음 주는 10/6부터
+const _periodCache = new Map();
+function periodDate(reportDate) {
+  if (!_periodCache.has(reportDate)) _periodCache.set(reportDate, toISODate(addDays(parseDate(dataRangeOf(reportDate)[0]), 1)));
+  return _periodCache.get(reportDate);
+}
 const isReportDay = (d) => d.getDay() !== 0 && d.getDay() !== 6 && !(typeof KR_HOLIDAYS !== 'undefined' && KR_HOLIDAYS[toISODate(d)]);
 function dataRangeOf(reportDate) {
   const d = parseDate(reportDate);
@@ -378,7 +385,7 @@ const BRAND_COLOR = { '핀카': '#1F6A8A', '하타': '#E8792F' };
 
 // 기간(주차 또는 월)별 지표 표. periods: [{ from, to, short, range }]
 function BrandWeekTable({ brand, rows, weeks, totalLabel = '합계·평균', worstLabel = '가장 높은 주' }) {
-  const cols = weeks.map(w => sumRows(rows.filter(r => r.report_date >= w.from && r.report_date <= w.to)));
+  const cols = weeks.map(w => sumRows(rows.filter(r => periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to)));
   const month = sumRows(rows);
   const hasPhone = month.call_in + month.call_out > 0;
   return (

@@ -151,10 +151,10 @@ function WeeklyReview({ daily, reviews, board, brand, ym, controls }) {
   const weeks = monthWeeks(ym).map(w => ({ ...w, short: w.label.split(' ')[1] }));
   const [from, to] = monthRange(ym);
   const [pf, pt] = monthRange(prevMonthOf(ym));
-  const rows = daily.filter(r => r.brand === brand && r.report_date >= from && r.report_date <= to);
+  const rows = daily.filter(r => r.brand === brand && periodDate(r.report_date) >= from && periodDate(r.report_date) <= to);
   const s = sumRows(rows);
-  const p = sumRows(daily.filter(r => r.brand === brand && r.report_date >= pf && r.report_date <= pt));
-  const weekSums = weeks.map(w => ({ w, s: sumRows(rows.filter(r => r.report_date >= w.from && r.report_date <= w.to)) }));   // 표와 같이 그달 주차 전부 (데이터 없는 주는 빈칸)
+  const p = sumRows(daily.filter(r => r.brand === brand && periodDate(r.report_date) >= pf && periodDate(r.report_date) <= pt));
+  const weekSums = weeks.map(w => ({ w, s: sumRows(rows.filter(r => periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to)) }));   // 표와 같이 그달 주차 전부 (데이터 없는 주는 빈칸)
   const [y, mo] = ym.split('-');
 
   return (
@@ -191,8 +191,8 @@ function MonthlyReview({ daily, reviews, board, brand, ym, months, controls }) {
   const periods = shown.map(m => { const [a, b] = monthRange(m); return { from: a, to: b, short: `${Number(m.slice(5))}월`, range: `${fmtMD(addDays(parseDate(a), -1))}~${fmtMD(addDays(parseDate(b), -1))}`, ym: m }; });
   const [from] = monthRange(shown[0]);
   const [, to] = monthRange(ym);
-  const rows = daily.filter(r => r.brand === brand && r.report_date >= from && r.report_date <= to);
-  const sums = periods.map(p => ({ p, s: sumRows(rows.filter(r => r.report_date >= p.from && r.report_date <= p.to)) }));
+  const rows = daily.filter(r => r.brand === brand && periodDate(r.report_date) >= from && periodDate(r.report_date) <= to);
+  const sums = periods.map(p => ({ p, s: sumRows(rows.filter(r => periodDate(r.report_date) >= p.from && periodDate(r.report_date) <= p.to)) }));
   const platforms = [...new Set(rows.filter(r => r.platform !== BRAND_TOTAL).map(r => r.platform))];
   const [y, mo] = ym.split('-');
 
@@ -216,7 +216,7 @@ function MonthlyReview({ daily, reviews, board, brand, ym, months, controls }) {
                 {platforms.map(pl => (
                   <tr key={pl}>
                     <td>{pl}</td>
-                    {periods.map(p => { const s = sumRows(rows.filter(r => r.platform === pl && r.report_date >= p.from && r.report_date <= p.to)); return <td key={p.ym} className="num">{s.orders ? <>{s.orders.toLocaleString()}<div className="th-sub">{pct(returnsExchanges(s), s.orders)}</div></> : '-'}</td>; })}
+                    {periods.map(p => { const s = sumRows(rows.filter(r => r.platform === pl && periodDate(r.report_date) >= p.from && periodDate(r.report_date) <= p.to)); return <td key={p.ym} className="num">{s.orders ? <>{s.orders.toLocaleString()}<div className="th-sub">{pct(returnsExchanges(s), s.orders)}</div></> : '-'}</td>; })}
                   </tr>
                 ))}
               </tbody>
