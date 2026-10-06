@@ -327,7 +327,7 @@ function VocEntryPage() {
 function VocEditPanel({ vocCase, onClose }) {
   if (!vocCase) return null;
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>VOC 상세 · 수정</h2>

@@ -91,7 +91,7 @@ function ManualEditor({ initial, categories, onClose, onSaved }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>{initial?.id ? '매뉴얼 수정' : '새 매뉴얼'}</h2>

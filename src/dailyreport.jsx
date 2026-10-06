@@ -86,7 +86,7 @@ function DailyReportPanel({ date: startDate, onClose }) {
   const slackText = `[${titleBrand} CS 데일리 리포트]\n${date.replace(/-/g, '.')} ${WEEKDAY[d.getDay()]}요일 (전일 접수 기준 · ${dataLabel(date)})`;
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel panel-wide" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>데일리 리포트 · 슬랙 공유</h2>

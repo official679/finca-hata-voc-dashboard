@@ -171,7 +171,7 @@ function TaskPanel({ task, me, people, comments, onClose, reload, onCreated }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head"><h2>{task ? '업무' : '새 업무'}</h2><button className="btn btn-sm" onClick={onClose}>닫기</button></div>
         <form className="card" onSubmit={save}>

@@ -509,7 +509,7 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>{order.orderer || '-'} · {order.seller_order_no || order.order_no}</h2>
@@ -746,7 +746,7 @@ function PreorderProductPanel({ product, onClose, reload }) {
     onClose();
   };
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head"><h2>{product.id ? '예약상품 일정 수정' : '예약상품 추가'}</h2><button className="btn btn-sm" onClick={onClose}>닫기</button></div>
         <form className="card" onSubmit={save}>

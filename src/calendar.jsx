@@ -174,7 +174,7 @@ function EventPanel({ event, people, onClose, reload }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
         <div className="panel-head"><h2>{isNew ? '일정 추가' : '일정'}</h2><button className="btn btn-sm" onClick={onClose}>닫기</button></div>
         <form className="card" onSubmit={save}>

@@ -95,6 +95,12 @@ const monthsAgo = (n) => { const d = new Date(); return toISODate(new Date(d.get
 const pad = (n) => String(n).padStart(2, '0');
 const toISODate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const today = () => toISODate(new Date());
+
+// 팝업 바깥(회색 배경)을 눌렀을 때만 닫기: 팝업 안에서 글자를 드래그하다 바깥에서 놓으면 닫히던 문제 방지 (2026-10-06)
+const overlayClose = (onClose) => ({
+  onMouseDown: (e) => { e.currentTarget.dataset.down = e.target === e.currentTarget ? '1' : ''; },
+  onClick: (e) => { if (e.target === e.currentTarget && e.currentTarget.dataset.down === '1') onClose(); },
+});
 const parseDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 // 월요일 시작 주
