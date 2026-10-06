@@ -191,24 +191,24 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
     const qPart = qd && qd !== '비슷' && qd === od ? `주문과 문의가 ${od === '증가' ? '증가했고' : '감소했으나'}` : null;
     sentences.push(`${b}${josa(b)} ${qPart || (od === '비슷' ? orderPart + '하고' : orderPart + '와 함께')} ${rates}`);
     // 2) 반품교환율이 높은 편이면 (8% 이상)
-    if (rcc >= 8) sentences.push(`${b}${josa(b)} 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '높아져' : '여전히'} 높은 수준`);
+    if (rcc >= 8) sentences.push(`${b}${josa(b)} 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '크게 높아져 원인 확인 필요' : '여전히 높은 수준'}`);
     // 3) 문의가 따로 크게 바뀌면
     if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(`${b} 고객 문의가 ${qd === '증가' ? '크게 늘어 문의 유형 확인 필요' : '줄어듦'}`);
     // 4) 리뷰: 부정 증가·주요 불만 / 평점
     const x = ri[b];
     if (x) {
-      const themes = x.topNeg.length ? `${x.topNeg.join('·')} 등 ` : '';
+      const themes = x.topNeg.length ? `${x.topNeg.join(', ')} 등 ` : '';
       if (x.neg - x.pneg >= 3) sentences.push(`${b}${josa(b)} 부정 리뷰가 늘어 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
       else if (x.neg && x.topNeg.length) sentences.push(`${b}${josa(b)} 저평점 수보다 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
       if (x.avg !== null && x.pavg !== null && Math.abs(x.avg - x.pavg) >= 0.05) sentences.push(`${b} 평균 평점은 ${x.avg.toFixed(2)}점으로 ${x.avg > x.pavg ? '올랐고' : '내려갔고'}${x.topPos ? `, 칭찬은 '${x.topPos}'이 가장 많음` : ''}`);
-      if (x.fault) sentences.push(`${b} 과실 VOC ${x.fault}건 → 상품별 원인 확인 필요`);
+
     }
   });
   if (cd && pd && cd !== pd) sentences.push(`연휴로 금주 ${cd}일치·전주 ${pd}일치 데이터라 건수는 하루 평균으로 비교함`);
   const summary = sentences.map(s => `  - ${s}`).join('\n') || '  - ';
   const daysNote = '';
   // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
-  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약** (자동 · 필요하면 고쳐 주세요)\n${summary}${daysNote}\n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${cur.label})\n${(reviewVoc && reviewVoc.text) || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
+  return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약** (자동 · 필요하면 고쳐 주세요)\n${summary}${daysNote}\n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${ca ? labelOf(ca) : cur.label})\n${(reviewVoc && reviewVoc.text) || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
 }
 
 // ---------- 데이터 ----------
