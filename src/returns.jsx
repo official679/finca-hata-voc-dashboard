@@ -66,6 +66,17 @@ const RETURN_FORMATS = [
       product_name: retStr(r['상품명']), option_text: retStr(r['옵션명']), qty: parseInt(r['구매수량'], 10) || 1,
       reason_raw: retStr(r['반품사유']), reason_detail: retClean(r['반품 상세사유']), claim_status: retStr(r['주문상태']) || null,
       order_date: retDate(r['주문일']) || retDateFromNo(r['주문번호']), when: {} }) },
+  // EQL 클레임 (관리자 다운로드): 클레임구분 = 반품/교환, 철회·취소 상태는 제외 · 주문자·수취인 칸은 읽지 않음 (2026-10-06)
+  { kind: 'return', label: 'EQL 반품·교환', headers: ['클레임번호', '주문번호', '클레임구분', '클레임상태', '상품명', '클레임사유'],
+    map: (r) => {
+      const kind = /교환/.test(retStr(r['클레임구분'])) ? '교환' : '반품';
+      const st = retStr(r['클레임상태']);
+      return { key: !retStr(r['클레임번호']) || /철회|취소/.test(st) ? '' : `${kind}|${retStr(r['클레임번호'])}`,
+        brand: normBrand(r['브랜드']), platform: 'EQL', ret_kind: kind, order_no: retStr(r['주문번호']),
+        product_name: retStr(r['상품명']), option_text: retStr(r['옵션']), qty: parseInt(r['클레임수량'], 10) || 1,
+        reason_raw: retStr(r['클레임사유']), reason_detail: retClean(r['클레임상세사유']), claim_status: st || null,
+        order_date: retDate(r['주문일시']) || retDateFromNo(r['주문번호']), claim_date: retDate(r['신청일시']), when: {} };
+    } },
   // 무신사: 환불완료 = 반품, 교환완료 = 교환 (핀카·하타 파일 칸 이름이 조금 다름)
   ...[['사유', '상세 사유'], ['반품사유', '상세사유']].map(([rc, dc], i) => ({
     kind: 'return', label: i ? '무신사 반품·교환 (하타)' : '무신사 반품·교환', headers: ['주문번호', '클레임상태', rc, '상품명', '수량'],
