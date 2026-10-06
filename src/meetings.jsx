@@ -111,9 +111,20 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const vocs = cases.filter(c => c.brand === brand && c.received_date >= cf && c.received_date <= ct);
     const fault = vocs.filter(c => isFault(c.voc_type));
     const vname = (c) => short((c.product_id && productById.get(c.product_id)?.product_name) || c.product_name);
+    // 평균 평점·긍정 (대표님 요청, 2026-10-06)
+    const avg = (list) => { const v = list.filter(r => r.rating !== null); return v.length ? v.reduce((a, r) => a + r.rating, 0) / v.length : null; };
+    const [ca, pa] = [avg(cr), avg(pr)];
+    const avgText = ca === null ? '-' : `★${ca.toFixed(2)}${pa === null ? '' : ` (전주 ${pa.toFixed(2)}, ${ca - pa >= 0 ? '+' : ''}${(ca - pa).toFixed(2)})`}`;
+    const pos = cr.filter(r => r.rating !== null && r.rating > negMax);
+    const quote = pos.filter(r => r.rating === 5 && reviewThemes(r.content, false).length && String(r.content || '').trim().length >= 20)
+      .sort((a, b) => reviewThemes(b.content, false).length - reviewThemes(a.content, false).length).slice(0, 2)
+      .map(r => `"${String(r.content).replace(/\s+/g, ' ').trim().slice(0, 60)}${String(r.content).trim().length > 60 ? '…' : ''}" (${short(r.product_name)})`);
     return `- **${brand}**\n` +
-      `  - 리뷰 ${cr.length.toLocaleString()}건 · 부정(${negMax}점 이하) **${neg.length}건 (${cr.length ? (neg.length / cr.length * 100).toFixed(1) : 0}%)** · 전주 부정 ${pneg}건\n` +
-      (neg.length ? `  - 부정 리뷰 불만: ${top(neg.flatMap(r => reviewThemes(r.content, true)))}\n  - 부정 리뷰 많은 상품: ${top(neg.map(r => short(r.product_name)))}\n` : '') +
+      `  - 리뷰 ${cr.length.toLocaleString()}건 · 평균 평점 **${avgText}** · 긍정 ${pos.length}건 (${cr.length ? (pos.length / cr.length * 100).toFixed(1) : 0}%)\n` +
+      (pos.length ? `  - 👍 칭찬 포인트: ${top(pos.flatMap(r => reviewThemes(r.content, false)))}\n  - 👍 칭찬 많은 상품: ${top(pos.map(r => short(r.product_name)))}\n` : '') +
+      (quote.length ? `  - 👍 고객 한마디: ${quote.join(' / ')}\n` : '') +
+      `  - 👎 부정(${negMax}점 이하) **${neg.length}건 (${cr.length ? (neg.length / cr.length * 100).toFixed(1) : 0}%)** · 전주 부정 ${pneg}건\n` +
+      (neg.length ? `  - 👎 불만: ${top(neg.flatMap(r => reviewThemes(r.content, true)))}\n  - 부정 리뷰 많은 상품: ${top(neg.map(r => short(r.product_name)))}\n` : '') +
       `  - VOC ${vocs.length}건 (과실 **${fault.length}건**)${vocs.length ? ` · 구분: ${top(vocs.map(c => c.voc_type))}` : ''}\n` +
       (fault.length ? `  - 과실 VOC 상품: ${top(fault.map(vname))}\n` : '') +
       `  - 의견: `;
