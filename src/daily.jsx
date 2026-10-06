@@ -47,9 +47,11 @@ const pct = (a, b) => (b ? `${(a / b * 100).toFixed(1)}%` : '-');
 
 // 데이터는 전일 기준: 보고일 화~월 = 데이터 월~일. 월요일 보고일에는 금~일 3일치가 들어감
 // 주차: 데이터 날짜 월~일 (보고일로는 매월 첫 화요일~다음 월요일) = 기존 '주간' 시트와 같은 결과
+// 연휴 다음 보고일에는 쉬는 날 데이터가 모두 들어감 (예: 10/6 보고 = 10/2~10/5, 9/28 보고 = 9/23~27)
 function dataLabel(reportDate) {
-  const d = parseDate(reportDate);
-  return d.getDay() === 1 ? `${fmtMD(addDays(d, -3))}~${addDays(d, -1).getDate()}` : fmtMD(addDays(d, -1));
+  const [from, to] = dataRangeOf(reportDate);
+  if (from === to) return fmtMD(parseDate(to));
+  return from.slice(0, 7) === to.slice(0, 7) ? `${fmtMD(parseDate(from))}~${parseDate(to).getDate()}` : `${fmtMD(parseDate(from))}~${fmtMD(parseDate(to))}`;
 }
 function firstWeekStart(year, month) {
   const d = new Date(year, month, 1);
@@ -101,10 +103,14 @@ function NumCell({ value, onChange }) {
 const CANCEL_MANUAL_BRANDS = [];
 const UPLOAD_PLATFORM_TO_DAILY = { '29CM': '29CM', '아임웹': '아임웹', '카페24': '아임웹', '무신사': '무신사', 'W컨셉': 'W컨셉', 'EQL': 'EQL' };
 
-// 보고일 → 데이터 날짜 범위 (전일 기준, 월요일 보고일 = 금~일)
+// 보고일 → 데이터 날짜 범위: 지난 보고일(평일·공휴일 아님)부터 보고일 전날까지
+//   보통 = 전일, 월요일 = 금~일, 연휴 다음 날 = 연휴 전 마지막 근무일~전날 (공휴일 = calendar.jsx KR_HOLIDAYS)
+const isReportDay = (d) => d.getDay() !== 0 && d.getDay() !== 6 && !(typeof KR_HOLIDAYS !== 'undefined' && KR_HOLIDAYS[toISODate(d)]);
 function dataRangeOf(reportDate) {
   const d = parseDate(reportDate);
-  return [toISODate(addDays(d, d.getDay() === 1 ? -3 : -1)), toISODate(addDays(d, -1))];
+  let prev = addDays(d, -1);
+  for (let i = 0; i < 14 && !isReportDay(prev); i++) prev = addDays(prev, -1);
+  return [toISODate(prev), toISODate(addDays(d, -1))];
 }
 
 // 주문건 = 상품 수 (모든 판매처 통일, 2026-09-30). 오클릭은 세트를 구성품으로 나누므로 판매처 품목 번호(item_no)로 다시 묶어 셈
@@ -270,7 +276,7 @@ function DailyEntryPage() {
 
   return (
     <>
-      <PageHeader title="CS 데일리" desc={`보고일 ${fmtDate(date)} → ${dataLabel(date)} 데이터 (전일 접수 기준) · 월요일 보고일에는 금~일 3일치를 합쳐서 입력해요`}>
+      <PageHeader title="CS 데일리" desc={`보고일 ${fmtDate(date)} → ${dataLabel(date)} 데이터 (전일 접수 기준) · 월요일·연휴 다음 날 보고일에는 쉬는 날까지 합쳐서 입력해요`}>
         <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
         <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
         <button className="btn btn-primary" onClick={fillFromUploads} disabled={filling} title="업로드한 주문·리뷰·게시판 파일로 주문건·취소·리뷰·게시판 칸을 채워요">
