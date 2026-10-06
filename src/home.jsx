@@ -59,9 +59,12 @@ function HomePage() {
 
   // 이번 달 (보고서와 같은 주차 기준) vs 지난달 '같은 기간' (월 중간에도 공정하게 비교)
   const now = new Date();
-  const ym = weekOf(toISODate(now))?.ym || toISODate(now).slice(0, 7);
+  const inMonth = (m) => { const w = monthWeeks(m); return d.filter(r => periodDate(r.report_date) >= w[0].from && periodDate(r.report_date) <= w[w.length - 1].to); };
+  let ym = weekOf(toISODate(now))?.ym || toISODate(now).slice(0, 7);
+  // 달이 바뀌었는데 이번 달 데이터가 아직 없으면 (예: 연휴 보고가 지난달 마지막 주에 들어간 경우) 지난달을 보여줌
+  if (!inMonth(ym).length) ym = toISODate(new Date(Number(ym.slice(0, 4)), Number(ym.slice(5)) - 2, 1)).slice(0, 7);
   const mw = monthWeeks(ym);
-  const monthRows = d.filter(r => periodDate(r.report_date) >= mw[0].from && periodDate(r.report_date) <= mw[mw.length - 1].to);
+  const monthRows = inMonth(ym);
   const s = sumRows(monthRows);
   const lastDay = maxDate(monthRows.map(r => r.report_date)) || mw[0].from;
   const elapsed = Math.round((parseDate(lastDay) - parseDate(mw[0].from)) / 86400000);
