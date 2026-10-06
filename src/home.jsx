@@ -66,16 +66,18 @@ function HomePage() {
   const ym = cw.ym;
   const curRows = d.filter(r => pdOf(r) >= cw.from && pdOf(r) <= latest);
   const s = sumRows(curRows);
+  const span = (rows) => { const ds = [...new Set(rows.map(r => r.report_date))].sort(); return ds.length ? [dataRangeOf(ds[0])[0], dataRangeOf(ds[ds.length - 1])[1]] : null; };
+  const cs = span(curRows);
+  // 이번 주 데이터가 일요일까지 다 들어왔으면 전주 전체와, 아니면 전주의 같은 날까지와 비교
+  const full = !!cs && cs[1] >= toISODate(addDays(parseDate(cw.to), -1));
   const elapsed = Math.round((parseDate(latest) - parseDate(cw.from)) / 86400000);
   const pFrom = toISODate(addDays(parseDate(cw.from), -7));
-  const pTo = toISODate(addDays(parseDate(pFrom), elapsed));
+  const pTo = full ? toISODate(addDays(parseDate(cw.to), -7)) : toISODate(addDays(parseDate(pFrom), elapsed));
   const prevRows = d.filter(r => pdOf(r) >= pFrom && pdOf(r) <= pTo);
   const p = sumRows(prevRows);
   const ratio = (a, n) => (n ? a / n : null);
-  const span = (rows) => { const ds = [...new Set(rows.map(r => r.report_date))].sort(); return ds.length ? [dataRangeOf(ds[0])[0], dataRangeOf(ds[ds.length - 1])[1]] : null; };
-  const [cs, ps] = [span(curRows), span(prevRows)];
+  const ps = span(prevRows);
   const md = (x) => fmtMD(parseDate(x));
-  const full = latest >= cw.to;
   const vsLabel = full ? '전주' : '전주 같은 기간';
   const periodNote = cs ? `데이터 ${md(cs[0])}~${md(cs[1])} · ${vsLabel}(${ps ? `${md(ps[0])}~${md(ps[1])}` : '-'}) 대비` : '';
 
