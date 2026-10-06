@@ -70,43 +70,51 @@ function ReportsPage() {
 
   if (!daily || !reviews || !board) return <div className="loading-screen">보고서 불러오는 중...</div>;
   if (!months.length) return <><PageHeader title="보고서" /><div className="card empty">CS 데일리 데이터가 아직 없어요</div></>;
-  const ym = ymSel || months[months.length - 1];
+  // 주간 리뷰 기본 = 최근 5주 (달과 상관없이 새 주가 생기면 가장 오래된 주가 빠짐, 2026-10-06 사용자 요청)
+  const lastYm = months[months.length - 1];
+  const sel = ymSel || (tab === 'weekly' ? RECENT : lastYm);
+  const ym = sel === RECENT ? lastYm : sel;
+  const monthOpts = [...months].reverse().map(v => ({ value: v, label: `${v.slice(0, 4)}년 ${Number(v.slice(5))}월` }));
 
   const controls = (
     <>
       <Segmented options={REPORT_TABS} value={tab} onChange={setTab} />
       <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
-      <Select value={ym} onChange={setYm} options={[...months].reverse().map(v => ({ value: v, label: `${v.slice(0, 4)}년 ${Number(v.slice(5))}월` }))} />
+      <Select value={tab === 'weekly' ? sel : ym} onChange={setYm} options={tab === 'weekly' ? [{ value: RECENT, label: '최근 5주' }, ...monthOpts] : monthOpts} />
       <button className="btn no-print" onClick={() => window.print()}>🖨 인쇄 / PDF</button>
     </>
   );
   const props = { daily, reviews, board, brand, ym, months, controls };
-  return tab === 'weekly' ? <WeeklyReview {...props} /> : <MonthlyReview {...props} />;
+  return tab === 'weekly' ? (sel === RECENT ? <RecentWeeksReview {...props} /> : <WeeklyReview {...props} />) : <MonthlyReview {...props} />;
 }
+const RECENT = 'recent';
 
 // 공통: 선택한 달의 상세 (리뷰 불만 · 과실 상품 · 재입고 · 메모)
-function MonthDetails({ reviews, board, brand, ym }) {
+// range·title을 주면 그 기간 (최근 5주 화면) · 월 메모는 달 화면에서만
+function MonthDetails({ reviews, board, brand, ym, range, title }) {
   const { cases, productById } = useApp();
-  const [from, to] = monthRange(ym);
+  const [from, to] = range || monthRange(ym);
   const rv = complaintTop(reviews, brand, from, to);
   // 리뷰 수 많은 상품 (상품 마스터 이름 우선, 사이즈·옵션 괄호는 합침)
   const byProduct = (rows) => countBy(rows, r => { const n = (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name; return n ? coreName(n) : null; })
     .filter(x => x.label !== '(미입력)').slice(0, 5);
   const restock = restockRanking(board.filter(r => r.brand === brand && inRange(r.written_at, from, to)), productById).slice(0, 5);
   const faultCases = cases.filter(c => c.brand === brand && isFault(c.voc_type) && c.received_date >= from && c.received_date <= to);
-  const m = Number(ym.slice(5));
+  const m = title || `${Number(ym.slice(5))}월`;
   // 상품 이름을 누르면 리뷰 목록에서 그 상품 리뷰 (전체 기간 · 이름으로 검색)
   const openProduct = (stars) => (name) => openReviewList({ brand, period: 'all', stars, q: name });
   return (
     <>
       {/* ① 이번 달 요약 (결론) */}
-      <div className="detail-section">📝 {m}월 요약</div>
-      <div className="grid grid-pair">
-        <MonthNotes ym={ym} brand={brand} />
-      </div>
+      {!range && <>
+        <div className="detail-section">📝 {m} 요약</div>
+        <div className="grid grid-pair">
+          <MonthNotes ym={ym} brand={brand} />
+        </div>
+      </>}
 
       {/* ② 리뷰: 왼쪽 부정(빨강) · 오른쪽 긍정(초록) */}
-      <div className="detail-section">⭐ {m}월 리뷰 <small className="muted" style={{ fontWeight: 400 }}>업로드한 리뷰 {rv.total.toLocaleString()}건 · 부정 {rv.neg.length.toLocaleString()}건 ({pct(rv.neg.length, rv.total)}) · 긍정 {rv.pos.length.toLocaleString()}건 ({pct(rv.pos.length, rv.total)})</small></div>
+      <div className="detail-section">⭐ {m} 리뷰 <small className="muted" style={{ fontWeight: 400 }}>업로드한 리뷰 {rv.total.toLocaleString()}건 · 부정 {rv.neg.length.toLocaleString()}건 ({pct(rv.neg.length, rv.total)}) · 긍정 {rv.pos.length.toLocaleString()}건 ({pct(rv.pos.length, rv.total)})</small></div>
       <div className="grid grid-pair">
         <div className="card">
           <div className="card-title">😟 불만 TOP 5 <small>1~3점 리뷰에서 많이 나온 말</small></div>
@@ -127,11 +135,11 @@ function MonthDetails({ reviews, board, brand, ym }) {
       </div>
 
       {/* ③ VOC · 재입고 */}
-      <div className="detail-section">🛠 {m}월 VOC · 재입고</div>
+      <div className="detail-section">🛠 {m} VOC · 재입고</div>
       <div className="grid grid-pair">
         <div className="card">
           <div className="card-title">과실 이슈 상품 TOP 5 <small>VOC 접수 {faultCases.length}건</small></div>
-          <Bars items={countBy(faultCases, c => caseProductName(c, productById)).slice(0, 5)} color="var(--danger)" wide empty="이달 접수된 과실 VOC가 없어요" />
+          <Bars items={countBy(faultCases, c => caseProductName(c, productById)).slice(0, 5)} color="var(--danger)" wide empty="이 기간에 접수된 과실 VOC가 없어요" />
         </div>
         <div className="card">
           <div className="card-title">추가분류별 과실 VOC <small>앵커 = 브랜드 대표 · 캐리오버 = 재생산 검토</small></div>
@@ -139,9 +147,58 @@ function MonthDetails({ reviews, board, brand, ym }) {
         </div>
         <div className="card">
           <div className="card-title">재입고 문의 TOP 5 <small>게시판 · 리오더 검토</small></div>
-          <Bars items={restock.map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" wide empty="이달 재입고 문의가 없어요 (게시판 파일을 올리면 보여요)" />
+          <Bars items={restock.map(x => ({ label: x.name, count: x.count }))} color="var(--warn)" wide empty="이 기간 재입고 문의가 없어요 (게시판 파일을 올리면 보여요)" />
         </div>
       </div>
+    </>
+  );
+}
+
+// ---------- 주간 리뷰: 최근 5주 (달과 상관없이) ----------
+// 가장 최근 데이터가 있는 주까지 5주 · 위 카드 = 마지막 주 vs 그 전주 (주가 다 안 찼으면 전주의 같은 날까지)
+function RecentWeeksReview({ daily, reviews, board, brand, ym, controls }) {
+  const mine = daily.filter(r => r.brand === brand);
+  const pdOf = (r) => periodDate(r.report_date);
+  const latest = maxDate(mine.map(pdOf)) || today();
+  const last = weekOf(latest) || { from: latest, to: latest };
+  const weeks = [4, 3, 2, 1, 0].map(k => {
+    const from = toISODate(addDays(parseDate(last.from), -7 * k)), to = toISODate(addDays(parseDate(from), 6));
+    const w = weekOf(from);
+    return { from, to, label: w ? w.label : fmtMD(addDays(parseDate(from), -1)), short: w ? w.label.replace('주차', '주') : '', range: `${fmtMD(addDays(parseDate(from), -1))}~${fmtMD(addDays(parseDate(from), 5))}` };
+  });
+  const rows = mine.filter(r => pdOf(r) >= weeks[0].from && pdOf(r) <= weeks[4].to);
+  const cur = mine.filter(r => pdOf(r) >= last.from && pdOf(r) <= latest);
+  const span = (list) => { const ds = [...new Set(list.map(r => r.report_date))].sort(); return ds.length ? [dataRangeOf(ds[0])[0], dataRangeOf(ds[ds.length - 1])[1]] : null; };
+  const cs = span(cur);
+  const full = !!cs && cs[1] >= toISODate(addDays(parseDate(last.to), -1));
+  const pFrom = toISODate(addDays(parseDate(last.from), -7));
+  const pTo = full ? toISODate(addDays(parseDate(last.to), -7)) : toISODate(addDays(parseDate(pFrom), Math.round((parseDate(latest) - parseDate(last.from)) / 86400000)));
+  const s = sumRows(cur), p = sumRows(mine.filter(r => pdOf(r) >= pFrom && pdOf(r) <= pTo));
+  const vs = full ? '전주' : '전주 같은 기간';
+  const all = span(rows);
+  const weekSums = weeks.map(w => ({ w, s: sumRows(rows.filter(r => pdOf(r) >= w.from && pdOf(r) <= w.to)) }));
+  return (
+    <>
+      <PageHeader title={`${brand} · 주간 리뷰 (최근 5주)`} desc={`데이터 ${all ? `${fmtMD(parseDate(all[0]))} ~ ${fmtMD(parseDate(all[1]))}` : '-'} · 새 주가 생기면 가장 오래된 주가 빠져요 · 한 주 = 월~일 (전일 데이터 기준)`}>{controls}</PageHeader>
+
+      <div className="grid grid-kpi">
+        <Kpi label={`주문건 (${last.label || '이번 주'})`} value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count vs={vs} />} />
+        <Kpi label="반품·교환율" value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratioOf(returnsExchanges(s), s.orders)} prev={ratioOf(returnsExchanges(p), p.orders)} vs={vs} />} />
+        <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratioOf(faults(s), s.orders)} prev={ratioOf(faults(p), p.orders)} vs={vs} />} />
+        <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratioOf(s.reviews_negative, s.reviews_total)} prev={ratioOf(p.reviews_negative, p.reviews_total)} vs={vs} />} />
+      </div>
+
+      <div className="section-title">주간 주문 · 반품교환 · 과실 · 리뷰 현황 <small className="muted">빨간 칸 = 5주 중 가장 높았던 주</small></div>
+      <div className="report-split">
+        <BrandWeekTable brand={brand} rows={rows} weeks={weeks} totalLabel="5주 합계·평균" worstLabel="5주 중 가장 높은 주" />
+        <div className="report-side">
+          <ComboChart title={`${brand} 주간 주문건 · 반품교환율`} color={BRAND_COLOR[brand]}
+            items={weekSums.map(x => ({ label: x.w.short || x.w.range, bar: x.s.orders, line: ratioOf(returnsExchanges(x.s), x.s.orders) }))} />
+          <ChannelTable brand={brand} rows={rows.filter(r => r.platform !== BRAND_TOTAL)} period="최근 5주 합계" />
+        </div>
+      </div>
+
+      <MonthDetails reviews={reviews} board={board} brand={brand} ym={ym} range={[weeks[0].from, weeks[4].to]} title="최근 5주" />
     </>
   );
 }
