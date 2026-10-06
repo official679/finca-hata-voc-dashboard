@@ -73,7 +73,10 @@ function PhotoPicker({ existing, onRemoveExisting, files, onAddFiles, onRemoveFi
 // 상품명 검색: 단어 일부만 넣어도 (띄어 써도) 목록에서 찾아 고르기
 function ProductSearchInput({ value, onChange, products }) {
   const [open, setOpen] = useState(false);
-  const hits = value.trim() ? products.filter(p => matchQuery(value, p.product_name)).slice(0, 12) : [];
+  // 판매처 이름을 그대로 붙여 넣어도 찾을 수 있게 말머리·상품번호·색상/사이즈 수·ver는 빼고 찾음
+  //   예: '[29CM 단독] 시티워커 나일론스판 쇼츠 16COLORS' → '시티워커 나일론스판 쇼츠'
+  const q = value.replace(/\[[^\]]*\]|\(\d{5,}\)/g, ' ').replace(/\b\d+\s*(colors?|sizes?|patterns?)\b|\bver\s*[\d.]+|\bsize\s*\w+/gi, ' ').trim();
+  const hits = value.trim() ? products.filter(p => matchQuery(value, p.product_name) || (q && matchQuery(q, p.product_name))).slice(0, 12) : [];
   const exact = products.some(p => p.product_name === value.trim());
   return (
     <div style={{ position: 'relative' }}>
