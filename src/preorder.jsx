@@ -342,6 +342,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
   );
 }
 
+const NO_PRE = '__none';   // 예약상품 선택 칸의 '예약상품 없는 주문'
 // 주문 목록 + 조회(상태·단계·출고예정일·예약상품·검색) + 선택한 주문 일괄 처리
 function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const toast = useToast();
@@ -359,7 +360,8 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
   const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
   const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) &&
-    (!product || o.preLines.some(l => l.product_name === product)) &&
+    // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
+    (!product || (product === NO_PRE ? !o.preLines.length : o.preLines.some(l => l.product_name === product))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     matchQuery(q, o.order_no, o.seller_order_no, o.orderer, o.lines.map(l => l.product_name), o.lines.map(l => l.barcode)));
   const filterKey = [status, stage, product, outFrom, outTo, q, lowOnly].join('|');
@@ -406,7 +408,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
         <div className="filters">
           {!todo && <Select value={status} onChange={setStatus} options={['출고대기', '출고완', '취소']} placeholder="상태 전체" />}
           <Select value={stage} onChange={setStage} options={['정상', '1차 지연', '2차 지연', '공지일 확인']} placeholder="단계 전체" />
-          <Select value={product} onChange={setProduct} options={productNames} placeholder="예약상품 전체" />
+          <Select value={product} onChange={setProduct} options={[{ value: NO_PRE, label: `⚪ 예약상품 없는 주문 (${orders.filter(o => !o.preLines.length).length})` }, ...productNames]} placeholder="예약상품 전체" />
           <span className="muted" style={{ whiteSpace: 'nowrap' }}>출고예정일</span>
           <input className="input" type="date" value={outFrom} onChange={e => setOutFrom(e.target.value)} title="주문 최종 출고예정일 (부터)" />
           <span className="muted">~</span>
