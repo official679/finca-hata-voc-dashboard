@@ -408,7 +408,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
         <div className="filters">
           {!todo && <Select value={status} onChange={setStatus} options={['출고대기', '출고완', '취소']} placeholder="상태 전체" />}
           <Select value={stage} onChange={setStage} options={['정상', '1차 지연', '2차 지연', '공지일 확인']} placeholder="단계 전체" />
-          <Select value={product} onChange={setProduct} options={[{ value: NO_PRE, label: `⚪ 예약상품 없는 주문 (${orders.filter(o => !o.preLines.length).length})` }, ...productNames]} placeholder="예약상품 전체" />
+          <Select value={product} onChange={setProduct} options={[{ value: NO_PRE, label: `⚪ 예약상품 없는 주문 (출고대기 ${orders.filter(o => !o.preLines.length && o.status === '출고대기').length})` }, ...productNames]} placeholder="예약상품 전체" />
           <span className="muted" style={{ whiteSpace: 'nowrap' }}>출고예정일</span>
           <input className="input" type="date" value={outFrom} onChange={e => setOutFrom(e.target.value)} title="주문 최종 출고예정일 (부터)" />
           <span className="muted">~</span>
