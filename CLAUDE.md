@@ -14,7 +14,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~18 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~20 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -37,6 +37,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
   주문자 이름은 안내용으로 저장하기로 사용자 동의 (연락처·주소는 저장 안 함).
   출고일이 늦어지지 않았으면(현재 출고일 <= 주문 당시 안내일) 지연 아님. 예약상품 일정은 대시보드에서만 고침 (구글시트 재업로드 시 덮어써짐).
   전체 예약주문 '예약상품' 선택 칸에 '⚪ 예약상품 없는 주문'(예약상품 일정에 없는 상품만 있는 주문, 2026-10-07).
+  저재고 주문도 유선/문자 안내 완료 버튼 사용 → split_notice_method/date(20 SQL, 2026-10-07)에 기록, 목록 칩 '저재고 ✓안내'.
   주문 상세 패널: 상품 체크박스로 여러 상품 상태를 한 번에(분리배송, 저장 눌러야 반영, 2026-10-02).
   저재고 표시는 출고대기 상품만 판단 (분리배송으로 먼저 출고완 처리한 상품은 제외, 2026-09-30).
   사은품 목록 = 기준 관리 '예약배송 사은품' ("코드 단품) 상품명", 앞 숫자 = 오클릭 바코드 → 저재고 계산 제외·🎁 표시).

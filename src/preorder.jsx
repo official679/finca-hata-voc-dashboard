@@ -329,7 +329,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   <td><b>{o.final_out ? fmtDate(o.final_out) : '-'}</b></td>
                   <td>{[o.lines.find(x => x.notice1_date), o.lines.find(x => x.notice2_date)].map((x, i) => x ? <span key={i} className="chip chip-green" style={{ marginRight: 4 }}>{i + 1}차 {x[`notice${i + 1}_method`] || ''} {fmtDate(x[`notice${i + 1}_date`]).slice(3)}</span> : null)}{!o.lines.some(x => x.notice1_date) && <span className="muted">-</span>}</td>
                   <td>{o.split || (o.mixed ? <span className="muted">일반상품 함께</span> : '-')}</td>
-                  <td>{o.low ? <span className="chip chip-amber">저재고</span> : ''}</td>
+                  <td>{o.low ? (o.lines.some(l => l.split_notice_date) ? <span className="chip chip-green" title={`분리배송 안내 ${o.lines.map(l => l.split_notice_method).find(Boolean) || ''} ${fmtDate(maxDate(o.lines.map(l => l.split_notice_date)))}`}>저재고 ✓안내</span> : <span className="chip chip-amber">저재고</span>) : ''}</td>
                   {!todo && <td>{o.status === '출고완' ? <span className="chip chip-green">출고완 {fmtDate(o.shipped_on).slice(3)}</span> : o.status === '취소' ? <span className="chip">취소</span> : '출고대기'}</td>}
                 </tr>
               );
@@ -479,10 +479,14 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   };
 
   // 안내 완료: 지연된 예약상품 줄에 다음 차수 안내를 오늘 날짜로 기록
+  //   + 저재고 주문이면 분리배송 안내도 기록 (20 SQL split_notice_*, 2026-10-07 사용자 요청)
+  const splitNeeded = order.low && order.status === '출고대기';
   const markNotice = (method) => setLs(prev => prev.map(l => {
     const e = order.lines.find(x => x.id === l.id);
-    if (!e || !e.pending) return l;
-    return !l.notice1_date ? { ...l, notice1_method: method, notice1_date: today() } : !l.notice2_date ? { ...l, notice2_method: method, notice2_date: today() } : l;
+    let n = l;
+    if (e && e.pending) n = !l.notice1_date ? { ...n, notice1_method: method, notice1_date: today() } : !l.notice2_date ? { ...n, notice2_method: method, notice2_date: today() } : n;
+    if (splitNeeded && l.status === '출고대기' && !l.split_notice_date) n = { ...n, split_notice_method: method, split_notice_date: today() };
+    return n;
   }));
 
   const save = async () => {
@@ -494,6 +498,7 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
           notice1_method: l.notice1_method || null, notice1_date: l.notice1_date || null,
           notice2_method: l.notice2_method || null, notice2_date: l.notice2_date || null,
           gift: l.gift || null, memo: l.memo || null,
+          split_notice_method: l.split_notice_method || null, split_notice_date: l.split_notice_date || null,
         }).eq('id', l.id);
         if (error) throw error;
       }
@@ -520,8 +525,8 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
         <div className="card">
           <div className="muted" style={{ marginBottom: 12 }}>{sellerLabel(order.seller)} · 구매일 {fmtDate(order.purchase_date)} · 오클릭 {order.order_no} · 주문 최종 출고예정 <b>{order.final_out ? fmtDate(order.final_out) : '-'}</b></div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <button className="btn btn-primary" onClick={() => markNotice('유선')} disabled={!order.pending}>📞 유선 안내 완료</button>
-            <button className="btn btn-primary" onClick={() => markNotice('문자')} disabled={!order.pending}>💬 문자 안내 완료</button>
+            <button className="btn btn-primary" onClick={() => markNotice('유선')} disabled={!order.pending && !splitNeeded} title={splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>📞 유선 안내 완료</button>
+            <button className="btn btn-primary" onClick={() => markNotice('문자')} disabled={!order.pending && !splitNeeded} title={splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>💬 문자 안내 완료</button>
             <button className="btn" onClick={() => copy(PREORDER_SMS.first(smsName, smsDate), '1차 지연')}>📋 1차 지연 문자</button>
             <button className="btn" onClick={() => copy(PREORDER_SMS.second(smsName, smsDate), '2차 지연')}>📋 2차 지연 문자</button>
             {order.low && <button className="btn" onClick={() => copy(PREORDER_SMS.split(smsName), '분리배송')}>📋 재고 소량·분리배송 문자</button>}
@@ -566,6 +571,10 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
                 )}
                 <div className="form-grid">
                   <div className="field"><label>상태</label><Select className="" value={l.status} onChange={setLine(i, 'status')} options={['출고대기', '출고완', '취소']} /></div>
+                  {(splitNeeded || l.split_notice_date) && <>
+                    <div className="field"><label>분리배송 안내</label><Select className="" value={l.split_notice_method || ''} onChange={setLine(i, 'split_notice_method')} options={['유선', '문자']} placeholder="-" /></div>
+                    <div className="field"><label>분리배송 안내일</label><input type="date" value={l.split_notice_date || ''} onChange={ev => setLine(i, 'split_notice_date')(ev.target.value)} /></div>
+                  </>}
                   <div className="field" style={{ gridColumn: 'span 2' }}><label>메모</label><input value={l.memo || ''} onChange={ev => setLine(i, 'memo')(ev.target.value)} placeholder="배송문의 접수, 특정일 수령 필요 등" /></div>
                 </div>
               </div>
