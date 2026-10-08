@@ -409,7 +409,7 @@ function UploadPanel({ configs, onDone, guide }) {
         {/* 브랜드는 파일에 브랜드 칸이 없는 시트가 있을 때만 고름 (오클릭·사방넷·29CM 등은 파일에 브랜드가 있음) */}
         {sheets && needsBrand && (
           <div className="field">
-            <label>브랜드 <span className="muted" style={{ fontWeight: 400 }}>(브랜드 칸이 없는 파일이 있어요)</span></label>
+            <label>브랜드 <span className="muted" style={{ fontWeight: 400 }}>· 브랜드를 알 수 없는 시트: <b>{ready.filter(s => s.rows.some(r => !r.brand)).map(s => s.name).join(', ')}</b> (이 시트만 고른 브랜드로 저장돼요)</span></label>
             <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
           </div>
         )}
@@ -434,7 +434,7 @@ function UploadPanel({ configs, onDone, guide }) {
                   const dates = s.rows.map(r => r.when?.key).filter(Boolean).sort();
                   return (
                     <tr key={s.file + s.name}>
-                      <td>{s.file} · {s.name}</td>
+                      <td>{s.file} · {s.name}{s.format && s.rows.some(r => !r.brand) && <span className="chip chip-amber" style={{ marginLeft: 6 }} title="이 시트는 브랜드를 알 수 없어 위에서 고른 브랜드로 저장돼요">브랜드 선택 필요</span>}</td>
                       <td>{s.format ? <b>{KIND_LABEL[s.format.kind]}</b> : '-'}</td>
                       <td>{s.format ? <span className="chip chip-green">{s.format.label}</span> : s.empty ? <span className="chip">빈 시트</span> : <span className="chip chip-amber">형식을 알 수 없어 건너뜀</span>}</td>
                       <td>{[...new Set(s.rows.map(r => r.platform))].join(', ') || '-'}</td>
