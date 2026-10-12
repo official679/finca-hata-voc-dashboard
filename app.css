@@ -549,5 +549,10 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .todo-step.next .todo-num { background: var(--accent); color: #fff; }
 .todo-step.skip { opacity: 0.5; }
 @media (max-width: 700px) { .todo-step { grid-template-columns: 28px 1fr 20px; } .todo-sub { grid-column: 2; } .todo-go { grid-row: 1; grid-column: 3; } }
-.todo-head { cursor: pointer; user-select: none; }
-.todo-caret { display: inline-block; width: 14px; color: var(--muted); }
+.todo-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; cursor: pointer; user-select: none; margin: 0 0 10px; padding: 12px 16px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius); }
+.todo-head:hover { filter: brightness(0.98); }
+.todo-title { font-size: 17px; font-weight: 800; color: var(--text); }
+.todo-progress { flex: 0 1 160px; height: 8px; background: rgba(255,255,255,0.8); border-radius: 4px; overflow: hidden; }
+.todo-progress-bar { display: block; height: 100%; background: var(--success); border-radius: 4px; transition: width .3s; }
+.todo-progress-text { font-size: 14px; font-weight: 700; color: var(--success); }
+.todo-toggle { margin-left: auto; padding: 5px 12px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }

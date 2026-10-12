@@ -153,8 +153,12 @@ function HomePage() {
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
       </PageHeader>
 
-      <div className="detail-section todo-head" style={{ marginTop: 0 }} onClick={toggleTodo} role="button" title={todoOpen ? '눌러서 접기' : '눌러서 펼치기'}>
-        <span className="todo-caret">{todoOpen ? '▾' : '▸'}</span> ✅ 오늘 할 일 <small className="muted" style={{ fontWeight: 400 }}>{doneCount}/{active.length} 완료{reportDay ? '' : ' · 오늘은 보고 없는 날(주말·공휴일)'}</small>
+      <div className={`todo-head${todoOpen ? ' open' : ''}`} onClick={toggleTodo} role="button" title={todoOpen ? '눌러서 접기' : '눌러서 펼치기'}>
+        <span className="todo-title">✅ 오늘 할 일</span>
+        <span className="todo-progress"><span className="todo-progress-bar" style={{ width: `${active.length ? (doneCount / active.length) * 100 : 0}%` }} /></span>
+        <span className="todo-progress-text">{doneCount}/{active.length} 완료</span>
+        {!reportDay && <span className="todo-sub">오늘은 보고 없는 날(주말·공휴일)</span>}
+        <span className="todo-toggle">{todoOpen ? '접기 ▲' : '펼치기 ▼'}</span>
       </div>
       {todoOpen ? (
         <div className="todo-steps">
