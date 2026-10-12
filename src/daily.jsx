@@ -195,7 +195,9 @@ function DailyEntryPage() {
   const daily = useDaily();
   const toast = useToast();
   const [date, setDate] = useState(today());
-  const [brand, setBrand] = useState('핀카');
+  // 업로드 화면의 'CS 데일리 ○○ 채우기' 버튼 = #/daily?fill=핀카 → 그 브랜드로 열고 자동으로 채움 (저장은 사람이 확인 후)
+  const [autoFill, setAutoFill] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('fill'));
+  const [brand, setBrand] = useState(() => (['핀카', '하타'].includes(autoFill) ? autoFill : '핀카'));
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -265,6 +267,13 @@ function DailyEntryPage() {
       toast('❌ 불러오기 실패: ' + (e.message || e), 'err');
     } finally { setFilling(false); }
   };
+  // 저장된 값을 먼저 불러온 뒤 한 번만 자동 채우기
+  useEffect(() => {
+    if (!autoFill || !daily || !platforms.length || !Object.keys(values).length) return;
+    setAutoFill(null);
+    history.replaceState(null, '', '#/daily');
+    fillFromUploads();
+  }, [autoFill, daily, values]);
   const total = sumRows(platforms.map(p => values[p] || {}));
 
   const save = async () => {

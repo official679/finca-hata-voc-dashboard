@@ -1,48 +1,59 @@
 // 로그인 · 메뉴 · 화면 전환
 
-// 하는 일 기준으로 묶음: 매일 하는 일 → VOC·리뷰 → 보고·회의 → 팀 → 기준·매뉴얼
+// 메뉴 단순화 (2026-10-12 사용자 승인): 매일 쓰는 것만 위에, 비슷한 화면은 한 메뉴 + 위쪽 탭으로, 가끔 쓰는 건 '더보기'에 접어 둠.
+// 화면 주소(#/report 등)는 그대로라 예전 링크·회의록 링크도 그대로 열림.
+const HUBS = {
+  preorder: { label: '예약배송 관리', icon: '📦', tabs: [['preorder', '📦 예약배송 관리'], ['hold-sheet', '📊 예약배송 상품 현황']] },
+  analysis: { label: '분석', icon: '📊', tabs: [['report', '📉 VOC 현황'], ['returns', '↩️ 반품·교환'], ['reviews', '💬 리뷰'], ['board', '🔎 게시판']] },
+  reports: { label: '보고 · 회의', icon: '📈', tabs: [['monthly', '📈 보고서 (주간·월간)'], ['kpi', '🎯 KPI'], ['meetings', '📒 CX 미팅 로그']] },
+  manuals: { label: '매뉴얼', icon: '📚', tabs: [['manuals', '📚 업무 매뉴얼'], ['guides', '⚠️ CX 응대 주의사항']] },
+};
+const hubOf = (route) => Object.keys(HUBS).find(h => HUBS[h].tabs.some(([k]) => k === route));
 const NAV = [
   { group: '', items: [
     { key: 'home', label: '메인 요약', icon: '🏠' },
-    { key: 'calendar', label: '팀 캘린더', icon: '📅' },
   ] },
   { group: '📅 매일 하는 일', items: [
     { key: 'upload', label: '데이터 업로드', icon: '📤' },
     { key: 'daily', label: 'CS 데일리', icon: '🗓️' },
     { key: 'voc-new', label: 'VOC 접수', icon: '📝' },
-    { key: 'preorder', label: '예약배송 관리', icon: '📦' },
-    { key: 'hold-sheet', label: '예약배송 상품 현황', icon: '📊' },
+    { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
+    { key: 'review-list', label: '리뷰 목록', icon: '💬' },
+    { key: 'preorder', hub: 'preorder' },
     // 예전 주소(#/upload-reviews 등)로 들어와도 데이터 업로드 화면으로 (메뉴에는 안 보임)
     { key: 'upload-reviews', label: '데이터 업로드', hidden: true },
     { key: 'upload-board', label: '데이터 업로드', hidden: true },
     { key: 'upload-orders', label: '데이터 업로드', hidden: true },
   ] },
-  { group: '🔍 VOC · 리뷰', items: [
-    { key: 'voc-list', label: 'VOC 목록', icon: '📋' },
-    { key: 'report', label: 'VOC 현황', icon: '📉' },
-    { key: 'returns', label: '반품·교환 분석', icon: '↩️' },
-    { key: 'review-list', label: '리뷰 목록', icon: '💬' },
-    { key: 'reviews', label: '리뷰 분석', icon: '📊' },
-    { key: 'board', label: '게시판 분석', icon: '🔎' },
+  { group: '📊 분석 · 보고', items: [
+    { key: 'report', hub: 'analysis' },
+    { key: 'monthly', hub: 'reports' },
+    { key: 'manuals', hub: 'manuals' },
   ] },
-  { group: '📊 보고 · 회의', items: [
-    { key: 'monthly', label: '보고서 (주간·월간)', icon: '📈' },
-    { key: 'kpi', label: 'KPI', icon: '🎯' },
-    { key: 'meetings', label: 'CX 미팅 로그', icon: '📒' },
-  ] },
-  { group: '👥 팀', items: [
+  { group: '더보기', more: true, items: [
+    { key: 'calendar', label: '팀 캘린더', icon: '📅' },
     { key: 'tasks', label: '업무 보드', icon: '📌' },
     { key: 'plan', label: '전사플랜', icon: '🗓️' },
     // 다른 대시보드는 새 창으로만 연결 (그쪽은 수정하지 않음)
     { key: 'ext-1inahundred', label: '원인어헌드레드 대시보드', icon: '🔗', href: 'https://1inahundred.netlify.app/' },
-  ] },
-  { group: '⚙️ 기준 · 매뉴얼', items: [
-    { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
-    { key: 'guides', label: 'CX 응대 주의사항', icon: '⚠️' },
     { key: 'codes', label: '기준 관리', icon: '🧩' },
   ] },
 ];
-const ALL_NAV = NAV.flatMap(g => g.items);
+// 화면 주소 목록 = 메뉴 + 탭 안의 화면들
+const ALL_NAV = [...NAV.flatMap(g => g.items).filter(n => !n.hub),
+  ...Object.values(HUBS).flatMap(h => h.tabs.map(([key, label]) => ({ key, label: label.replace(/^\S+\s/, '') })))];
+
+// 탭으로 묶인 화면 위에 보이는 탭 (마지막으로 본 탭은 이 PC에 기억 → 메뉴를 누르면 그 탭으로)
+function HubTabs({ hub, route, go }) {
+  return (
+    <div className="hub-tabs">
+      {HUBS[hub].tabs.map(([key, label]) => (
+        <button key={key} className={`hub-tab${route === key ? ' active' : ''}`} onClick={() => go(key)}>{label}</button>
+      ))}
+    </div>
+  );
+}
+const lastTab = (hub) => { try { const k = localStorage.getItem('hub:' + hub); return HUBS[hub].tabs.some(([t]) => t === k) ? k : HUBS[hub].tabs[0][0]; } catch { return HUBS[hub].tabs[0][0]; } };
 
 function LoginPage() {
   const [email, setEmail] = useState('');
@@ -91,6 +102,11 @@ function Shell({ session }) {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
   const go = (key) => { location.hash = `/${key}`; };
+  const hub = hubOf(route);
+  useEffect(() => { if (hub) try { localStorage.setItem('hub:' + hub, route); } catch {} }, [route]);
+  // 더보기: 접어 두고, 그 안의 화면을 보고 있으면 펼침
+  const [moreOpen, setMoreOpen] = useState(() => { try { return localStorage.getItem('navMore') === '1'; } catch { return false; } });
+  const toggleMore = () => setMoreOpen(v => { try { localStorage.setItem('navMore', v ? '0' : '1'); } catch {} return !v; });
 
   let page;
   if (!data.ready) page = <div className="loading-screen">데이터 불러오는 중...</div>;
@@ -149,10 +165,17 @@ function Shell({ session }) {
           <a className="sidebar-brand" href="#/home" title="눌러서 새로고침 (최신 화면)"
             onClick={e => { e.preventDefault(); if (confirm('새로고침할까요?\n저장하지 않은 입력은 사라져요.')) { location.hash = '#/home'; location.reload(); } }}>
             FINCA·HaTA CX<small>CX 운영 대시보드 · 🔄 새로고침</small></a>
-          {NAV.map(g => (
+          {NAV.map(g => {
+            const open = !g.more || moreOpen || g.items.some(i => i.key === route);
+            return (
             <div className="nav-group" key={g.group}>
-              {g.group && <div className="nav-group-title">{g.group}</div>}
-              {g.items.filter(item => !item.hidden).map(item => item.href ? (
+              {g.more ? <button className="nav-group-title nav-more" onClick={toggleMore}>{open ? '▾' : '▸'} {g.group}</button>
+                : g.group && <div className="nav-group-title">{g.group}</div>}
+              {open && g.items.filter(item => !item.hidden).map(item => item.hub ? (
+                <button key={item.key} className={`nav-item${hub === item.hub ? ' active' : ''}`} onClick={() => go(lastTab(item.hub))}>
+                  <span>{HUBS[item.hub].icon}</span>{HUBS[item.hub].label}
+                </button>
+              ) : item.href ? (
                 <a key={item.key} className="nav-item" href={item.href} target="_blank" rel="noopener noreferrer" title="새 창으로 열려요">
                   <span>{item.icon}</span>{item.label}<span style={{ marginLeft: 'auto', opacity: 0.6 }}>↗</span>
                 </a>
@@ -164,13 +187,14 @@ function Shell({ session }) {
                 </button>
               ))}
             </div>
-          ))}
+            );
+          })}
           <div className="sidebar-footer">
             <div className="email">{session.user.email}</div>
             <button onClick={() => db.auth.signOut()}>로그아웃</button>
           </div>
         </aside>
-        <main className="main">{page}</main>
+        <main className="main">{hub && data.ready && !data.loadError && <HubTabs hub={hub} route={route} go={go} />}{page}</main>
       </div>
     </AppContext.Provider>
   );

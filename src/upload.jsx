@@ -481,6 +481,13 @@ function UploadPanel({ configs, onDone, guide }) {
               {r.extra && <div style={{ marginTop: 4 }}>{r.extra}</div>}
             </div>
           ))}
+          {/* 다 올렸으면 한 번에 CS 데일리로 가서 자동 채우기 (2026-10-12 클릭 줄이기) */}
+          {!result.every(r => r.summary) && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+              <span className="muted">파일을 다 올렸으면 →</span>
+              {['핀카', '하타'].map(b => <a key={b} className="btn btn-sm btn-primary" href={`#/daily?fill=${encodeURIComponent(b)}`}>🗓️ CS 데일리 {b} 채우기</a>)}
+            </div>
+          )}
         </div>
       )}
     </div>
