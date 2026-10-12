@@ -368,7 +368,8 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
     // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
     (!product || (product === NO_PRE ? !o.preLines.length : o.preLines.some(l => l.product_name === product))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
-    matchQuery(q, o.order_no, o.seller_order_no, o.orderer, o.lines.map(l => l.product_name), o.lines.map(l => l.barcode)));
+    // 상태를 출고대기로 보면 상품명·바코드 검색도 아직 안 나간 상품에서만 (분리배송으로 먼저 나간 상품은 오클릭 미출고에 없음, 2026-10-12)
+    matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
   const filterKey = [status, stage, product, outFrom, outTo, q, lowOnly].join('|');
   useEffect(() => { setSelected(new Set()); }, [filterKey]);
   const picked = rows.filter(o => selected.has(o.order_no));
