@@ -99,6 +99,9 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
   const [cf, ct] = range(cur), [pf] = range(prev);
   const reviews = await fetchAll(() => db.from('review_items').select('brand,product_name,rating,content,written_at')
     .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
+  // 게시판 문의 유형 (문의가 크게 늘면 어떤 유형이 늘었는지 요약에 넣기, 2026-10-12 사용자 요청)
+  const boards = await fetchAll(() => db.from('board_items').select('brand,inquiry_type,written_at')
+    .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
   const negMax = loadNegMax();
   const inWeek = (iso, f, t) => { const d = toISODate(new Date(iso)); return d >= f && d <= t; };
   const top = (list, n = 3) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => `${k} ${c}건`).join(', ') || '-'; };
@@ -122,7 +125,11 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
       .sort((a, b) => reviewThemes(b.content, false).length - reviewThemes(a.content, false).length).slice(0, 2)
       .map(r => `"${String(r.content).replace(/\s+/g, ' ').trim().slice(0, 60)}${String(r.content).trim().length > 60 ? '…' : ''}" (${short(r.product_name)})`);
     const negThemes = {}; neg.flatMap(r => reviewThemes(r.content, true)).forEach(t => { negThemes[t] = (negThemes[t] || 0) + 1; });
-    info[brand] = { neg: neg.length, pneg, topNeg: Object.entries(negThemes).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k),
+    const typeCount = (list) => { const m = {}; list.forEach(x => { const k = x.inquiry_type || '미분류'; if (k !== '답변(제외)') m[k] = (m[k] || 0) + 1; }); return m; };
+    const bb = boards.filter(x => x.brand === brand);
+    const [bc, bp] = [typeCount(bb.filter(x => inWeek(x.written_at, cf, ct))), typeCount(bb.filter(x => !inWeek(x.written_at, cf, ct)))];
+    const boardUp = Object.keys(bc).map(k => [k, bp[k] || 0, bc[k]]).filter(([, p, c]) => c - p >= 3).sort((a, b) => (b[2] - b[1]) - (a[2] - a[1])).slice(0, 3);
+    info[brand] = { boardUp, neg: neg.length, pneg, topNeg: Object.entries(negThemes).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k),
       fault: fault.length, avg: ca, pavg: pa, topPos: (() => { const m = {}; pos.flatMap(r => reviewThemes(r.content, false)).forEach(t => { m[t] = (m[t] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0]; })() };
     // 회의록 모양 (사용자 예시, 2026-10-06): 브랜드 한 줄(건수/평균/별점 분포) + 짧은 문장들
     const names = (list, n) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k); };
@@ -216,7 +223,13 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
     // 2) 반품교환율이 높은 편이면 (8% 이상)
     if (rcc >= 8) sentences.push(`**${b}${josa(b)}** 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '크게 높아져 원인 확인 필요' : '여전히 높은 수준'}`);
     // 3) 문의가 따로 크게 바뀌면
-    if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(`**${b}** 고객 문의가 ${qd === '증가' ? '크게 늘어 문의 유형 확인 필요' : '줄어듦'}`);
+    const up = (ri[b] && ri[b].boardUp) || [];
+    const upText = up.length ? ` — 게시판 ${up.map(([k, pc, cc]) => `**${k}** ${pc}→${cc}건`).join(', ')}` : '';
+    const chans = [['게시판', s => s.board_total], ['해피톡', s => s.ht_total], ['전화', s => s.call_in]].filter(([, f]) => f(c) - f(p) >= 3).map(([k, f]) => `${k} ${f(p)}→${f(c)}건`);
+    if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(qd === '증가'
+      ? `**${b}** 고객 문의가 크게 늘어남${upText || (chans.length ? ` (${chans.join(', ')})` : '')}`
+      : `**${b}** 고객 문의가 줄어듦`);
+    else if (qPart && qd === '증가' && up.length) sentences.push(`**${b}** 늘어난 문의${upText.replace(' — ', ': ')}`);
     // 4) 리뷰: 부정 증가·주요 불만 / 평점
     const x = ri[b];
     if (x) {
