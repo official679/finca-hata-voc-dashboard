@@ -138,7 +138,8 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
     return {
       ...o, seller: first.seller, seller_order_no: ls.map(l => l.seller_order_no).find(Boolean) || null,
       purchase_date: first.purchase_date, orderer: first.orderer,
-      status: ls.every(l => l.status === '출고완') ? '출고완' : ls.every(l => l.status === '취소') ? '취소' : '출고대기',
+      // 출고대기 상품이 하나도 없으면 끝난 주문 (일부 취소 + 나머지 출고완 = 출고완)
+      status: ls.some(l => l.status === '출고대기') ? '출고대기' : ls.every(l => l.status === '취소') ? '취소' : '출고완',
       stage: worst, pending: ls.some(l => l.pending), low: ls.some(l => l.low), mixed: ls.some(l => !l.prod),
       final_out: maxDate(pre.map(l => l.current)), split: ls.map(l => l.split).find(Boolean) || '',
       preLines: pre, done: Math.max(0, ...pre.map(l => l.done)),
