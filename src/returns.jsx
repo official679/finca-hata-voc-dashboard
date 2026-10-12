@@ -44,14 +44,7 @@ const RETURN_FORMATS = [
         reason_raw: retStr(r['사유']), reason_detail: retClean(r['상세사유']), claim_status: retStr(r['처리상태']) || null,
         order_date: retDateFromNo(no), claim_date: retDate(r['접수일']), when: {} };
     } },
-  // 29CM: 주문번호·사유만 → 저장할 때 올려 둔 주문(오클릭·사방넷)에서 상품을 찾음 (prepare)
-  ...[['반품', '반품 사유'], ['교환', '교환 사유']].map(([kind, col]) => ({
-    kind: 'return', label: `29CM ${kind}`, headers: ['CS 처리상태', '주문번호', col],
-    map: (r) => ({ key: /철회/.test(retStr(r['CS 처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}`,
-      brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']),
-      reason_raw: retStr(r[col]), reason_detail: retClean(r['상세 사유'] || r['상세사유']), claim_status: retStr(r['CS 처리상태']),
-      claim_date: retDate(r[`${kind} 접수일`] || r[`${kind}접수일`] || r['접수일']), ...given29(r), needs_product: true, when: {} }),
-  })),
+  // (29CM에서 그대로 받은 'CS 처리상태' 반품/교환 목록 형식은 2026-10-12 삭제: 사용자가 데일리 정리 파일만 씀)
   // 29CM 데일리 반품·교환 정리 파일 (처리상태·주문번호·반품사유/교환사유·주문자·반품접수일/교환접수일·브랜드, 불량이면 '상세사유' 칸 추가)
   // 같은 반품이 접수→수거중→완료로 여러 날 올라와도 주문번호로 묶여서 한 번만 저장 · 주문자 이름은 읽지 않음
   ...[['반품', '반품사유', '반품접수일'], ['교환', '교환사유', '교환접수일']].map(([kind, col, dateCol]) => ({

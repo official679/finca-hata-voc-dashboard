@@ -63,7 +63,7 @@ const reportDoneDate = () => { try { return localStorage.getItem('dailyReportDon
 
 // 메인: ① 오늘 할 일(순서표) ② 이번 주 핵심 지표 ③ 주간 그래프 ④ 과실 사유·재입고 상품
 function HomePage() {
-  const { cases, productById, codes } = useApp();
+  const { cases, productById, codes, viewMode } = useApp();
   const daily = useDaily();
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id,option_text', toISODate(addDays(new Date(), -90)));
   const [brand, setBrand] = useState('핀카');
@@ -153,6 +153,8 @@ function HomePage() {
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
       </PageHeader>
 
+      {/* 보기 모드(대표님·MD)에서는 팀 아침 루틴인 '오늘 할 일'을 숨김 */}
+      {!viewMode && <>
       <div className={`todo-head${todoOpen ? ' open' : ''}`} onClick={toggleTodo} role="button" title={todoOpen ? '눌러서 접기' : '눌러서 펼치기'}>
         <span className="todo-title">✅ 오늘 할 일</span>
         <span className="todo-progress"><span className="todo-progress-bar" style={{ width: `${active.length ? (doneCount / active.length) * 100 : 0}%` }} /></span>
@@ -181,6 +183,7 @@ function HomePage() {
           </a>
         </div>
       ) : <div className="todo-steps"><div className="todo-sub" style={{ padding: '4px 2px' }}>오늘 할 일을 모두 마쳤어요 ✓</div></div>}
+      </>}
 
       <div className="detail-section">📊 {cw.label} 핵심 지표 <small className="muted" style={{ fontWeight: 400 }}>{periodNote}</small></div>
       <div className="grid grid-kpi">

@@ -7,6 +7,10 @@ const HUBS = {
   analysis: { label: '분석', icon: '📊', tabs: [['report', '📉 VOC 현황'], ['returns', '↩️ 반품·교환'], ['reviews', '💬 리뷰'], ['board', '🔎 게시판']] },
   reports: { label: '보고 · 회의', icon: '📈', tabs: [['monthly', '📈 보고서 (주간·월간)'], ['meetings', '📒 CX 미팅 로그'], ['kpi', '🎯 KPI']] },
 };
+// 👀 보기 모드 (대표님·MD용, PC별 기억 localStorage 'viewMode', 2026-10-12): 입력·업로드·예약배송·기준 관리 메뉴를 숨기고
+//   메인의 '오늘 할 일'(팀 아침 루틴)도 숨김. 보안 기능은 아님 — 주소로 들어가면 화면은 그대로 열림, 누구나 다시 끌 수 있음
+const VIEW_HIDDEN = ['upload', 'daily', 'voc-new', 'preorder', 'codes', 'tasks'];
+const readViewMode = () => { try { return localStorage.getItem('viewMode') === '1'; } catch { return false; } };
 const hubOf = (route) => Object.keys(HUBS).find(h => HUBS[h].tabs.some(([k]) => k === route));
 const NAV = [
   { group: '', items: [
@@ -106,6 +110,8 @@ function Shell({ session }) {
   useEffect(() => { if (hub) try { localStorage.setItem('hub:' + hub, route); } catch {} }, [route]);
   // 더보기: 접어 두고, 그 안의 화면을 보고 있으면 펼침
   const [moreOpen, setMoreOpen] = useState(() => { try { return localStorage.getItem('navMore') === '1'; } catch { return false; } });
+  const [viewMode, setViewMode] = useState(readViewMode);
+  const toggleViewMode = () => setViewMode(v => { try { localStorage.setItem('viewMode', v ? '0' : '1'); } catch {} return !v; });
   const toggleMore = () => setMoreOpen(v => { try { localStorage.setItem('navMore', v ? '0' : '1'); } catch {} return !v; });
 
   let page;
@@ -150,7 +156,7 @@ function Shell({ session }) {
 
 
   return (
-    <AppContext.Provider value={data}>
+    <AppContext.Provider value={{ ...data, viewMode }}>
       <div className="mobile-bar">
         <button onClick={() => setMenuOpen(true)} aria-label="메뉴 열기">☰</button>
         FINCA·HaTA CX
@@ -162,13 +168,17 @@ function Shell({ session }) {
           <a className="sidebar-brand" href="#/home" title="눌러서 새로고침 (최신 화면)"
             onClick={e => { e.preventDefault(); if (confirm('새로고침할까요?\n저장하지 않은 입력은 사라져요.')) { location.hash = '#/home'; location.reload(); } }}>
             FINCA·HaTA CX<small>CX 운영 대시보드 · 🔄 새로고침</small></a>
+          {viewMode && <div className="view-mode-badge">👀 보기 모드 <small>입력 메뉴 숨김</small></div>}
           {NAV.map(g => {
+            const items = g.items.filter(item => !item.hidden && !(viewMode && VIEW_HIDDEN.includes(item.key)));
+            if (!items.length) return null;
+            const title = viewMode && g.group === '📅 매일 하는 일' ? '📋 목록' : g.group;
             const open = !g.more || moreOpen || g.items.some(i => i.key === route);
             return (
             <div className="nav-group" key={g.group}>
               {g.more ? <button className="nav-group-title nav-more" onClick={toggleMore}>{open ? '▾' : '▸'} {g.group}</button>
-                : g.group && <div className="nav-group-title">{g.group}</div>}
-              {open && g.items.filter(item => !item.hidden).map(item => item.hub ? (
+                : title && <div className="nav-group-title">{title}</div>}
+              {open && items.map(item => item.hub ? (
                 <button key={item.key} className={`nav-item${hub === item.hub ? ' active' : ''}`} onClick={() => go(lastTab(item.hub))}>
                   <span>{HUBS[item.hub].icon}</span>{HUBS[item.hub].label}
                 </button>
@@ -185,6 +195,7 @@ function Shell({ session }) {
             );
           })}
           <div className="sidebar-footer">
+            <button className="view-mode-toggle" onClick={toggleViewMode} title="대표님·MD처럼 보기만 하는 분용 · 이 PC에 기억돼요">{viewMode ? '✏️ 보기 모드 끄기' : '👀 보기 모드 켜기'}</button>
             <div className="email">{session.user.email}</div>
             <button onClick={() => db.auth.signOut()}>로그아웃</button>
           </div>

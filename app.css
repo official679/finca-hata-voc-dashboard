@@ -556,3 +556,8 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .todo-progress-bar { display: block; height: 100%; background: var(--success); border-radius: 4px; transition: width .3s; }
 .todo-progress-text { font-size: 14px; font-weight: 700; color: var(--success); }
 .todo-toggle { margin-left: auto; padding: 5px 12px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+/* 👀 보기 모드 (2026-10-12) */
+.view-mode-badge { margin: -6px 20px 10px; padding: 6px 10px; border-radius: 8px; background: rgba(78, 142, 247, 0.22); color: #fff; font-size: 13px; font-weight: 700; }
+.view-mode-badge small { display: block; font-weight: 500; font-size: 11px; opacity: 0.8; }
+.sidebar-footer .view-mode-toggle { display: block; width: 100%; margin-bottom: 12px; padding: 8px 12px; font-size: 13px; font-weight: 600; background: rgba(78, 142, 247, 0.25); color: #fff; }
