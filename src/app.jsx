@@ -5,7 +5,7 @@
 const HUBS = {
   preorder: { label: '예약배송 관리', icon: '📦', tabs: [['preorder', '📦 예약배송 관리'], ['hold-sheet', '📊 예약배송 상품 현황']] },
   analysis: { label: '분석', icon: '📊', tabs: [['report', '📉 VOC 현황'], ['returns', '↩️ 반품·교환'], ['reviews', '💬 리뷰'], ['board', '🔎 게시판']] },
-  reports: { label: '보고 · 회의', icon: '📈', tabs: [['monthly', '📈 보고서 (주간·월간)'], ['kpi', '🎯 KPI'], ['meetings', '📒 CX 미팅 로그']] },
+  reports: { label: '보고 · 회의', icon: '📈', tabs: [['monthly', '📈 보고서 (주간·월간)'], ['meetings', '📒 CX 미팅 로그'], ['kpi', '🎯 KPI']] },
   manuals: { label: '매뉴얼', icon: '📚', tabs: [['manuals', '📚 업무 매뉴얼'], ['guides', '⚠️ CX 응대 주의사항']] },
 };
 const hubOf = (route) => Object.keys(HUBS).find(h => HUBS[h].tabs.some(([k]) => k === route));
