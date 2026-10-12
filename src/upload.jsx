@@ -50,20 +50,10 @@ function hashText(str) {
 }
 const contentKey = (when, text) => hashText(`${when ? when.key : ''}|${String(text || '').replace(/\s+/g, '').slice(0, 300)}`);
 
-// 게시판 본문의 HTML 태그·붙여넣은 이미지 제거
-const stripHtml = (s) => String(s || '')
-  .replace(/<img[^>]*>/gi, ' [이미지] ')
-  .replace(/<br\s*\/?>|<\/p>/gi, '\n')
-  .replace(/<[^>]+>/g, '')
-  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-  .replace(/\n{3,}/g, '\n\n').trim();
-
 const num = (v) => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); return Number.isFinite(n) ? n : null; };
 
 // kind: review | board. 순서 중요 (더 구체적인 형식을 먼저)
 const FILE_FORMATS = [
-  { kind: 'review', label: '기존 시트 리뷰 low', headers: ['front_brand_name', '플랫폼', 'item_name', 'point', 'contents', 'insert_timestamp'],
-    map: (r) => ({ brand: normBrand(r.front_brand_name), platform: normPlatform(r['플랫폼']), product_name: r.item_name, rating: num(r.point), content: r.contents, when: parseWhen(r.insert_timestamp), order_no: r['주문번호'] }) },
   { kind: 'review', label: '29CM 리뷰', headers: ['front_brand_name', 'item_name', 'point', 'contents', 'insert_timestamp'],
     map: (r) => ({ brand: normBrand(r.front_brand_name), platform: '29CM', product_name: r.item_name, rating: num(r.point), content: r.contents, when: parseWhen(r.insert_timestamp), order_no: r.order_serial }) },
   { kind: 'review', label: '29CM 리뷰 (파트너 화면)', headers: ['리뷰번호', '상품명', '별점', '리뷰 내용', '등록일시'],
@@ -85,8 +75,6 @@ const FILE_FORMATS = [
 
   { kind: 'board', label: '아임웹 게시판', headers: ['제목', '내용', '작성시각', '답글'],
     map: (r) => ({ platform: '아임웹', product_name: r['상품명'], option_text: r['옵션'], title: r['제목'], content: r['내용'], when: parseWhen(r['작성시각']), answer: r['답글'], answered: parseWhen(r['답글 작성시간']) }) },
-  { kind: 'board', label: '카페24 게시판', headers: ['게시물 제목', '내용', '게시물 작성일시'],
-    map: (r) => ({ platform: '카페24', platform_category: r['카테고리'], title: r['게시물 제목'], content: stripHtml(r['내용']), when: parseWhen(r['게시물 작성일시']) }) },
   // 다운로드가 안 되는 판매처는 화면에서 긁어서 이 양식에 붙여넣기 (칸 순서 상관없음, 브랜드·상품명·제목·문의유형은 있으면 좋음)
   // 문의 내용은 없어도 됨 → 문의유형·제목으로 유형 분류 (긁기 힘든 곳은 개수·유형·상품만)
   // 내용이 비슷한 글이 같은 날 여러 개일 수 있어 순번을 붙여 구분 (같은 파일을 다시 올리면 같은 순번 → 중복 안 됨)
@@ -182,7 +170,7 @@ const KIND_LABEL = { review: '리뷰', board: '게시판 문의', order: '주문
 const KIND_GUIDE = {
   review: { icon: '⭐', title: '리뷰', does: '긍정·부정 자동 분류 · 새로 들어온 1~3점 리뷰는 VOC 접수로 자동 등록 · 고객 이름·아이디는 저장 안 함' },
   board: { icon: '💬', title: '게시판 문의', does: '재입고·배송·교환/반품 등 문의 유형 자동 분류 · 우리 답변 글은 집계에서 제외 · 작성자 정보는 저장 안 함' },
-  order: { icon: '🛒', title: '주문', does: '핀카 = 오클릭 주문 파일, 하타 = 사방넷 파일 · 대분류(베딩·러그·바스·홈데코·웨어·잡화·키친) 자동 분류 · 주문자·수령자·연락처는 저장 안 함 · 판매처 주문 파일은 지난 기간 요약용으로만' },
+  order: { icon: '🛒', title: '주문', does: '핀카 = 오클릭 주문 파일, 하타 = 사방넷 파일 · 대분류(베딩·러그·바스·홈데코·웨어·잡화·키친) 자동 분류 · 주문자·수령자·연락처는 저장 안 함 · 판매처(29CM·아임웹 등) 주문 파일은 받지 않음 (두 번 세어짐)' },
   return: { icon: '↩️', title: '반품·교환', does: '판매처 반품·교환 파일 그대로 · 사유 자동 묶기(과실 = 불량·파손·오배송·누락) · 29CM는 주문번호로 올려 둔 주문에서 상품을 찾아 채움 · 철회 건 제외' },
 };
 
@@ -262,7 +250,6 @@ function UploadPanel({ configs, onDone, guide }) {
   const [sheets, setSheets] = useState(null);
   const [busy, setBusy] = useState('');
   const [result, setResult] = useState(null);
-  const [summaryMode, setSummaryMode] = useState(false);   // 주문을 월·상품별 요약으로만 저장 (지난 주문용)
   const inputRef = useRef(null);
 
   const pick = async (files) => {
@@ -293,10 +280,6 @@ function UploadPanel({ configs, onDone, guide }) {
 
   const ready = sheets ? sheets.filter(s => s.format && s.rows.length) : [];
   const needsBrand = ready.some(s => s.rows.some(r => !r.brand));
-  // 판매처 주문 파일(29CM·아임웹 등)은 요약 저장일 때만 (주문은 오클릭·사방넷 기준이라 그대로 올리면 두 번 셈)
-  const legacyOrders = ready.some(s => s.format.kind === 'order' && s.format.legacy);
-  const blockLegacy = legacyOrders && !summaryMode;
-
   // 종류(리뷰·게시판·주문)별로 나눠서 각자의 표에 저장
   const upload = async () => {
     const match = productMatcher(products);
@@ -304,19 +287,6 @@ function UploadPanel({ configs, onDone, guide }) {
     try {
       for (const kind of kinds) {
         const cfg = configs[kind];
-        if (kind === 'order' && summaryMode) {
-          const lines = [];
-          ready.filter(s => s.format.kind === 'order').forEach(s => s.rows.forEach(r => lines.push({ ...r, brand: r.brand || brand })));
-          const sums = summarizeOrders(lines);
-          // 같은 월·브랜드·판매처·상품은 덮어씀 → 같은 파일을 다시 올려도 두 번 세지 않음
-          for (let i = 0; i < sums.length; i += 500) {
-            setBusy(`주문 요약 올리는 중... ${Math.min(i + 500, sums.length).toLocaleString()} / ${sums.length.toLocaleString()}`);
-            const { error } = await db.from('order_monthly').upsert(sums.slice(i, i + 500), { onConflict: 'ym,brand,platform,product_name' });
-            if (error) throw new Error(`주문 요약: ${error.message}`);
-          }
-          results.push({ kind, summary: true, lines: lines.length, inserted: sums.length });
-          continue;
-        }
         let src = [];
         ready.filter(s => s.format.kind === kind).forEach(s => s.rows.forEach(r => { const b = r.brand || brand; if (b) src.push({ ...r, brand: b }); }));
         // 저장 전 보충 (예: 29CM 반품은 주문번호만 있어 올려 둔 주문에서 상품을 찾아 채움)
@@ -446,21 +416,10 @@ function UploadPanel({ configs, onDone, guide }) {
               </tbody>
             </table>
           </div>
-          {ready.some(s => s.format.kind === 'order') && (
-            <label className="card" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12, background: summaryMode ? 'var(--accent-soft)' : undefined, cursor: 'pointer' }}>
-              <input type="checkbox" checked={summaryMode} onChange={e => setSummaryMode(e.target.checked)} style={{ marginTop: 4 }} />
-              <span>
-                <b>주문은 월·상품별 요약으로만 저장</b> <span className="muted">(상반기처럼 지난 주문용)</span>
-                <div className="hint">한 줄씩 저장하지 않고 월·판매처·상품별 개수(주문·취소·반품·교환)만 저장해요. 용량이 약 1/20.
-                  대신 CS 데일리 자동 채우기·하루 단위 분석에는 쓰이지 않아요. <b>7월부터의 주문은 체크하지 마세요.</b></div>
-              </span>
-            </label>
-          )}
-          {blockLegacy && <div className="login-error" style={{ textAlign: 'left' }}>판매처 주문 파일(29CM·무신사 등)이 있어요. 7월부터 주문은 <b>핀카 = 오클릭, 하타 = 사방넷</b> 파일만 올려요 (그대로 올리면 두 번 세어져요). 지난 기간 요약용이면 위의 <b>요약으로만 저장</b>에 체크해 주세요.</div>}
           {needsBrand && !brand && <div className="login-error" style={{ textAlign: 'left' }}>브랜드가 없는 파일이 있어요. 위에서 브랜드를 골라주세요.</div>}
           <div className="form-actions">
             <button className="btn" onClick={() => setSheets(null)}>취소</button>
-            <button className="btn btn-primary" disabled={!ready.length || (needsBrand && !brand) || blockLegacy} onClick={upload}>
+            <button className="btn btn-primary" disabled={!ready.length || (needsBrand && !brand)} onClick={upload}>
               ⬆ {ready.reduce((a, s) => a + s.rows.length, 0).toLocaleString()}건 업로드
             </button>
           </div>
@@ -471,9 +430,7 @@ function UploadPanel({ configs, onDone, guide }) {
         <div className="card" style={{ marginTop: 16, background: 'var(--success-soft)', border: 'none' }}>
           {result.map(r => (
             <div key={r.kind} style={{ marginBottom: 4 }}>
-              {r.summary
-                ? <>✅ <b>주문 요약</b> {r.lines.toLocaleString()}줄 → 월·상품별 <b>{r.inserted.toLocaleString()}줄</b>로 묶어 저장 (아래 '요약으로 저장한 지난 주문'에서 확인)</>
-                : <>✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b></>}
+              ✅ <b>{KIND_LABEL[r.kind]}</b> 새로 저장 <b>{r.inserted.toLocaleString()}건</b>
               {r.skipped > 0 && <> · 이미 있던 {r.skipped.toLocaleString()}건은 건너뜀</>}
               {r.orderFilled > 0 && <> (그중 {r.orderFilled.toLocaleString()}건은 비어 있던 주문번호를 채움)</>}
               {r.statusUpdated > 0 && <> · 상태가 바뀐 {r.statusUpdated.toLocaleString()}건은 새 상태로 바꿈 (예: 출고대기 → 취소완료)</>}
@@ -482,12 +439,10 @@ function UploadPanel({ configs, onDone, guide }) {
             </div>
           ))}
           {/* 다 올렸으면 한 번에 CS 데일리로 가서 자동 채우기 (2026-10-12 클릭 줄이기) */}
-          {!result.every(r => r.summary) && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-              <span className="muted">파일을 다 올렸으면 →</span>
-              <a className="btn btn-sm btn-primary" href={`#/daily?fill=${encodeURIComponent('핀카')}`}>🗓️ CS 데일리 채우기 (핀카·하타)</a>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+            <span className="muted">파일을 다 올렸으면 →</span>
+            <a className="btn btn-sm btn-primary" href={`#/daily?fill=${encodeURIComponent('핀카')}`}>🗓️ CS 데일리 채우기 (핀카·하타)</a>
+          </div>
         </div>
       )}
     </div>

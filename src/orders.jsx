@@ -24,8 +24,7 @@ function classifyItem(name, option) {
 const num1 = (v) => { const n = parseInt(String(v).replace(/[^\d-]/g, ''), 10); return Number.isFinite(n) && n > 0 ? n : 1; };
 
 // 주문 파일 형식 (개인정보 칸은 읽지 않음)
-// 순서 중요: 무신사(클레임상태 칸 있음)를 먼저 확인해야 29CM로 잘못 알아보지 않음
-// legacy = 판매처 주문 파일: 7월부터 주문은 오클릭(핀카)·사방넷(하타)만 → 지난 기간 요약 저장할 때만 쓸 수 있음 (두 번 세기 방지)
+// 주문은 오클릭(핀카)·사방넷(하타)만 (2026-10-12 판매처 주문 형식 삭제: 상반기 넣을 때만 썼고, 다시 올리면 두 번 세어짐)
 
 // 오클릭 판매처명 → 플랫폼 ('2. 29CM(하타)' → 29CM). 시딩·샘플·B2B·오프라인은 이름 그대로 (CS 데일리에는 안 들어감)
 function oclickPlatform(name) {
@@ -61,34 +60,6 @@ FILE_FORMATS.push(
       product_name: r['상품명'], qty: num1(r['EA']),
       when: parseWhen(String(r['주문일자'] || '').replace(/^(\d{4})(\d{2})(\d{2}).*$/, '$1-$2-$3')) }) },
 );
-FILE_FORMATS.push(
-  { kind: 'order', legacy: true, label: '무신사 주문', headers: ['주문일시', '주문번호', '주문일련번호', '주문상태', '상품명', '옵션', '수량'],
-    map: (r) => ({ key: r['주문일련번호'], platform: '무신사',
-      order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
-  // 하타 상반기 파일처럼 주문일련번호가 없는 무신사 파일
-  { kind: 'order', legacy: true, label: '무신사 주문 (일련번호 없음)', headers: ['주문일시', '주문번호', '주문상태', '클레임상태', '상품번호', '상품명', '옵션', '수량'],
-    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션']}`) : '', platform: '무신사',
-      order_no: r['주문번호'], status: r['주문상태'], claim_status: r['클레임상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
-  // 옵션코드 칸은 없어도 됨 (하타 29CM 파일)
-  { kind: 'order', legacy: true, label: '29CM 주문', headers: ['주문번호', '주문상태', '상품번호', '상품명', '옵션', '수량', '주문일시'],
-    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품번호']}|${r['옵션코드'] || ''}|${r['옵션']}`) : '', brand: normBrand(r['브랜드']), platform: '29CM',
-      order_no: r['주문번호'], status: r['주문상태'], product_name: r['상품명'], option_text: r['옵션'], qty: num1(r['수량']), when: parseWhen(r['주문일시']) }) },
-  { kind: 'order', legacy: true, label: '아임웹 주문', headers: ['주문번호', '주문상태', '주문섹션품목번호', '구매수량', '상품명', '주문일'],
-    map: (r) => ({ key: r['주문섹션품목번호'], brand: normBrand(r['판매채널']), platform: '아임웹',
-      order_no: r['주문번호'], status: r['주문상태'], product_name: r['상품명'], option_text: r['옵션명'], qty: num1(r['구매수량']), when: parseWhen(r['주문일']),
-      cancel_reason: [r['취소사유'], r['취소상세사유']].filter(Boolean).join(' / '), return_reason: [r['반품사유'], r['반품 상세사유']].filter(Boolean).join(' / ') }) },
-  // 하타 상반기 파일처럼 품목번호·주문상태 대신 섹션상태만 있는 아임웹 파일
-  { kind: 'order', legacy: true, label: '아임웹 주문 (품목번호 없음)', headers: ['판매채널', '주문번호', '구매수량', '상품명', '주문일', '섹션상태'],
-    map: (r) => ({ key: r['주문번호'] ? hashText(`${r['주문번호']}|${r['상품명']}|${r['옵션명']}`) : '', brand: normBrand(r['판매채널']), platform: '아임웹',
-      order_no: r['주문번호'], status: r['섹션상태'], product_name: r['상품명'], option_text: r['옵션명'], qty: num1(r['구매수량']), when: parseWhen(r['주문일']),
-      cancel_reason: [r['취소사유'], r['취소상세사유']].filter(Boolean).join(' / '), return_reason: [r['반품사유'], r['반품 상세사유']].filter(Boolean).join(' / ') }) },
-  { kind: 'order', legacy: true, label: '카페24 주문', headers: ['주문번호', '품목별 주문번호', '주문상품명', '수량', '발주일'],
-    map: (r) => ({ key: r['품목별 주문번호'], platform: '카페24',
-      order_no: r['주문번호'], product_name: r['주문상품명'],
-      option_text: String(r['주문상품명(옵션포함)'] || '').replace(String(r['주문상품명'] || ''), '').replace(/^\(|\)$/g, '').trim(),
-      // 발주일이 비어 있으면(발주 전 취소 등) 주문번호 앞 날짜(20260101-…)로
-      qty: num1(r['수량']), when: parseWhen(r['발주일']) || parseWhen(String(r['주문번호'] || '').replace(/^(\d{4})(\d{2})(\d{2})-.*$/, '$1-$2-$3')) }) },
-);
 
 // 데이터 업로드 화면에서 쓰는 주문 저장 설정 (고객 정보 칸은 저장하지 않음, 상품 마스터 연결 없음)
 // 출고전 취소인 줄: 사방넷(하타)은 '취소완료'만 (하타는 취소 요청 후 거부가 많음, 2026-10-02), 그 밖엔 상태에 '취소'
@@ -121,65 +92,9 @@ const ORDER_UPLOAD = {
       ...classifyItem(r.product_name, r.option_text),
     };
   },
-  // 새로 저장하는 취소 줄에 확인한 날 기록 (source_key가 붙은 뒤라 사방넷인지 알 수 있음). 요약 저장·판매처 파일 등 품목 번호 없는 줄은 제외
+  // 새로 저장하는 취소 줄에 확인한 날 기록 (source_key가 붙은 뒤라 사방넷인지 알 수 있음). 품목 번호 없는 줄은 제외
   finishRow: (row) => (row.item_no && isCancelRow(row) ? { ...row, cancel_seen_date: cancelSeenDate(row.order_date) } : row),
 };
-
-// 지난 주문(상반기 등)은 한 줄씩이 아니라 월·브랜드·판매처·상품별 개수로 묶어서 저장 (order_monthly, 15 SQL)
-function summarizeOrders(rows) {
-  const map = new Map();
-  rows.forEach(r => {
-    if (!r.when || !r.brand) return;
-    const ym = r.when.key.slice(0, 7);
-    const name = str(r.product_name) || '(상품명 없음)';
-    const k = [ym, r.brand, r.platform, name].join('|');
-    if (!map.has(k)) map.set(k, { ym, brand: r.brand, platform: r.platform, product_name: name, ...classifyItem(r.product_name, r.option_text), lines: 0, qty: 0, cancels: 0, returns: 0, exchanges: 0 });
-    const s = map.get(k);
-    const st = `${r.status || ''} ${r.claim_status || ''}`;
-    s.lines++; s.qty += r.qty || 1;
-    if (/취소/.test(st)) s.cancels++;
-    if (/반품/.test(st)) s.returns++;
-    if (/교환/.test(st)) s.exchanges++;
-  });
-  return [...map.values()];
-}
-
-// 요약 저장 결과 확인: 월·브랜드별 합계
-function OrderMonthlySummary() {
-  const [rows, setRows] = useState(null);
-  useEffect(() => {
-    fetchAll(() => db.from('order_monthly').select('ym,brand,lines,cancels,returns,exchanges').order('id'))
-      .then(setRows).catch(() => setRows([]));
-  }, []);
-  if (!rows || !rows.length) return null;
-  const groups = countBy(rows, r => `${r.ym}|${r.brand}`).map(g => g.label).sort();
-  const sum = (key, f) => rows.filter(r => `${r.ym}|${r.brand}` === key).reduce((a, r) => a + r[f], 0);
-  return (
-    <div className="card" style={{ marginTop: 16, padding: 0 }}>
-      <div className="card-title" style={{ padding: '18px 20px 4px' }}>요약으로 저장한 지난 주문 <small>월·상품별로 묶어 저장 · 상·하반기 비교용</small></div>
-      <div className="table-wrap">
-        <table className="table report-table">
-          <thead><tr><th>월</th><th>브랜드</th><th className="num">주문 품목</th><th className="num">취소</th><th className="num">반품</th><th className="num">교환</th><th className="num">상품 수</th></tr></thead>
-          <tbody>
-            {groups.map(g => {
-              const [ym, b] = g.split('|');
-              return (
-                <tr key={g}>
-                  <td>{ym}</td><td>{b}</td>
-                  <td className="num">{sum(g, 'lines').toLocaleString()}</td>
-                  <td className="num">{sum(g, 'cancels').toLocaleString()}</td>
-                  <td className="num">{sum(g, 'returns').toLocaleString()}</td>
-                  <td className="num">{sum(g, 'exchanges').toLocaleString()}</td>
-                  <td className="num">{new Set(rows.filter(r => `${r.ym}|${r.brand}` === g).map(r => r.product_name)).size.toLocaleString()}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
 
 // 업로드 기록: 최근 7일 동안 언제 무엇을 올렸는지 (저장된 시각 created_at 기준) · 양이 많아서 버튼을 눌렀을 때만 불러옴
 const HISTORY_SOURCES = [
@@ -257,7 +172,6 @@ function DataUploadPage() {
       <ProductMasterUpload />
       <BackupCard />
       <OrderCategorySummary key={version} />
-      <OrderMonthlySummary key={'m' + version} />
     </>
   );
 }
