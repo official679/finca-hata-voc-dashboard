@@ -216,9 +216,11 @@ const vocReportRows = (cases, productById) => cases.map(c => ({
   '사진 수': (c.photos || []).length, '사진 파일': (c.photos || []).map((p, i) => photoFileName(c, i, p, productById)).join('\n'),
 }));
 
-// 저장소 파일을 4개씩 동시에 받아 zip 폴더에 넣음. 못 받은 파일은 목록으로 돌려줌
-async function addStorageFiles(folder, bucket, items, setBusy, label) {
+// 저장소 파일을 4개씩 동시에 받아 zip 폴더에 넣음 (파일이 있을 때만 폴더를 만듦). 못 받은 파일은 목록으로 돌려줌
+async function addStorageFiles(zip, folderName, bucket, items, setBusy, label) {
   const failed = [];
+  if (!items.length) return failed;   // 받을 파일이 없으면 빈 폴더를 만들지 않음
+  const folder = zip.folder(folderName);
   let done = 0;
   for (let i = 0; i < items.length; i += 4) {
     await Promise.all(items.slice(i, i + 4).map(async ({ path, name }) => {
@@ -283,9 +285,9 @@ function BackupCard() {
       XLSX.utils.book_append_sheet(vwb, XLSX.utils.json_to_sheet(vocReportRows(vocs, productById)), 'VOC');
       zip.file('VOC사진_목록.xlsx', XLSX.write(vwb, { bookType: 'xlsx', type: 'array' }));
       const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: photoFileName(c, i, path, productById) })));
-      const failedPhotos = await addStorageFiles(zip.folder('VOC사진'), PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
+      const failedPhotos = await addStorageFiles(zip, 'VOC사진', PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
       const files = (data.manuals || []).flatMap(m => (m.attachments || []).map((a, i) => ({ path: a.path, name: `${m.id}_${safeName(m.title, 30)}_${i + 1}_${safeName(a.name, 60)}` })));
-      const failed = [...failedPhotos, ...await addStorageFiles(zip.folder('매뉴얼첨부'), 'manual-files', files, setBusy, '매뉴얼 첨부')];
+      const failed = [...failedPhotos, ...await addStorageFiles(zip, '매뉴얼첨부', 'manual-files', files, setBusy, '매뉴얼 첨부')];
       if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
       const size = await downloadZip(zip, `CX대시보드_전체내보내기_${today()}.zip`, setBusy);
       await markBackup();
@@ -305,7 +307,7 @@ function BackupCard() {
       const tag = `${rBrand || '핀카하타'}_${rFrom}~${rTo}`;
       zip.file(`VOC_${tag}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
       const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: photoFileName(c, i, path, productById) })));
-      const failed = await addStorageFiles(zip.folder('사진'), PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
+      const failed = await addStorageFiles(zip, '사진', PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
       if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
       const size = await downloadZip(zip, `리포트용_VOC_${tag}.zip`, setBusy);
       toast(`✅ 리포트용 내보내기 완료 (${mb(size)}) · VOC ${vocs.length}건 · 사진 ${photos.length - failed.length}장`);
