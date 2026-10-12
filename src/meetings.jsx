@@ -138,11 +138,13 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const names = (list, n) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k); };
     const stars = [1, 2, 3, 4, 5].map(s => [s, cr.filter(r => r.rating === s).length]).filter(([, c]) => c).map(([s, c]) => `${s}점 ${c}건`).join('·');
     const rl = [`  - **${brand}**: ${cr.length.toLocaleString()}건 / 평균 ${ca === null ? '-' : ca.toFixed(2)}점${pa === null || ca === null ? '' : ` (전주 ${pa.toFixed(2)})`}${stars ? ` / ${stars}` : ''}`];
+    // 긍정 / 부정으로 나눠 나열 (2026-10-12 사용자 요청)
+    const posL = [], negL = [];
     if (pos.length) {
       const posThemes = names(pos.flatMap(r => reviewThemes(r.content, false)), 3);
-      rl.push(`    - 긍정 의견은 ${names(pos.map(r => short(r.product_name)), 2).join('·')}의 ${posThemes.length ? `**${posThemes.join(', ')}**` : '만족'}에 집중`);
+      posL.push(`${names(pos.map(r => short(r.product_name)), 2).join('·')}의 ${posThemes.length ? `**${posThemes.join(', ')}**` : '만족'}에 집중`);
     }
-    if (quote.length) rl.push(`    - 고객 한마디: ${quote[0]}`);
+    if (quote.length) posL.push(`고객 한마디: ${quote[0]}`);
     // 부정 리뷰 상품별 한 줄: 불만 테마, 없으면 가장 낮은 리뷰 앞부분
     const byProd = new Map();
     neg.forEach(r => { const k = short(r.product_name); if (!byProd.has(k)) byProd.set(k, []); byProd.get(k).push(r); });
@@ -150,11 +152,15 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
       const th = names(list.flatMap(r => reviewThemes(r.content, true)), 2);
       const low = list.slice().sort((a, b) => a.rating - b.rating)[0];
       const what = th.length ? `**${th.join(', ')}** 리뷰 확인` : `"${String(low.content || '').replace(/\s+/g, ' ').trim().slice(0, 40)}…" 리뷰 확인`;
-      rl.push(`    - ${prod}: ${what}${list.length > 1 ? ` (${list.length}건)` : ''}`);
+      negL.push(`${prod}: ${what}${list.length > 1 ? ` (${list.length}건)` : ''}`);
     });
     // 별점은 높은데 불만이 섞인 리뷰
     const mixed = pos.filter(r => reviewThemes(r.content, true).length);
-    if (mixed.length >= 3) rl.push(`    - ${names(mixed.flatMap(r => reviewThemes(r.content, true)), 3).join('·')} 의견이 4~5점 리뷰에도 ${mixed.length}건 있어 별점만으로 불만을 구분하기 어려움`);
+    if (mixed.length >= 3) negL.push(`${names(mixed.flatMap(r => reviewThemes(r.content, true)), 3).join('·')} 의견이 4~5점 리뷰에도 ${mixed.length}건 있어 별점만으로 불만을 구분하기 어려움`);
+    if (cr.length) {
+      rl.push(`    - 긍정\n${(posL.length ? posL : ['-']).map(s => `      - ${s}`).join('\n')}`);
+      rl.push(`    - 부정\n${(negL.length ? negL : ['1~3점 리뷰 없음']).map(s => `      - ${s}`).join('\n')}`);
+    }
     reviewLines.push(rl.join('\n'));
     // VOC: 브랜드 한 줄 + 과실 상품
     const vl = [`  - **${brand}**: ${vocs.length}건 (과실 ${fault.length}건)${vocs.length ? ` / ${top(vocs.map(c => c.voc_type), 3)}` : ''}`];
