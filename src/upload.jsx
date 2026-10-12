@@ -485,7 +485,7 @@ function UploadPanel({ configs, onDone, guide }) {
           {!result.every(r => r.summary) && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
               <span className="muted">파일을 다 올렸으면 →</span>
-              {['핀카', '하타'].map(b => <a key={b} className="btn btn-sm btn-primary" href={`#/daily?fill=${encodeURIComponent(b)}`}>🗓️ CS 데일리 {b} 채우기</a>)}
+              <a className="btn btn-sm btn-primary" href={`#/daily?fill=${encodeURIComponent('핀카')}`}>🗓️ CS 데일리 채우기 (핀카·하타)</a>
             </div>
           )}
         </div>

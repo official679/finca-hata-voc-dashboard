@@ -25,6 +25,7 @@ function ReviewListPage() {
   // 기본 = 최근 7일 (월초에 '이번 달'이 비어 보이지 않게)
   const [period, setPeriod] = useState(init.get('period') || '7d');
   const [platform, setPlatform] = useState('');
+  const vocBusy = useRef(new Set());
   const [stars, setStars] = useState(init.get('stars') || '');
   const [check, setCheck] = useState(init.get('check') || '');
   const [theme, setTheme] = useState(init.get('theme') || '');
@@ -75,8 +76,13 @@ function ReviewListPage() {
     if (error) { toast('❌ 저장 실패: ' + (/check_status/.test(error.message) ? 'DB 설정 SQL(12_review_check.sql)을 먼저 실행해 주세요' : error.message), 'err'); return; }
     setReviews(prev => prev.map(x => (x.id === r.id ? { ...x, check_status: next } : x)));
   };
+  // 한 번에 VOC로 (2026-10-12 클릭 줄이기): 확인 창 없이 바로 등록, 체크가 비어 있으면 부정/체크필요로 같이 표시. 잘못 누르면 옆 '취소'로 되돌림
   const toVoc = async (r) => {
-    if (!confirm(`이 리뷰를 VOC로 접수할까요?\n${nameOf(r)} · ★${r.rating}`)) return;
+    if (vocBusy.current.has(r.id) || vocOf(r)) return;   // 두 번 눌러 VOC가 2개 생기는 것 방지
+    vocBusy.current.add(r.id);
+    try { await toVocOnce(r); } finally { vocBusy.current.delete(r.id); }
+  };
+  const toVocOnce = async (r) => {
     const pid = r.product_id || findReviewProductId(r.product_name, r.brand, products);
     const { data, error } = await db.from('voc_cases').insert(reviewToVocRow({ ...r, product_id: pid, product_name: pid ? productById.get(pid)?.product_name || nameOf(r) : nameOf(r) }, '리뷰 목록에서 등록')).select().single();
     if (error) { toast('❌ VOC 등록 실패: ' + error.message, 'err'); return; }
@@ -104,7 +110,7 @@ function ReviewListPage() {
   const hasFilter = platform || stars || check || theme || product || q;
   return (
     <>
-      <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : from === to ? fmtDate(from) : `${fmtDate(from)} ~${to < '2999' ? ' ' + fmtDate(to) : ''}`} · ${rows.length.toLocaleString()}건 · 부정·체크필요로 표시하면 VOC로 보낼 수 있어요`}>
+      <PageHeader title="리뷰 목록" desc={`${from === '2000-01-01' ? '전체 기간' : from === to ? fmtDate(from) : `${fmtDate(from)} ~${to < '2999' ? ' ' + fmtDate(to) : ''}`} · ${rows.length.toLocaleString()}건 · '→ VOC로' 한 번이면 접수돼요 (잘못 누르면 옆 '취소')`}>
         <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
         <Segmented options={REVIEW_LIST_PERIODS} value={period} onChange={setPeriod} />
       </PageHeader>
@@ -148,8 +154,7 @@ function ReviewListPage() {
                           <a className="chip chip-green" href="#/voc-list">✓ VOC 등록됨</a>
                           <button className="btn-link" style={{ fontSize: 12, color: 'var(--danger)' }} title="VOC 접수를 지워요" onClick={() => undoVoc(r, voc)}>취소</button>
                         </span>
-                        : needVoc ? <button className="btn btn-sm btn-primary" onClick={() => toVoc(r)}>→ VOC로</button>
-                        : <span className="muted">-</span>}
+                        : <button className={`btn btn-sm${needVoc ? ' btn-primary' : ''}`} onClick={() => toVoc(r)} title="바로 VOC로 접수해요 (체크가 비어 있으면 부정/체크필요로 같이 표시)">→ VOC로</button>}
                     </td>
                   </tr>
                 );

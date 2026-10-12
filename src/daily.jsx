@@ -190,6 +190,7 @@ async function countUploadsForReport(reportDate, brand) {
   };
 }
 
+const DAILY_BRANDS = ['핀카', '하타'];
 function DailyEntryPage() {
   const { codeOptions, setDaily } = useApp();
   const daily = useDaily();
@@ -198,71 +199,92 @@ function DailyEntryPage() {
   // 업로드 화면의 'CS 데일리 ○○ 채우기' 버튼 = #/daily?fill=핀카 → 그 브랜드로 열고 자동으로 채움 (저장은 사람이 확인 후)
   const [autoFill, setAutoFill] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('fill'));
   const [brand, setBrand] = useState(() => (['핀카', '하타'].includes(autoFill) ? autoFill : '핀카'));
-  const [values, setValues] = useState({});
+  // 핀카·하타 값을 같이 들고 있음 → 한 번에 채우고 한 번에 저장 (2026-10-12 클릭 줄이기). 브랜드 탭은 보기만 바꿈.
+  const [vals, setVals] = useState({});
+  const [dirtyBy, setDirtyBy] = useState({});
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const values = vals[brand] || {};
+  const dirty = !!dirtyBy[brand];
+  const dirtyBrands = DAILY_BRANDS.filter(b => dirtyBy[b]);
 
-  const platforms = codeOptions(`daily_platform:${brand}`);
+  const platformsOf = (b) => codeOptions(`daily_platform:${b}`);
+  const platforms = platformsOf(brand);
+  const platformsKey = DAILY_BRANDS.map(b => platformsOf(b).join('|')).join('/');
 
-  // 날짜·브랜드를 바꾸면 저장된 값을 불러옴
+  // 날짜를 바꾸면(또는 저장 후) 두 브랜드 모두 저장된 값을 불러옴
   useEffect(() => {
     if (!daily) return;
-    const v = {};
-    [...platforms, BRAND_TOTAL].forEach(p => {
-      const row = daily.find(r => r.report_date === date && r.brand === brand && r.platform === p);
-      v[p] = withAutoTotals(Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, row ? row[f] || 0 : 0])));
-    });
-    setValues(v);
-    setDirty(false);
-  }, [daily, date, brand, platforms.join('|')]);
+    setVals(Object.fromEntries(DAILY_BRANDS.map(b => {
+      const v = {};
+      [...platformsOf(b), BRAND_TOTAL].forEach(p => {
+        const row = daily.find(r => r.report_date === date && r.brand === b && r.platform === p);
+        v[p] = withAutoTotals(Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, row ? row[f] || 0 : 0])));
+      });
+      return [b, v];
+    })));
+    setDirtyBy({});
+  }, [daily, date, platformsKey]);
 
   const exists = daily && daily.some(r => r.report_date === date && r.brand === brand);
-  const setVal = (p, f) => (n) => { setValues(prev => ({ ...prev, [p]: withAutoTotals({ ...prev[p], [f]: n }) })); setDirty(true); };
+  const setVal = (p, f) => (n) => {
+    setVals(prev => ({ ...prev, [brand]: { ...prev[brand], [p]: withAutoTotals({ ...(prev[brand] || {})[p], [f]: n }) } }));
+    setDirtyBy(d => ({ ...d, [brand]: true }));
+  };
   const [filling, setFilling] = useState(false);
   const [fillNote, setFillNote] = useState('');
   const [showReport, setShowReport] = useState(false);
-  useEffect(() => { setFillNote(''); }, [date, brand]);
+  useEffect(() => { setFillNote(''); }, [date]);
 
-  // 업로드한 주문·리뷰·게시판으로 이 보고일 칸을 채움 (저장은 사람이 확인 후)
+  // 업로드한 주문·리뷰·게시판으로 핀카·하타 칸을 한 번에 채움 (저장은 사람이 확인 후)
   const fillFromUploads = async () => {
     setFilling(true);
     try {
-      const got = await countUploadsForReport(date, brand);
-      const filled = [], skipped = [];
-      setValues(prev => {
-        const next = { ...prev };
-        platforms.forEach(p => {
-          const c = got.byPlatform[p] || {};
-          const v = { ...next[p] };
-          // 보고일에 올린 파일이 없으면(stale) 0으로 (전날 파일에 섞인 일부만 잡히는 것 방지, 2026-10-07)
-          if (got.has.orders) { v.orders = c.orders || 0; if (!CANCEL_MANUAL_BRANDS.includes(brand)) v.cancels = c.cancels || 0; }
-          else if (got.stale.orders) { v.orders = 0; if (!CANCEL_MANUAL_BRANDS.includes(brand)) v.cancels = 0; }
-          if (got.has.reviews) { v.reviews_total = c.reviews_total || 0; v.reviews_negative = c.reviews_negative || 0; v.reviews_positive = c.reviews_positive || 0; }
-          else if (got.stale.reviews) { v.reviews_total = 0; v.reviews_negative = 0; v.reviews_positive = 0; }
-          if (got.has.board) { v.board_total = c.board_total || 0; }
-          else if (got.stale.board) { v.board_total = 0; }
-          // 반품·교환은 파일을 올린 판매처만 채움 (안 올린 판매처는 손으로 넣은 값 그대로)
-          if (got.returnPlatforms.includes(p)) ['return_simple', 'return_defect', 'return_misship', 'exchange_simple', 'exchange_defect', 'exchange_misship'].forEach(f => { v[f] = c[f] || 0; });
-          next[p] = v;
+      const notes = [], filledBrands = [];
+      for (const b of DAILY_BRANDS) {
+        const got = await countUploadsForReport(date, b);
+        const bp = platformsOf(b);
+        const filled = [], skipped = [];
+        setVals(prev => {
+          const next = { ...(prev[b] || {}) };
+          bp.forEach(p => {
+            const c = got.byPlatform[p] || {};
+            const v = { ...next[p] };
+            // 보고일에 올린 파일이 없으면(stale) 0으로 (전날 파일에 섞인 일부만 잡히는 것 방지, 2026-10-07)
+            if (got.has.orders) { v.orders = c.orders || 0; if (!CANCEL_MANUAL_BRANDS.includes(b)) v.cancels = c.cancels || 0; }
+            else if (got.stale.orders) { v.orders = 0; if (!CANCEL_MANUAL_BRANDS.includes(b)) v.cancels = 0; }
+            if (got.has.reviews) { v.reviews_total = c.reviews_total || 0; v.reviews_negative = c.reviews_negative || 0; v.reviews_positive = c.reviews_positive || 0; }
+            else if (got.stale.reviews) { v.reviews_total = 0; v.reviews_negative = 0; v.reviews_positive = 0; }
+            if (got.has.board) { v.board_total = c.board_total || 0; }
+            else if (got.stale.board) { v.board_total = 0; }
+            // 반품·교환은 파일을 올린 판매처만 채움 (안 올린 판매처는 손으로 넣은 값 그대로)
+            if (got.returnPlatforms.includes(p)) ['return_simple', 'return_defect', 'return_misship', 'exchange_simple', 'exchange_defect', 'exchange_misship'].forEach(f => { v[f] = c[f] || 0; });
+            next[p] = v;
+          });
+          return { ...prev, [b]: next };
         });
-        return next;
-      });
-      [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건'], ['returns', '반품·교환', '건']].forEach(([k, name, unit]) => {
-        if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}`); else skipped.push(name);
-      });
-      const staleList = [got.stale.orders && `주문·출고전 취소(${brand === '하타' ? '사방넷' : '오클릭'} 파일)`, got.stale.reviews && '리뷰', got.stale.board && '게시판'].filter(Boolean);
-      // 이 브랜드 CS 데일리에 칸이 없는 플랫폼(예: 핀카의 W컨셉)은 빠지므로 따로 알려줌
-      const left = Object.entries(got.byPlatform).filter(([p]) => !platforms.includes(p))
-        .map(([p, c]) => `${p}(주문 ${c.orders || 0}·리뷰 ${c.reviews_total || 0}·게시판 ${c.board_total || 0})`);
+        [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건'], ['returns', '반품·교환', '건']].forEach(([k, name, unit]) => {
+          if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}`); else skipped.push(name);
+        });
+        const staleList = [got.stale.orders && `주문·출고전 취소(${b === '하타' ? '사방넷' : '오클릭'} 파일)`, got.stale.reviews && '리뷰', got.stale.board && '게시판'].filter(Boolean);
+        // 이 브랜드 CS 데일리에 칸이 없는 플랫폼(예: 핀카의 W컨셉)은 빠지므로 따로 알려줌
+        const left = Object.entries(got.byPlatform).filter(([p]) => !bp.includes(p))
+          .map(([p, c]) => `${p}(주문 ${c.orders || 0}·리뷰 ${c.reviews_total || 0}·게시판 ${c.board_total || 0})`);
+        const rest = skipped.filter(s => !staleList.some(x => x.startsWith(s)));
+        notes.push([
+          `【${b}】 ` + (filled.length ? `✅ ${filled.join(' · ')}` : '해당하는 업로드 데이터가 없어요.'),
+          staleList.length ? `   ⚠️ 보고일(${fmtDate(date)})에 올린 파일이 아직 없어서 0으로 둔 항목: ${staleList.join(', ')}. 파일을 올린 뒤 다시 눌러 주세요.` : '',
+          rest.length ? `   올린 데이터가 없어서 그대로 둔 항목: ${rest.join(', ')}` : '',
+          got.has.orders && CANCEL_MANUAL_BRANDS.includes(b) ? '   출고전 취소는 판매처 화면 숫자로 직접 입력해 주세요 (자동 채우기는 주문건만 채워요).' : '',
+          left.length || got.others.length ? `   이 화면에 칸이 없어 빠진 플랫폼: ${[...left, ...got.others].join(', ')} (기준 관리 → 데일리 플랫폼에서 추가 가능)` : '',
+        ].filter(Boolean).join('\n'));
+        if (filled.length) filledBrands.push(b);
+      }
       setFillNote([
-        filled.length ? `✅ ${dataLabel(date)} 데이터로 채웠어요: ${filled.join(' · ')}. 확인 후 저장을 눌러주세요.` : `${dataLabel(date)}에 해당하는 업로드 데이터가 없어요.`,
-        staleList.length ? `⚠️ 보고일(${fmtDate(date)})에 올린 파일이 아직 없어서 0으로 둔 항목: ${staleList.join(', ')}. 파일을 올린 뒤 다시 눌러 주세요.` : '',
-        skipped.filter(s => !staleList.some(x => x.startsWith(s))).length ? `올린 데이터가 없어서 그대로 둔 항목: ${skipped.filter(s => !staleList.some(x => x.startsWith(s))).join(', ')}` : '',
-        got.has.orders && CANCEL_MANUAL_BRANDS.includes(brand) ? '출고전 취소는 판매처 화면 숫자로 직접 입력해 주세요 (자동 채우기는 주문건만 채워요).' : '',
-        got.has.orders && !CANCEL_MANUAL_BRANDS.includes(brand) ? '출고전 취소 = 오클릭·사방넷에 들어온 뒤 취소된 상품 수 (들어오기 전에 바로 취소된 주문은 주문건·취소 모두에서 빠져요).' : '',
-        left.length || got.others.length ? `이 화면에 칸이 없어 빠진 플랫폼: ${[...left, ...got.others].join(', ')} (기준 관리 → 데일리 플랫폼에서 추가 가능)` : '',
-      ].filter(Boolean).join('\n'));
-      if (filled.length) setDirty(true);
+        `${dataLabel(date)} 데이터로 핀카·하타를 함께 채웠어요. 위 브랜드 버튼으로 바꿔 보며 확인하고 해피톡·전화 등을 넣은 뒤 💾 저장 한 번이면 둘 다 저장돼요.`,
+        ...notes,
+        '출고전 취소 = 오클릭·사방넷에 들어온 뒤 취소된 상품 수 (들어오기 전에 바로 취소된 주문은 주문건·취소 모두에서 빠져요).',
+      ].join('\n'));
+      if (filledBrands.length) setDirtyBy(d => ({ ...d, ...Object.fromEntries(filledBrands.map(b => [b, true])) }));
     } catch (e) {
       toast('❌ 불러오기 실패: ' + (e.message || e), 'err');
     } finally { setFilling(false); }
@@ -273,24 +295,26 @@ function DailyEntryPage() {
     setAutoFill(null);
     history.replaceState(null, '', '#/daily');
     fillFromUploads();
-  }, [autoFill, daily, values]);
+  }, [autoFill, daily, vals]);
   const total = sumRows(platforms.map(p => values[p] || {}));
 
+  // 💾 저장 = 보고 있는 브랜드 + 고친 브랜드 모두
   const save = async () => {
     setSaving(true);
     // 여러 줄을 한 번에 저장할 때 줄마다 칸 구성이 다르면 빈 칸이 null로 들어가므로 모든 칸을 채워서 보냄
     const now = new Date().toISOString();
-    const rows = [...platforms, BRAND_TOTAL].map(p => ({
-      report_date: date, brand, platform: p,
-      ...Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, values[p]?.[f] || 0])),
+    const brands = DAILY_BRANDS.filter(b => b === brand || dirtyBy[b]);
+    const rows = brands.flatMap(b => [...platformsOf(b), BRAND_TOTAL].map(p => ({
+      report_date: date, brand: b, platform: p,
+      ...Object.fromEntries(ALL_DAILY_FIELDS.map(f => [f, (vals[b] || {})[p]?.[f] || 0])),
       updated_at: now,
-    }));
+    })));
     const { data, error } = await db.from('cs_daily').upsert(rows, { onConflict: 'report_date,brand,platform' }).select();
     setSaving(false);
     if (error) { toast('❌ 저장 실패: ' + error.message, 'err'); return; }
-    setDaily(prev => [...prev.filter(r => !(r.report_date === date && r.brand === brand && data.some(d => d.platform === r.platform))), ...data]);
-    setDirty(false);
-    toast(`✅ ${fmtDate(date)} ${brand} 데일리 저장 완료`);
+    setDaily(prev => [...prev.filter(r => !(r.report_date === date && data.some(d => d.brand === r.brand && d.platform === r.platform))), ...data]);
+    setDirtyBy({});
+    toast(`✅ ${fmtDate(date)} ${brands.join('·')} 데일리 저장 완료`);
   };
 
   if (!daily) return <div className="loading-screen">불러오는 중...</div>;
@@ -307,11 +331,11 @@ function DailyEntryPage() {
     <>
       <PageHeader title="CS 데일리" desc={`보고일 ${fmtDate(date)} → ${dataLabel(date)} 데이터 (전일 접수 기준) · 월요일·연휴 다음 날 보고일에는 쉬는 날까지 합쳐서 입력해요`}>
         <input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} />
-        <Segmented options={[{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }]} value={brand} onChange={setBrand} />
-        <button className="btn btn-primary" onClick={fillFromUploads} disabled={filling} title="업로드한 주문·리뷰·게시판 파일로 주문건·취소·리뷰·게시판 칸을 채워요">
-          {filling ? '불러오는 중...' : '📥 업로드 데이터로 채우기'}
+        <Segmented options={DAILY_BRANDS.map(b => ({ key: b, label: dirtyBy[b] ? `${b} •` : b }))} value={brand} onChange={setBrand} />
+        <button className="btn btn-primary" onClick={fillFromUploads} disabled={filling} title="업로드한 주문·리뷰·게시판·반품교환 파일로 핀카·하타 칸을 한 번에 채워요">
+          {filling ? '불러오는 중...' : '📥 업로드 데이터로 채우기 (핀카·하타)'}
         </button>
-        <button className="btn" onClick={() => (dirty && !confirm('저장하지 않은 숫자가 있어요. 리포트는 저장된 숫자로 만들어져요. 그래도 열까요?') ? null : setShowReport(true))} title="핀카·하타 숫자와 그날 VOC를 슬랙용 이미지로">📸 데일리 리포트</button>
+        <button className="btn" onClick={() => (dirtyBrands.length && !confirm('저장하지 않은 숫자가 있어요. 리포트는 저장된 숫자로 만들어져요. 그래도 열까요?') ? null : setShowReport(true))} title="핀카·하타 숫자와 그날 VOC를 슬랙용 이미지로">📸 데일리 리포트</button>
       </PageHeader>
       {showReport && <DailyReportPanel date={date} onClose={() => setShowReport(false)} />}
       {fillNote && <div className="card" style={{ marginBottom: 16, background: 'var(--accent-soft)', border: 'none', whiteSpace: 'pre-line', lineHeight: 1.7 }}>{fillNote}</div>}
@@ -372,8 +396,8 @@ function DailyEntryPage() {
       </div>
 
       <div className="save-bar">
-        <span className="muted">{fmtDate(date)} · {brand} {dirty ? '· 저장하지 않은 변경이 있어요' : ''}</span>
-        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? '저장 중...' : '💾 저장'}</button>
+        <span className="muted">{fmtDate(date)} · {brand} {dirtyBrands.length ? `· 저장하지 않은 변경: ${dirtyBrands.join('·')}` : ''}</span>
+        <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? '저장 중...' : `💾 저장${dirtyBrands.filter(b => b !== brand).length ? ` (${[brand, ...dirtyBrands.filter(b => b !== brand)].join('·')})` : ''}`}</button>
       </div>
     </>
   );
