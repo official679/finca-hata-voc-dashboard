@@ -549,3 +549,5 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .todo-step.next .todo-num { background: var(--accent); color: #fff; }
 .todo-step.skip { opacity: 0.5; }
 @media (max-width: 700px) { .todo-step { grid-template-columns: 28px 1fr 20px; } .todo-sub { grid-column: 2; } .todo-go { grid-row: 1; grid-column: 3; } }
+.todo-head { cursor: pointer; user-select: none; }
+.todo-caret { display: inline-block; width: 14px; color: var(--muted); }

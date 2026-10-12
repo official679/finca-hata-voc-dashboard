@@ -70,6 +70,9 @@ function HomePage() {
   const preorder = usePreorderPending();   // 예약배송은 브랜드 구분 없이 (지금은 핀카만 운영)
   const checkNeed = useReviewCheckCount(brand);
   const uploads = useTodayUploads(brand);
+  // '오늘 할 일' 열기·접기 (PC별 기억). 접어 두면 다음 할 일 한 줄만
+  const [todoOpen, setTodoOpen] = useState(() => { try { return localStorage.getItem('homeTodoOpen') !== '0'; } catch { return true; } });
+  const toggleTodo = () => setTodoOpen(v => { try { localStorage.setItem('homeTodoOpen', v ? '0' : '1'); } catch {} return !v; });
 
   if (!daily || !board) return <div className="loading-screen">요약 불러오는 중...</div>;
 
@@ -150,17 +153,30 @@ function HomePage() {
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
       </PageHeader>
 
-      <div className="detail-section" style={{ marginTop: 0 }}>✅ 오늘 할 일 <small className="muted" style={{ fontWeight: 400 }}>{doneCount}/{active.length} 완료{reportDay ? '' : ' · 오늘은 보고 없는 날(주말·공휴일)'}</small></div>
-      <div className="todo-steps">
-        {steps.map((t, i) => (
-          <a key={t.label} href={`#/${t.to}`} className={`todo-step${t.skip ? ' skip' : t.done ? ' done' : ''}${i === nextIdx ? ' next' : ''}`}>
-            <span className="todo-num">{t.done && !t.skip ? '✓' : i + 1}</span>
-            <span className="todo-label">{t.label}{'count' in t && t.count !== null && <b className={t.count > 0 ? 'todo-count' : 'todo-zero'}> {typeof t.count === 'number' ? `${t.count.toLocaleString()}건` : t.count}</b>}</span>
-            <span className="todo-sub">{t.skip ? '오늘은 안 해도 돼요' : t.sub}</span>
+      <div className="detail-section todo-head" style={{ marginTop: 0 }} onClick={toggleTodo} role="button" title={todoOpen ? '눌러서 접기' : '눌러서 펼치기'}>
+        <span className="todo-caret">{todoOpen ? '▾' : '▸'}</span> ✅ 오늘 할 일 <small className="muted" style={{ fontWeight: 400 }}>{doneCount}/{active.length} 완료{reportDay ? '' : ' · 오늘은 보고 없는 날(주말·공휴일)'}</small>
+      </div>
+      {todoOpen ? (
+        <div className="todo-steps">
+          {steps.map((t, i) => (
+            <a key={t.label} href={`#/${t.to}`} className={`todo-step${t.skip ? ' skip' : t.done ? ' done' : ''}${i === nextIdx ? ' next' : ''}`}>
+              <span className="todo-num">{t.done && !t.skip ? '✓' : i + 1}</span>
+              <span className="todo-label">{t.label}{'count' in t && t.count !== null && <b className={t.count > 0 ? 'todo-count' : 'todo-zero'}> {typeof t.count === 'number' ? `${t.count.toLocaleString()}건` : t.count}</b>}</span>
+              <span className="todo-sub">{t.skip ? '오늘은 안 해도 돼요' : t.sub}</span>
+              <span className="todo-go">→</span>
+            </a>
+          ))}
+        </div>
+      ) : nextIdx >= 0 ? (
+        <div className="todo-steps">
+          <a href={`#/${steps[nextIdx].to}`} className="todo-step next">
+            <span className="todo-num">{nextIdx + 1}</span>
+            <span className="todo-label">다음: {steps[nextIdx].label}</span>
+            <span className="todo-sub">{steps[nextIdx].sub}</span>
             <span className="todo-go">→</span>
           </a>
-        ))}
-      </div>
+        </div>
+      ) : <div className="todo-steps"><div className="todo-sub" style={{ padding: '4px 2px' }}>오늘 할 일을 모두 마쳤어요 ✓</div></div>}
 
       <div className="detail-section">📊 {cw.label} 핵심 지표 <small className="muted" style={{ fontWeight: 400 }}>{periodNote}</small></div>
       <div className="grid grid-kpi">
