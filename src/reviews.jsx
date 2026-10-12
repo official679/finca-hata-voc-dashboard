@@ -118,11 +118,21 @@ async function negativeReviewsToVoc(newReviews, products) {
   return created;
 }
 
+// 업로드할 때 체크 자동 표시 (2026-10-12 사용자 요청): 1~3점 = 부정(VOC 자동 등록과 같은 기준),
+// 4~5점인데 불만 키워드(NEGATIVE_THEMES)와 아쉬움 표현(근데·다만·아쉽…)이 같이 있으면 체크필요, 나머지 긍정. 리뷰 목록에서 언제든 바꿀 수 있음
+//   불만 키워드만 보면 4~5점의 19%가 걸림("발이 작은 편인데 딱 맞았어요" 등) → 아쉬움 표현까지 보면 약 6% (9월~ 리뷰로 확인)
+const REVIEW_BUT = /아쉽|아쉬|근데|그런데|하지만|다만|단점|불편|별로|실망|흠|ㅠ|ㅜ|안 ?맞더/;
+function autoReviewCheck(rating, content) {
+  if (rating === null || rating === undefined) return null;
+  if (rating <= 3) return '부정';
+  return reviewThemes(content, true).length && REVIEW_BUT.test(String(content || '')) ? '체크필요' : '긍정';
+}
+
 // 데이터 업로드 화면에서 쓰는 리뷰 저장 설정
 const REVIEW_UPLOAD = {
   table: 'review_items',
   dedupeByContent: true,   // 파일마다 시간 표기가 달라도 같은 날·같은 내용이면 이미 있는 리뷰로 봄 (VOC 중복 등록 방지)
-  toRow: (r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no) }),
+  toRow: (r) => ({ product_name: str(r.product_name), rating: r.rating, content: str(r.content), written_at: r.when ? r.when.iso : null, order_no: str(r.order_no), check_status: autoReviewCheck(r.rating, r.content) }),
   // 새로 저장된 1~3점 리뷰 → VOC 접수
   afterInsert: async (newRows, app) => {
     const created = await negativeReviewsToVoc(newRows, app.products);
