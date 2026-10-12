@@ -289,21 +289,3 @@ function ThemeBars({ items, total, color, onPick }) {
     </div>
   );
 }
-
-// 리뷰 분석은 보기 전용 (부정 리뷰 처리는 VOC 목록에서)
-function ReviewCard({ r }) {
-  return (
-    <div className={`review-card${r.neg ? ' neg' : ''}`}>
-      <div className="review-head">
-        <span className="stars">{'★'.repeat(r.rating || 0)}<span className="muted">{'★'.repeat(5 - (r.rating || 0))}</span></span>
-        <span className="chip">{r.platform}</span>
-        <span className="muted">{fmtDate(r.written_at.slice(0, 10))}</span>
-        <span className="review-product" title={r.name}>{r.name}</span>
-      </div>
-      <div className="review-body">{r.content}</div>
-      <div className="review-foot">
-        {r.themes.map(t => <span key={t} className="chip">{t}</span>)}
-      </div>
-    </div>
-  );
-}

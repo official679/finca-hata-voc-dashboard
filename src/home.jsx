@@ -49,7 +49,6 @@ function HomePage() {
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id,option_text', toISODate(addDays(new Date(), -90)));
   const [brand, setBrand] = useState('핀카');
   const preorder = usePreorderPending();   // 예약배송은 브랜드 구분 없이 (지금은 핀카만 운영)
-  const taskSum = useTaskSummary();
   const checkNeed = useReviewCheckCount(brand);
 
   if (!daily || !board) return <div className="loading-screen">요약 불러오는 중...</div>;
@@ -98,7 +97,6 @@ function HomePage() {
   const todo = [
     { label: '처리 대기 VOC', value: openCases.length, to: 'voc-list', sub: '접수·확인중' },
     { label: '예약배송 안내 필요', value: !preorder ? null : preorder.error ? '-' : preorder.pending, to: 'preorder', sub: preorder && !preorder.error ? `출고대기 ${preorder.open}건` : '예약배송 관리' },
-    { label: '업무 마감 임박', value: !taskSum ? null : taskSum.error ? '-' : taskSum.due, to: 'tasks', sub: taskSum && !taskSum.error ? `진행 전·중 ${taskSum.open}건${taskSum.mine !== null ? ` · 내 업무 ${taskSum.mine}` : ''}` : '업무 보드' },
     { label: '리뷰 체크필요', value: checkNeed === null ? null : checkNeed < 0 ? '-' : checkNeed, to: `review-list?period=all&check=${encodeURIComponent('체크필요')}&brand=${encodeURIComponent(brand)}`, sub: 'VOC로 안 보낸 것' },
   ];
   // 한 달(30일)이 지나도록 백업을 안 받았으면 알림

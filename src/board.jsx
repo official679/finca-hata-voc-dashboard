@@ -203,7 +203,6 @@ function BoardAnalysisPage() {
       <div className="grid grid-kpi">
         <Kpi label="게시판 문의" value={scoped.length.toLocaleString()} sub="건" />
         <Kpi label="재입고 문의" value={restock.length.toLocaleString()} sub={`전체의 ${pct(restock.length, scoped.length)}`} alert={restock.length > 0} />
-        <Kpi label="재입고 문의 상품 수" value={restockRanking(scoped, productById).length} sub="상품" />
         {types.filter(t => t.label !== '재입고').slice(0, 2).map(t => <Kpi key={t.label} label={`${t.label} 문의`} value={t.count.toLocaleString()} sub={`전체의 ${pct(t.count, scoped.length)}`} />)}
       </div>
 

@@ -2,14 +2,6 @@
 
 const MANUAL_BUCKET = 'manual-files';
 
-// 본문의 URL을 누를 수 있는 링크로
-function Linkify({ text }) {
-  const parts = String(text || '').split(/(https?:\/\/[^\s]+)/g);
-  return parts.map((p, i) => /^https?:\/\//.test(p)
-    ? <a key={i} href={p} target="_blank" rel="noopener noreferrer">{p}</a>
-    : <React.Fragment key={i}>{p}</React.Fragment>);
-}
-
 function useSignedUrls(bucket, paths) {
   const [urls, setUrls] = useState({});
   const key = paths.join('|');

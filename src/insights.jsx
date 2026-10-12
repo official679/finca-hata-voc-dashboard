@@ -1,4 +1,4 @@
-// VOC 현황 · 후속 조치 보드
+// VOC 현황
 
 // 브랜드는 한 번에 하나씩 (핀카 먼저). '전체' 보기는 쓰지 않음
 const BRAND_FILTER = [{ key: '핀카', label: '핀카' }, { key: '하타', label: '하타' }];
@@ -13,7 +13,6 @@ function ReportPage({ go }) {
   const inPeriod = useMemo(() => brandCases.filter(c => c.received_date >= from && c.received_date <= to), [brandCases, from, to]);
   const faults = inPeriod.filter(c => isFault(c.voc_type));
   const open = inPeriod.filter(c => c.status === '접수' || c.status === '확인중');
-  const pendingActions = brandCases.filter(c => c.action_required && !c.action_done);
 
   // 최근 5주 추이
   const weeks = useMemo(() => {
@@ -50,9 +49,8 @@ function ReportPage({ go }) {
       <div className="grid grid-kpi">
         <Kpi label="VOC 접수" value={inPeriod.length} sub="건" />
         <Kpi label="브랜드 과실 (반품·교환)" value={faults.length} sub={inPeriod.length ? `VOC의 ${Math.round(faults.length / inPeriod.length * 100)}%` : ' '} />
-        <Kpi label="재입고 문의 (개별 접수)" value={inPeriod.filter(c => c.voc_type === '재입고 문의').length} sub="게시판 집계는 게시판 업로드 후 추가" />
+        {/* 재입고 문의는 게시판 탭·메인에서 (VOC로 따로 접수한 재입고는 아래 'VOC 구분'에 나옴) */}
         <Kpi label="처리 대기" value={open.length} sub="접수·확인중" alert={open.length > 0} />
-        {SHOW_FOLLOWUP && <Kpi label="진행 중인 조치" value={pendingActions.length} sub="기간 무관 · 후속 조치 보드" alert={pendingActions.length > 0} />}
       </div>
 
       <div className="grid grid-2">
@@ -106,7 +104,7 @@ function ReportPage({ go }) {
         </div>
       </div>
 
-      <p className="hint" style={{ marginTop: 12 }}>주문 수·반품교환율·리뷰·상담 지표는 <b>월간 보고</b>에서 볼 수 있어요.</p>
+      <p className="hint" style={{ marginTop: 12 }}>주문 수·반품교환율·리뷰·상담 지표는 <a href="#/monthly"><b>보고 · 회의 → 보고서</b></a>에서 볼 수 있어요.</p>
     </>
   );
 }

@@ -33,19 +33,6 @@ function useTasks() {
   return [state, load];
 }
 
-// 메인 요약용: 안 끝난 업무 · 마감 임박(2일 안)
-function useTaskSummary() {
-  const [s, setS] = useState(null);
-  useEffect(() => {
-    db.from('tasks').select('id,assignee,due_date,status').neq('status', '완료').then(({ data, error }) => {
-      if (error || !data) { setS({ error: true }); return; }
-      const soon = toISODate(addDays(new Date(), 2));
-      setS({ open: data.length, due: data.filter(t => t.due_date && t.due_date <= soon).length, mine: loadMe() ? data.filter(t => t.assignee === loadMe()).length : null });
-    });
-  }, []);
-  return s;
-}
-
 function TasksPage() {
   const { codeOptions } = useApp();
   const toast = useToast();

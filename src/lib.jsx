@@ -202,7 +202,6 @@ function useAppData(session) {
 // 상품 카테고리 (상품 마스터 기준). 상품이 연결 안 된 건은 '(미분류)'
 const NO_CATEGORY = '(미분류)';
 const categoryOf = (productId, productById) => (productId && productById.get(productId)?.category) || NO_CATEGORY;
-const subCategoryOf = (productId, productById) => (productId && productById.get(productId)?.size_gender) || '-';
 // VOC는 상품 마스터에 없으면 직접 고른 대분류·중분류(category·sub_category)를 씀
 const caseCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.category) || c.category || NO_CATEGORY;
 const caseSubCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.size_gender) || c.sub_category || '-';
