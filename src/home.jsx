@@ -42,7 +42,26 @@ function useReviewCheckCount(brand) {
   return n;
 }
 
-// 메인: ① 오늘 챙길 것 ② 이번 달 핵심 지표 ③ 주간 그래프 ④ 과실 사유·재입고 상품
+// 오늘(0시 이후) 그 브랜드로 올린 주문·리뷰·게시판 파일이 있는지 ('오늘 할 일' ① 파일 올리기)
+function useTodayUploads(brand) {
+  const [state, setState] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setState(null);
+    const since = `${today()}T00:00:00+09:00`;
+    const has = (table) => db.from(table).select('id').eq('brand', brand).gte('created_at', since).limit(1).then(({ data }) => !!(data && data.length));
+    Promise.all(['order_items', 'review_items', 'board_items'].map(has))
+      .then(([orders, reviews, board]) => alive && setState({ orders, reviews, board }))
+      .catch(() => alive && setState({ error: true }));
+    return () => { alive = false; };
+  }, [brand]);
+  return state;
+}
+
+// 데일리 리포트 이미지를 복사·저장한 보고일 (이 PC 기준, dailyreport.jsx에서 기록)
+const reportDoneDate = () => { try { return localStorage.getItem('dailyReportDone') || ''; } catch { return ''; } };
+
+// 메인: ① 오늘 할 일(순서표) ② 이번 주 핵심 지표 ③ 주간 그래프 ④ 과실 사유·재입고 상품
 function HomePage() {
   const { cases, productById, codes } = useApp();
   const daily = useDaily();
@@ -50,6 +69,7 @@ function HomePage() {
   const [brand, setBrand] = useState('핀카');
   const preorder = usePreorderPending();   // 예약배송은 브랜드 구분 없이 (지금은 핀카만 운영)
   const checkNeed = useReviewCheckCount(brand);
+  const uploads = useTodayUploads(brand);
 
   if (!daily || !board) return <div className="loading-screen">요약 불러오는 중...</div>;
 
@@ -94,15 +114,35 @@ function HomePage() {
   const unlinkedRestock = bd.filter(r => r.inquiry_type === '재입고' && !r.product_id && !r.product_name).length;
 
   const link = (to, text = '자세히 →') => <a className="btn-link" href={`#/${to}`}>{text}</a>;
-  const todo = [
-    { label: '처리 대기 VOC', value: openCases.length, to: 'voc-list', sub: '접수·확인중' },
-    { label: '예약배송 안내 필요', value: !preorder ? null : preorder.error ? '-' : preorder.pending, to: 'preorder', sub: preorder && !preorder.error ? `출고대기 ${preorder.open}건` : '예약배송 관리' },
-    { label: '리뷰 체크필요', value: checkNeed === null ? null : checkNeed < 0 ? '-' : checkNeed, to: `review-list?period=all&check=${encodeURIComponent('체크필요')}&brand=${encodeURIComponent(brand)}`, sub: 'VOC로 안 보낸 것' },
+  // 오늘 할 일 = 아침 루틴 순서대로 (2026-10-12). 위에서부터 하나씩, 끝난 건 ✓
+  //   ①~③은 보고일(평일·공휴일 아님)에만. 데일리 리포트는 핀카·하타를 한 장에 같이 만듦
+  const todayISO = today();
+  const reportDay = isReportDay(parseDate(todayISO));
+  const savedToday = daily.some(r => r.report_date === todayISO && r.brand === brand);
+  const mark = (ok) => (ok ? '✓' : '–');
+  const n = (v) => (v === null || v === undefined ? null : v < 0 ? '-' : v);
+  const steps = [
+    { label: '파일 올리기', to: 'upload', skip: !reportDay,
+      done: uploads && !uploads.error ? uploads.orders : null,
+      sub: !uploads ? '확인 중...' : uploads.error ? '확인하지 못했어요' : `주문 ${mark(uploads.orders)} · 리뷰 ${mark(uploads.reviews)} · 게시판 ${mark(uploads.board)}` },
+    { label: `CS 데일리 저장 (${brand})`, to: savedToday || !(uploads && uploads.orders) ? 'daily' : `daily?fill=${encodeURIComponent(brand)}`, skip: !reportDay,
+      done: savedToday, sub: savedToday ? '저장했어요' : uploads && uploads.orders ? '누르면 바로 채워져요 → 확인 후 💾 저장' : '파일을 먼저 올려 주세요' },
+    { label: '데일리 리포트 슬랙 보고', to: 'daily?report=1', skip: !reportDay,
+      done: reportDoneDate() === todayISO, sub: '핀카·하타 한 장 · 📋 이미지 복사하면 ✓' },
+    { label: '예약배송 안내', to: 'preorder', count: !preorder ? null : preorder.error ? '-' : preorder.pending,
+      sub: preorder && !preorder.error ? `안내 필요 · 출고대기 ${preorder.open}건` : '예약배송 관리' },
+    { label: '리뷰 체크필요', to: `review-list?period=all&check=${encodeURIComponent('체크필요')}&brand=${encodeURIComponent(brand)}`, count: n(checkNeed), sub: 'VOC로 안 보낸 것' },
+    { label: '처리 대기 VOC', to: 'voc-list', count: openCases.length, sub: '접수·확인중' },
   ];
   // 한 달(30일)이 지나도록 백업을 안 받았으면 알림
   const lastBackup = lastBackupOf(codes);
   const backupDue = !lastBackup || lastBackup < toISODate(addDays(now, -30));
-  if (backupDue) todo.push({ label: '데이터 백업', value: '필요', alert: true, to: 'upload', sub: lastBackup ? `마지막 ${fmtDate(lastBackup)} · 한 달에 한 번` : '아직 한 번도 안 함' });
+  if (backupDue) steps.push({ label: '데이터 백업', to: 'upload', done: false, sub: lastBackup ? `마지막 ${fmtDate(lastBackup)} · 한 달에 한 번` : '아직 한 번도 안 함' });
+  // 건수가 있는 일은 0건이면 끝, 1건 이상이면 할 일
+  steps.forEach(t => { if ('count' in t) t.done = t.count === null ? null : t.count === '-' ? null : t.count === 0; });
+  const active = steps.filter(t => !t.skip);
+  const doneCount = active.filter(t => t.done).length;
+  const nextIdx = steps.findIndex(t => !t.skip && t.done === false);
 
   return (
     <>
@@ -110,13 +150,14 @@ function HomePage() {
         <Segmented options={BRAND_FILTER} value={brand} onChange={setBrand} />
       </PageHeader>
 
-      <div className="detail-section" style={{ marginTop: 0 }}>🔔 오늘 챙길 것</div>
-      <div className="grid grid-kpi">
-        {todo.map(t => (
-          <a key={t.label} href={`#/${t.to}`} className={`kpi todo-kpi${t.alert || (typeof t.value === 'number' && t.value > 0) ? ' alert' : ''}`}>
-            <div className="kpi-label">{t.label}</div>
-            <div className="kpi-value">{t.value === null ? '...' : typeof t.value === 'number' ? t.value.toLocaleString() : t.value}</div>
-            <div className="kpi-sub">{t.sub} →</div>
+      <div className="detail-section" style={{ marginTop: 0 }}>✅ 오늘 할 일 <small className="muted" style={{ fontWeight: 400 }}>{doneCount}/{active.length} 완료{reportDay ? '' : ' · 오늘은 보고 없는 날(주말·공휴일)'}</small></div>
+      <div className="todo-steps">
+        {steps.map((t, i) => (
+          <a key={t.label} href={`#/${t.to}`} className={`todo-step${t.skip ? ' skip' : t.done ? ' done' : ''}${i === nextIdx ? ' next' : ''}`}>
+            <span className="todo-num">{t.done && !t.skip ? '✓' : i + 1}</span>
+            <span className="todo-label">{t.label}{'count' in t && t.count !== null && <b className={t.count > 0 ? 'todo-count' : 'todo-zero'}> {typeof t.count === 'number' ? `${t.count.toLocaleString()}건` : t.count}</b>}</span>
+            <span className="todo-sub">{t.skip ? '오늘은 안 해도 돼요' : t.sub}</span>
+            <span className="todo-go">→</span>
           </a>
         ))}
       </div>

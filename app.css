@@ -531,3 +531,21 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .zoom-ctl { display: inline-flex; gap: 2px; align-items: center; }
 .zoom-ctl .btn { min-width: 36px; }
 .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 200px; max-width: 360px; }
+
+/* 메인 '오늘 할 일' 순서표 (2026-10-12) */
+.todo-steps { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+.todo-step { display: grid; grid-template-columns: 28px minmax(150px, 220px) 1fr 20px; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); text-decoration: none; }
+.todo-step:hover { background: #F8F9FB; }
+.todo-num { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; background: #EEF0F3; color: var(--muted); }
+.todo-label { font-weight: 600; font-size: 14px; }
+.todo-sub { color: var(--muted); font-size: 13px; }
+.todo-go { color: var(--faint); text-align: right; }
+.todo-count { color: var(--danger); }
+.todo-zero { color: var(--success); font-weight: 600; }
+.todo-step.done { background: #FAFBFC; }
+.todo-step.done .todo-num { background: var(--success-soft); color: var(--success); }
+.todo-step.done .todo-label { color: var(--muted); }
+.todo-step.next { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.todo-step.next .todo-num { background: var(--accent); color: #fff; }
+.todo-step.skip { opacity: 0.5; }
+@media (max-width: 700px) { .todo-step { grid-template-columns: 28px 1fr 20px; } .todo-sub { grid-column: 2; } .todo-go { grid-row: 1; grid-column: 3; } }

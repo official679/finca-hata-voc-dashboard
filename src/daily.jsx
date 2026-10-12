@@ -232,7 +232,8 @@ function DailyEntryPage() {
   };
   const [filling, setFilling] = useState(false);
   const [fillNote, setFillNote] = useState('');
-  const [showReport, setShowReport] = useState(false);
+  // 메인 '오늘 할 일'의 데일리 리포트 = #/daily?report=1 → 리포트 창을 바로 열어 줌
+  const [showReport, setShowReport] = useState(() => new URLSearchParams(location.hash.split('?')[1] || '').get('report') === '1');
   useEffect(() => { setFillNote(''); }, [date]);
 
   // 업로드한 주문·리뷰·게시판으로 핀카·하타 칸을 한 번에 채움 (저장은 사람이 확인 후)
