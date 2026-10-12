@@ -636,22 +636,51 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
   const rank = (p) => (p.status === '종료' ? 3 : p.actual_in && waitingOf(p) ? 0 : p.actual_in ? 2 : 1);
   const rows = products.filter(p => showDone || p.status !== '종료').sort((a, b) => rank(a) - rank(b));
   const d = (v) => (v ? fmtDate(v) : '');
+  // 여러 상품 날짜 한 번에 (2026-10-12 사용자 요청): 체크 → 칸·날짜 고르고 적용 (날짜를 비우면 그 칸을 지움)
+  const [picked, setPicked] = useState(() => new Set());
+  const [field, setField] = useState('change1_out');
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toggle = (id) => setPicked(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allPicked = rows.length > 0 && rows.every(p => picked.has(p.id));
+  const applyBulk = async () => {
+    const label = PRODUCT_DATE_FIELDS.find(([k]) => k === field)[1];
+    if (!confirm(`선택한 예약상품 ${picked.size}개의 '${label}'을(를) ${value ? fmtDate(value) : '빈 칸'}(으)로 바꿀까요?`)) return;
+    setBusy(true);
+    const { error } = await db.from('preorder_products').update({ [field]: value || null }).in('id', [...picked]);
+    setBusy(false);
+    if (error) { toast('❌ 저장 실패: ' + error.message, 'err'); return; }
+    toast(`✅ ${picked.size}개 상품의 ${label}을(를) 바꿨어요`);
+    setPicked(new Set());
+    reload();
+  };
   return (
     <div className="card" style={{ padding: 0 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '16px 20px', flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={() => onEdit({ status: '진행' })}>+ 예약상품 추가</button>
         <label className="muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={showDone} onChange={e => setShowDone(e.target.checked)} /> 종료된 상품도 보기</label>
-        <span className="muted" style={{ marginLeft: 'auto' }}>행을 누르면 일정을 고칠 수 있어요 · 수량 = 출고대기 기준</span>
+        <span className="muted" style={{ marginLeft: 'auto' }}>행을 누르면 일정을 고칠 수 있어요 · 여러 개는 체크해서 한 번에 · 수량 = 출고대기 기준</span>
+      </div>
+      <div className={`bulk-bar${picked.size ? ' on' : ''}`} style={{ margin: '0 20px 12px' }}>
+        <b>{picked.size ? `${picked.size}개 선택됨` : '체크한 상품의 날짜를 한 번에 바꿔요'}</b>
+        <span className="bulk-sep" />
+        <select className="input" style={{ width: 'auto' }} value={field} onChange={e => setField(e.target.value)}>
+          {PRODUCT_DATE_FIELDS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+        </select>
+        <input className="input" type="date" value={value} onChange={e => setValue(e.target.value)} title="비워 두고 적용하면 그 칸을 지워요" />
+        <button className="btn btn-primary btn-sm" disabled={!picked.size || busy} onClick={applyBulk}>{busy ? '저장 중...' : '적용'}</button>
+        {picked.size > 0 && <button className="btn-link" onClick={() => setPicked(new Set())}>선택 해제</button>}
       </div>
       <div className="table-wrap">
         <table className="table table-wide">
-          <thead><tr><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고</th><th title="고객 안내 시작한 날">1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th title="다시 안내 시작한 날">2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제 입고</th><th className="num">대기 수량</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
+          <thead><tr><th onClick={e => e.stopPropagation()}><input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map(p => p.id)))} title="전체 선택" /></th><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고</th><th title="고객 안내 시작한 날">1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th title="다시 안내 시작한 날">2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제 입고</th><th className="num">대기 수량</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
           <tbody>
             {rows.map(p => {
               const c = counts.get(p.code) || {};
               const warn = (p.change1_out && !p.change1_notice) || (p.change2_out && !p.change2_notice);
               return (
-                <tr key={p.id} className="clickable" onClick={() => onEdit(p)} style={{ opacity: p.status === '종료' ? 0.55 : 1 }}>
+                <tr key={p.id} className="clickable" onClick={() => onEdit(p)} style={{ opacity: p.status === '종료' ? 0.55 : 1, background: picked.has(p.id) ? 'var(--accent-soft)' : undefined }}>
+                  <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} /></td>
                   <td>{p.code}</td><td className="ellipsis" style={{ maxWidth: 260 }} title={p.product_name}>{p.product_name}</td><td>{p.option_text || ''}</td>
                   <td>{d(p.first_in)}</td><td>{d(p.first_out)}</td>
                   <td style={warn && p.change1_out && !p.change1_notice ? { background: 'var(--warn-soft)' } : null}>{d(p.change1_notice) || (p.change1_out ? '⚠️ 비어있음' : '')}</td><td>{d(p.change1_in)}</td><td>{d(p.change1_out)}</td>
