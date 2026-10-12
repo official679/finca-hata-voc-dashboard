@@ -61,6 +61,8 @@ function DailyReportPanel({ date: startDate, onClose }) {
     return () => { alive = false; };
   }, [from, to, week0]);
 
+  // 오늘 보고일 리포트를 복사·저장하면 메인 '오늘 할 일' ③에 ✓ (이 PC 기준)
+  const markReportDone = () => { if (date === today()) try { localStorage.setItem('dailyReportDone', date); } catch {} };
   const capture = async () => {
     const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
     return new Promise(res => canvas.toBlob(res, 'image/png'));
@@ -70,6 +72,7 @@ function DailyReportPanel({ date: startDate, onClose }) {
     try {
       const blob = await capture();
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      markReportDone();
       toast('📋 복사했어요 · 슬랙 입력창에 Ctrl+V 로 붙여넣으세요');
     } catch (e) { toast('❌ 복사하지 못했어요. PNG 저장을 써주세요 (' + (e.message || e) + ')', 'err'); }
     finally { setBusy(''); }
@@ -81,6 +84,7 @@ function DailyReportPanel({ date: startDate, onClose }) {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = `CS데일리리포트_${only ? only + '_' : ''}${date}.png`; a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      markReportDone();
     } finally { setBusy(''); }
   };
   const slackText = `[${titleBrand} CS 데일리 리포트]\n${date.replace(/-/g, '.')} ${WEEKDAY[d.getDay()]}요일 (전일 접수 기준 · ${dataLabel(date)})`;
