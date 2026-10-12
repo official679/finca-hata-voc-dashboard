@@ -189,13 +189,17 @@ function usePreorderPending() {
       fetchAll(() => db.from('preorder_lines').select('*').eq('status', '출고대기').order('id')),
     ]).then(([products, lines]) => {
       if (!alive) return;
-      const orders = enrichPreorder(lines, new Map(products.map(p => [p.code, p])), giftCodesFrom(giftKey.split('\n')));
+      const orders = enrichPreorder(lines, productCodeMap(products),giftCodesFrom(giftKey.split('\n')));
       setState({ pending: orders.filter(o => o.pending).length, open: orders.length, delayed: orders.filter(o => o.preLines.some(l => l.need > 0)).length });
     }).catch(() => alive && setState({ error: true }));
     return () => { alive = false; };
   }, [giftKey]);
   return state;
 }
+
+// 단품코드 칸에 구코드·신코드를 쉼표로 함께 넣을 수 있음 (예: "101230, FN260PC001-PP00M")
+const productCodes = (p) => String(p.code || '').split(/[,\s]+/).filter(Boolean);
+const productCodeMap = (products) => new Map((products || []).flatMap(p => productCodes(p).map(c => [c, p])));
 
 async function upsertChunks(table, rows, onConflict) {
   for (let i = 0; i < rows.length; i += 500) {
@@ -217,13 +221,13 @@ function PreorderPage() {
   const [openOrder, setOpenOrder] = useState(null);
   const [editProduct, setEditProduct] = useState(null);
 
-  const productByCode = useMemo(() => new Map((products || []).map(p => [p.code, p])), [products]);
+  const productByCode = useMemo(() => productCodeMap(products), [products]);
 
   // 실제 입고일이 있고 기다리는 주문(출고대기)이 없는 예약상품은 자동으로 '종료'
   useEffect(() => {
     if (!products || !lines) return;
     const waiting = new Set(lines.filter(l => l.status === '출고대기').map(l => l.barcode));
-    const done = products.filter(p => p.status !== '종료' && p.actual_in && !waiting.has(p.code));
+    const done = products.filter(p => p.status !== '종료' && p.actual_in && !productCodes(p).some(c => waiting.has(c)));
     if (!done.length) return;
     db.from('preorder_products').update({ status: '종료' }).in('id', done.map(p => p.id)).then(({ error }) => {
       if (error) return;
@@ -413,7 +417,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
           <input className="input" type="date" value={outFrom} onChange={e => setOutFrom(e.target.value)} title="주문 최종 출고예정일 (부터)" />
           <span className="muted">~</span>
           <input className="input" type="date" value={outTo} onChange={e => setOutTo(e.target.value)} title="주문 최종 출고예정일 (까지)" />
-          <input className="input" style={{ minWidth: 200 }} value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호·주문자·상품명·바코드" />
+          <input className="input" style={{ minWidth: 260 }} value={q} onChange={e => setQ(e.target.value)} placeholder="주문번호·주문자·상품명·바코드 (-단어 = 빼기)" title="띄어 쓴 단어가 모두 든 주문을 찾아요. 앞에 -를 붙이면 그 단어가 든 주문은 빼요 (예: 베개커버 -플럼)" />
           <label className={`chip ${lowOnly ? 'chip-amber' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="가용재고 0~10 상품이 들어 있는 주문 (분리배송 검토)">
             <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} style={{ width: 'auto' }} /> 저재고 주문만{lowCount ? ` ${lowCount}` : ''}
           </label>
@@ -748,7 +752,7 @@ function PreorderProductPanel({ product, onClose, reload }) {
     e.preventDefault();
     if (!f.code.trim()) { toast('❌ 단품코드를 넣어주세요', 'err'); return; }
     setSaving(true);
-    const row = { code: f.code.trim(), product_name: str(f.product_name), option_text: str(f.option_text), note: str(f.note), status: f.status, ...Object.fromEntries(PRODUCT_DATE_FIELDS.map(([k]) => [k, f[k] || null])) };
+    const row = { code: productCodes(f).join(', '),product_name: str(f.product_name), option_text: str(f.option_text), note: str(f.note), status: f.status, ...Object.fromEntries(PRODUCT_DATE_FIELDS.map(([k]) => [k, f[k] || null])) };
     const { error } = product.id ? await db.from('preorder_products').update(row).eq('id', product.id) : await db.from('preorder_products').insert(row);
     setSaving(false);
     if (error) { toast('❌ 저장 실패: ' + (error.message.includes('duplicate') ? '이미 있는 단품코드예요' : error.message), 'err'); return; }
@@ -762,7 +766,7 @@ function PreorderProductPanel({ product, onClose, reload }) {
         <div className="panel-head"><h2>{product.id ? '예약상품 일정 수정' : '예약상품 추가'}</h2><button className="btn btn-sm" onClick={onClose}>닫기</button></div>
         <form className="card" onSubmit={save}>
           <div className="form-grid">
-            <div className="field"><label>단품코드 (바코드)<span className="req"> *</span></label><input value={f.code} onChange={e => set('code')(e.target.value)} /></div>
+            <div className="field"><label>단품코드 (바코드)<span className="req"> *</span></label><input value={f.code} onChange={e => set('code')(e.target.value)} placeholder="구코드·신코드는 쉼표로: 101230, FN260…" title="오클릭 바코드와 똑같아야 주문에 연결돼요. 구코드·신코드가 있으면 쉼표로 둘 다 넣으세요" /></div>
             <div className="field" style={{ gridColumn: 'span 2' }}><label>상품명</label><input value={f.product_name} onChange={e => set('product_name')(e.target.value)} /></div>
             <div className="field"><label>옵션</label><input value={f.option_text} onChange={e => set('option_text')(e.target.value)} /></div>
             <div className="field"><label>예판 상태</label><Select className="" value={f.status} onChange={set('status')} options={['진행', '종료']} /></div>
