@@ -393,6 +393,11 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const markNotice = () => run(`${method} 안내 완료`, async () => {
     const d = today(), n1 = [], n2 = [];
     picked.forEach(o => o.lines.forEach(l => {
+      // 예약상품 없는 주문은 출고대기 상품 줄에 1차→2차로 기록
+      if (!o.preLines.length && l.status === '출고대기') {
+        if (!l.notice1_date) n1.push(l.id); else if (!l.notice2_date) n2.push(l.id);
+        return;
+      }
       if (!l.prod || !(l.need > 0) || l.status !== '출고대기') return;
       if (!l.notice1_date) { n1.push(l.id); if (l.need > 1 && !l.notice2_date) n2.push(l.id); }
       else if (!l.notice2_date && l.need > 1) n2.push(l.id);
@@ -433,7 +438,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
         </label>
         <span className="bulk-sep" />
         <select className="input" style={{ width: 'auto' }} value={method} onChange={e => setMethod(e.target.value)}><option>문자</option><option>유선</option></select>
-        <button className="btn btn-primary btn-sm" disabled={!picked.length || busy} onClick={markNotice} title="지연된 예약상품에 오늘 날짜로 안내 기록 (1차·2차는 자동)">{method === '문자' ? '💬' : '📞'} 안내 완료</button>
+        <button className="btn btn-primary btn-sm" disabled={!picked.length || busy} onClick={markNotice} title="지연된 예약상품(예약상품 없는 주문은 출고대기 상품)에 오늘 날짜로 안내 기록 (1차·2차는 자동)">{method === '문자' ? '💬' : '📞'} 안내 완료</button>
         <span className="bulk-sep" />
         <button className="btn btn-sm" disabled={!picked.length || busy} onClick={() => setStatusAll('출고완')}>📦 출고완</button>
         <button className="btn btn-sm" disabled={!picked.length || busy} onClick={() => setStatusAll('출고대기')}>↩ 출고대기로</button>
@@ -486,10 +491,12 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   // 안내 완료: 지연된 예약상품 줄에 다음 차수 안내를 오늘 날짜로 기록
   //   + 저재고 주문이면 분리배송 안내도 기록 (20 SQL split_notice_*, 2026-10-07 사용자 요청)
   const splitNeeded = order.low && order.status === '출고대기';
+  //   + 예약상품 없는 주문(품절·입고 대기 등)은 출고대기 상품 줄에 1차→2차 안내로 기록 (2026-10-12 사용자 요청)
+  const noPre = !order.preLines.length && order.status === '출고대기';
   const markNotice = (method) => setLs(prev => prev.map(l => {
     const e = order.lines.find(x => x.id === l.id);
     let n = l;
-    if (e && e.pending) n = !l.notice1_date ? { ...n, notice1_method: method, notice1_date: today() } : !l.notice2_date ? { ...n, notice2_method: method, notice2_date: today() } : n;
+    if ((e && e.pending) || (noPre && l.status === '출고대기')) n =!l.notice1_date ? { ...n, notice1_method: method, notice1_date: today() } : !l.notice2_date ? { ...n, notice2_method: method, notice2_date: today() } : n;
     if (splitNeeded && l.status === '출고대기' && !l.split_notice_date) n = { ...n, split_notice_method: method, split_notice_date: today() };
     return n;
   }));
@@ -530,8 +537,10 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
         <div className="card">
           <div className="muted" style={{ marginBottom: 12 }}>{sellerLabel(order.seller)} · 구매일 {fmtDate(order.purchase_date)} · 오클릭 {order.order_no} · 주문 최종 출고예정 <b>{order.final_out ? fmtDate(order.final_out) : '-'}</b></div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <button className="btn btn-primary" onClick={() => markNotice('유선')} disabled={!order.pending && !splitNeeded} title={splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>📞 유선 안내 완료</button>
-            <button className="btn btn-primary" onClick={() => markNotice('문자')} disabled={!order.pending && !splitNeeded} title={splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>💬 문자 안내 완료</button>
+            {['유선', '문자'].map(m => (
+              <button key={m} className="btn btn-primary" onClick={() => markNotice(m)} disabled={!order.pending && !splitNeeded && !noPre}
+                title={noPre ? '예약상품 없는 주문 — 출고대기 상품에 안내(1차→2차)를 기록해요' : splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>{m === '유선' ? '📞' : '💬'} {m} 안내 완료</button>
+            ))}
             <button className="btn" onClick={() => copy(PREORDER_SMS.first(smsName, smsDate), '1차 지연')}>📋 1차 지연 문자</button>
             <button className="btn" onClick={() => copy(PREORDER_SMS.second(smsName, smsDate), '2차 지연')}>📋 2차 지연 문자</button>
             {order.low && <button className="btn" onClick={() => copy(PREORDER_SMS.split(smsName), '분리배송')}>📋 재고 소량·분리배송 문자</button>}
@@ -563,6 +572,14 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
                   </label>
                   <span>{e.prod ? <><StageChip stage={e.stage} sameDay={e.sameDay} /> <span className="muted">안내 {fmtDate(e.seen)} → 현재 {fmtDate(e.current)}</span></> : <span className="muted">일반상품</span>}{e.low && <span className="chip chip-amber" style={{ marginLeft: 6 }}>가용재고 {l.avail}</span>}</span>
                 </div>
+                {!e.prod && (noPre || l.notice1_date || l.notice2_date) && (
+                  <div className="form-grid">
+                    <div className="field"><label>1차 안내</label><Select className="" value={l.notice1_method || ''} onChange={setLine(i, 'notice1_method')} options={['유선', '문자']} placeholder="-" /></div>
+                    <div className="field"><label>1차 안내일</label><input type="date" value={l.notice1_date || ''} onChange={ev => setLine(i, 'notice1_date')(ev.target.value)} /></div>
+                    <div className="field"><label>2차 안내</label><Select className="" value={l.notice2_method || ''} onChange={setLine(i, 'notice2_method')} options={['유선', '문자']} placeholder="-" /></div>
+                    <div className="field"><label>2차 안내일</label><input type="date" value={l.notice2_date || ''} onChange={ev => setLine(i, 'notice2_date')(ev.target.value)} /></div>
+                  </div>
+                )}
                 {e.prod && (
                   <div className="form-grid">
                     <div className="field"><label>1차 안내</label><Select className="" value={l.notice1_method || ''} onChange={setLine(i, 'notice1_method')} options={['유선', '문자']} placeholder="-" /></div>
