@@ -6,7 +6,6 @@ const HUBS = {
   preorder: { label: '예약배송 관리', icon: '📦', tabs: [['preorder', '📦 예약배송 관리'], ['hold-sheet', '📊 예약배송 상품 현황']] },
   analysis: { label: '분석', icon: '📊', tabs: [['report', '📉 VOC 현황'], ['returns', '↩️ 반품·교환'], ['reviews', '💬 리뷰'], ['board', '🔎 게시판']] },
   reports: { label: '보고 · 회의', icon: '📈', tabs: [['monthly', '📈 보고서 (주간·월간)'], ['meetings', '📒 CX 미팅 로그'], ['kpi', '🎯 KPI']] },
-  manuals: { label: '매뉴얼', icon: '📚', tabs: [['manuals', '📚 업무 매뉴얼'], ['guides', '⚠️ CX 응대 주의사항']] },
 };
 const hubOf = (route) => Object.keys(HUBS).find(h => HUBS[h].tabs.some(([k]) => k === route));
 const NAV = [
@@ -28,11 +27,14 @@ const NAV = [
   { group: '📊 분석 · 보고', items: [
     { key: 'report', hub: 'analysis' },
     { key: 'monthly', hub: 'reports' },
-    { key: 'manuals', hub: 'manuals' },
+    // CX 응대 주의사항은 업무 매뉴얼의 '응대 주의사항' 분류로 합침 (2026-10-12), 예전 주소 #/guides도 매뉴얼로
+    { key: 'manuals', label: '업무 매뉴얼', icon: '📚' },
+    { key: 'guides', label: '업무 매뉴얼', hidden: true },
   ] },
   { group: '더보기', more: true, items: [
     { key: 'calendar', label: '팀 캘린더', icon: '📅' },
-    { key: 'tasks', label: '업무 보드', icon: '📌' },
+    // 업무 보드는 거의 안 써서 메뉴에서 숨김 (2026-10-12). 주소 #/tasks·캘린더 마감일 링크로는 열림
+    { key: 'tasks', label: '업무 보드', icon: '📌', hidden: true },
     { key: 'plan', label: '전사플랜', icon: '🗓️' },
     // 다른 대시보드는 새 창으로만 연결 (그쪽은 수정하지 않음)
     { key: 'ext-1inahundred', label: '원인어헌드레드 대시보드', icon: '🔗', href: 'https://1inahundred.netlify.app/' },
@@ -83,8 +85,6 @@ function LoginPage() {
   );
 }
 
-const SOON_PAGES = {
-};
 
 function currentRoute() {
   const key = location.hash.replace(/^#\/?/, '').split(/[/?]/)[0];   // #/meetings/12 · #/review-list?theme=.. 처럼 뒤에 붙은 건 화면 안에서 씀
@@ -121,7 +121,6 @@ function Shell({ session }) {
       <button className="btn" style={{ marginTop: 10 }} onClick={() => location.reload()}>🔄 새로고침</button>
     </div>
   );
-  else if (SOON_PAGES[route]) page = <><PageHeader title={ALL_NAV.find(n => n.key === route).label} /><ComingSoon {...SOON_PAGES[route]} /></>;
   else page = {
     home: <HomePage />,
     monthly: <ReportsPage />,
@@ -142,15 +141,13 @@ function Shell({ session }) {
     'upload-board': <DataUploadPage />,
     'upload-orders': <DataUploadPage />,
     board: <BoardAnalysisPage />,
-    actions: <ActionsPage />,
     'voc-new': <VocEntryPage />,
     'voc-list': <VocListPage />,
     codes: <CodesPage />,
-    guides: <GuidesPage />,
+    guides: <ManualsPage />,
     manuals: <ManualsPage />,
   }[route];
 
-  const pendingActions = data.cases.filter(c => c.action_required && !c.action_done).length;
 
   return (
     <AppContext.Provider value={data}>
@@ -182,8 +179,6 @@ function Shell({ session }) {
               ) : (
                 <button key={item.key} className={`nav-item${route === item.key ? ' active' : ''}`} onClick={() => go(item.key)}>
                   <span>{item.icon}</span>{item.label}
-                  {item.soon && <span className="badge-soon">{item.soon}</span>}
-                  {item.key === 'actions' && pendingActions > 0 && <span className="badge-soon" style={{ background: 'var(--accent)', color: '#fff' }}>{pendingActions}</span>}
                 </button>
               ))}
             </div>

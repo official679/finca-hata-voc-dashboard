@@ -1,4 +1,4 @@
-// 기준 관리 · CX 응대 주의사항
+// 기준 관리 (CX 응대 주의사항은 2026-10-12 업무 매뉴얼로 합침 · cx_guides 표는 백업용으로 남김)
 
 function CodeGroupEditor({ group }) {
   const { codes, loadCodes, cases, setCases, daily, setDaily, loadDaily } = useApp();
@@ -122,67 +122,6 @@ function CodesPage() {
         <Segmented options={CODE_GROUPS.map(g => ({ key: g.key, label: g.label }))} value={groupKey} onChange={setGroupKey} />
       </div>
       <CodeGroupEditor key={groupKey} group={group} />
-    </>
-  );
-}
-
-function GuidesPage() {
-  const toast = useToast();
-  const [guides, setGuides] = useState(null);
-  const [editing, setEditing] = useState(null); // { id?, title, body }
-
-  const load = async () => {
-    const { data, error } = await db.from('cx_guides').select('*').order('sort_order').order('id');
-    if (error) toast('❌ ' + error.message, 'err'); else setGuides(data);
-  };
-  useEffect(() => { load(); }, []);
-
-  const save = async () => {
-    if (!editing.title.trim()) return;
-    const row = { title: editing.title.trim(), body: editing.body };
-    const { error } = editing.id
-      ? await db.from('cx_guides').update(row).eq('id', editing.id)
-      : await db.from('cx_guides').insert({ ...row, sort_order: (guides?.length || 0) + 1 });
-    if (error) { toast('❌ ' + error.message, 'err'); return; }
-    setEditing(null);
-    toast('✅ 저장했어요');
-    load();
-  };
-
-  const remove = async (g) => {
-    if (!confirm(`'${g.title}'을(를) 삭제할까요?`)) return;
-    const { error } = await db.from('cx_guides').delete().eq('id', g.id);
-    if (error) { toast('❌ ' + error.message, 'err'); return; }
-    load();
-  };
-
-  return (
-    <>
-      <PageHeader title="CX 응대 주의사항" desc="상담할 때 꼭 지켜야 할 규칙을 팀이 함께 봐요.">
-        <button className="btn btn-primary" onClick={() => setEditing({ title: '', body: '' })}>＋ 주의사항 추가</button>
-      </PageHeader>
-      {editing && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="field"><label>제목</label><input value={editing.title} onChange={e => setEditing({ ...editing, title: e.target.value })} /></div>
-          <div className="field" style={{ marginTop: 12 }}><label>내용</label><textarea rows="8" value={editing.body || ''} onChange={e => setEditing({ ...editing, body: e.target.value })} /></div>
-          <div className="form-actions">
-            <button className="btn" onClick={() => setEditing(null)}>취소</button>
-            <button className="btn btn-primary" onClick={save}>저장</button>
-          </div>
-        </div>
-      )}
-      {guides === null ? <div className="loading-screen">불러오는 중...</div> : guides.length === 0 ? <div className="card empty">등록된 주의사항이 없어요</div> : guides.map(g => (
-        <div className="card" key={g.id}>
-          <div className="card-title">
-            <span>⚠️ {g.title}</span>
-            <span style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn-sm" onClick={() => setEditing(g)}>수정</button>
-              <button className="btn btn-sm btn-danger" onClick={() => remove(g)}>삭제</button>
-            </span>
-          </div>
-          <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text)', lineHeight: 1.7 }}>{g.body}</div>
-        </div>
-      ))}
     </>
   );
 }

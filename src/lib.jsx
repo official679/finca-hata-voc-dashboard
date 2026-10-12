@@ -364,14 +364,3 @@ function Pager({ page, pages, onChange, size, onSize }) {
     </div>
   );
 }
-
-function ComingSoon({ icon, title, desc, items }) {
-  return (
-    <div className="card soon">
-      <div className="soon-icon">{icon}</div>
-      <h2>{title}</h2>
-      <p>{desc}</p>
-      {items && <ul>{items.map(i => <li key={i}>{i}</li>)}</ul>}
-    </div>
-  );
-}

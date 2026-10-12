@@ -290,12 +290,6 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .login-card .btn { width: 100%; margin-top: 20px; padding: 11px; }
 .login-error { color: var(--danger); font-size: 13px; margin-top: 12px; text-align: center; }
 
-/* 준비 중 */
-.soon { text-align: center; padding: 56px 20px; }
-.soon .soon-icon { font-size: 36px; margin-bottom: 12px; }
-.soon h2 { font-size: 18px; margin-bottom: 8px; }
-.soon p { color: var(--muted); max-width: 460px; margin: 0 auto; }
-.soon ul { text-align: left; display: inline-block; margin-top: 16px; color: var(--muted); padding-left: 18px; }
 
 /* CS 데일리 입력 */
 .day-strip { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
