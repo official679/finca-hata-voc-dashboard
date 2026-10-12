@@ -532,7 +532,10 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>{order.orderer || '-'} · {order.seller_order_no || order.order_no}</h2>
-          <button className="btn btn-sm" onClick={onClose}>닫기</button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>{saving ? '저장 중...' : '저장'}</button>
+            <button className="btn btn-sm" onClick={onClose}>닫기</button>
+          </div>
         </div>
         <div className="card">
           <div className="muted" style={{ marginBottom: 12 }}>{sellerLabel(order.seller)} · 구매일 {fmtDate(order.purchase_date)} · 오클릭 {order.order_no} · 주문 최종 출고예정 <b>{order.final_out ? fmtDate(order.final_out) : '-'}</b></div>
