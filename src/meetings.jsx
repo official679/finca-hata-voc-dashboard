@@ -128,7 +128,10 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const typeCount = (list) => { const m = {}; list.forEach(x => { const k = x.inquiry_type || '미분류'; if (k !== '답변(제외)') m[k] = (m[k] || 0) + 1; }); return m; };
     const bb = boards.filter(x => x.brand === brand);
     const [bc, bp] = [typeCount(bb.filter(x => inWeek(x.written_at, cf, ct))), typeCount(bb.filter(x => !inWeek(x.written_at, cf, ct)))];
-    const boardUp = Object.keys(bc).map(k => [k, bp[k] || 0, bc[k]]).filter(([, p, c]) => c - p >= 3).sort((a, b) => (b[2] - b[1]) - (a[2] - a[1])).slice(0, 3);
+    // 날짜 수가 다르면 전주 건수를 금주 날짜 수로 맞춰 비교 (표시는 실제 건수)
+    const days = (f, t) => Math.round((parseDate(t) - parseDate(f)) / 86400000) + 1;
+    const scale = days(cf, ct) / days(pf, toISODate(addDays(parseDate(cf), -1)));
+    const boardUp = Object.keys(bc).map(k => [k, bp[k] || 0, bc[k]]).filter(([, p, c]) => c - p * scale >= 3 && c >= p * scale * 1.3).sort((a, b) => (b[2] - b[1] * scale) - (a[2] - a[1] * scale)).slice(0, 3);
     info[brand] = { boardUp, neg: neg.length, pneg, topNeg: Object.entries(negThemes).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => k),
       fault: fault.length, avg: ca, pavg: pa, topPos: (() => { const m = {}; pos.flatMap(r => reviewThemes(r.content, false)).forEach(t => { m[t] = (m[t] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]?.[0]; })() };
     // 회의록 모양 (사용자 예시, 2026-10-06): 브랜드 한 줄(건수/평균/별점 분포) + 짧은 문장들
@@ -196,7 +199,6 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
   const [cd, pd] = [dayCount(ca), dayCount(pa)];
   // 주간 요약 = 숫자 대신 짧은 문장 (사용자 요청 2026-10-06, 예: '핀카는 주문 증가와 함께 취소율·반품교환율이 모두 하락')
   //   건수는 날짜 수가 다르면 하루 평균으로 비교 · 비율은 ±0.3%p 안이면 '비슷' · 건수는 ±5% 안이면 '비슷'
-  const josa = (b) => (b === '핀카' ? '는' : '는');
   const cntDir = (p, c, pdays, cdays) => {
     const [pp, cc] = pdays && cdays && pdays !== cdays ? [p / pdays, c / cdays] : [p, c];
     if (!pp) return cc ? '증가' : null;
@@ -205,10 +207,13 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
   };
   const rateDir = (p, c) => (c - p >= 0.3 ? '상승' : p - c >= 0.3 ? '하락' : '비슷');
   const ri = reviewVoc && reviewVoc.info ? reviewVoc.info : {};
-  const sentences = [];
+  // 브랜드별로 묶어 나열 (2026-10-12 사용자 요청: '- **핀카**' 아래에 문장들)
+  const groups = [];
   ['핀카', '하타'].forEach(b => {
     const [p, c] = S[b];
     if (!c.orders && !p.orders) return;
+    const sentences = [];
+    groups.push([b, sentences]);
     const inq = (s) => s.board_total + s.ht_total + s.call_in;
     const r = (s, f) => rate(f(s), s.orders) || 0;
     const [rcp, rcc] = [r(p, returnsExchanges), r(c, returnsExchanges)], [ccp, ccc] = [r(p, s => s.cancels), r(c, s => s.cancels)];
@@ -219,29 +224,33 @@ function weeklyReportDraft(daily, meetingDate, reviewVoc) {
       : [cdir !== '비슷' && `취소율은 ${cdir}`, rdir !== '비슷' && `반품교환율은 ${rdir}`].filter(Boolean).join(', ');
     const orderPart = od === '비슷' ? '주문은 전주와 비슷' : `주문 ${od}`;
     const qPart = qd && qd !== '비슷' && qd === od ? `주문과 문의가 ${od === '증가' ? '증가했고' : '감소했으나'}` : null;
-    sentences.push(`**${b}${josa(b)}** ${qPart || (od === '비슷' ? orderPart + '하고' : orderPart + '와 함께')} ${rates}`);
+    sentences.push(`${qPart || (od === '비슷' ? orderPart + '하고' : orderPart + '와 함께')} ${rates}`);
     // 2) 반품교환율이 높은 편이면 (8% 이상)
-    if (rcc >= 8) sentences.push(`**${b}${josa(b)}** 반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '크게 높아져 원인 확인 필요' : '여전히 높은 수준'}`);
+    if (rcc >= 8) sentences.push(`반품교환율이 ${rcc.toFixed(1)}%로 ${rdir === '상승' ? '크게 높아져 원인 확인 필요' : '여전히 높은 수준'}`);
     // 3) 문의가 따로 크게 바뀌면
     const up = (ri[b] && ri[b].boardUp) || [];
     const upText = up.length ? ` — 게시판 ${up.map(([k, pc, cc]) => `**${k}** ${pc}→${cc}건`).join(', ')}` : '';
     const chans = [['게시판', s => s.board_total], ['해피톡', s => s.ht_total], ['전화', s => s.call_in]].filter(([, f]) => f(c) - f(p) >= 3).map(([k, f]) => `${k} ${f(p)}→${f(c)}건`);
-    if (!qPart && qd && qd !== '비슷' && inq(p) >= 10 && Math.abs(inq(c) - inq(p)) / inq(p) >= 0.2) sentences.push(qd === '증가'
-      ? `**${b}** 고객 문의가 크게 늘어남${upText || (chans.length ? ` (${chans.join(', ')})` : '')}`
-      : `**${b}** 고객 문의가 줄어듦`);
-    else if (qPart && qd === '증가' && up.length) sentences.push(`**${b}** 늘어난 문의${upText.replace(' — ', ': ')}`);
+    // 크게 = 하루 평균으로도 ±20% (연휴로 날짜 수가 다를 때 건수만 보면 틀림 — 10/12 회의: 8일 178건 → 6일 141건인데 '크게 늘어'로 나왔음)
+    const perDay = (v, days) => (pd && cd && pd !== cd ? v / days : v);
+    const bigQ = inq(p) >= 10 && Math.abs(perDay(inq(c), cd) - perDay(inq(p), pd)) / perDay(inq(p), pd) >= 0.2;
+    if (!qPart && qd && qd !== '비슷' && bigQ) sentences.push(qd === '증가'
+      ? `고객 문의가 크게 늘어남${upText || (chans.length ? ` (${chans.join(', ')})` : '')}`
+      : `고객 문의가 줄어듦`);
+    // 전체 문의는 그대로여도 특정 유형이 크게 늘면 따로 한 줄
+    else if (up.length) sentences.push(`게시판 문의 중 ${up.map(([k, pc, cc]) => `**${k}** ${pc}→${cc}건`).join(', ')}으로 늘어남`);
     // 4) 리뷰: 부정 증가·주요 불만 / 평점
     const x = ri[b];
     if (x) {
       const themes = x.topNeg.length ? `${x.topNeg.join(', ')} 등 ` : '';
-      if (x.neg - x.pneg >= 3) sentences.push(`**${b}${josa(b)}** 부정 리뷰가 늘어 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
-      else if (x.neg && x.topNeg.length) sentences.push(`**${b}${josa(b)}** 저평점 수보다 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
-      if (x.avg !== null && x.pavg !== null && Math.abs(x.avg - x.pavg) >= 0.05) sentences.push(`**${b}** 평균 평점은 ${x.avg.toFixed(2)}점으로 ${x.avg > x.pavg ? '올랐고' : '내려갔고'}${x.topPos ? `, 칭찬은 '${x.topPos}'이 가장 많음` : ''}`);
+      if (x.neg - x.pneg >= 3) sentences.push(`부정 리뷰가 늘어 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
+      else if (x.neg && x.topNeg.length) sentences.push(`저평점 수보다 **${themes}실제 품질 언급 리뷰**를 함께 확인할 필요가 있음`);
+      if (x.avg !== null && x.pavg !== null && Math.abs(x.avg - x.pavg) >= 0.05) sentences.push(`평균 평점은 ${x.avg.toFixed(2)}점으로 ${x.avg > x.pavg ? '올랐고' : '내려갔고'}${x.topPos ? `, 칭찬은 '${x.topPos}'이 가장 많음` : ''}`);
 
     }
   });
-  if (cd && pd && cd !== pd) sentences.push(`연휴로 금주 ${cd}일치·전주 ${pd}일치 데이터라 건수는 하루 평균으로 비교함`);
-  const summary = sentences.map(s => `  - ${s}`).join('\n') || '  - ';
+  const summary = [...groups.map(([b, list]) => `  - **${b}**\n${list.map(s => `    - ${s}`).join('\n')}`),
+    ...(cd && pd && cd !== pd ? [`  - ※ 연휴로 금주 ${cd}일치·전주 ${pd}일치 데이터라 건수는 하루 평균으로 비교함`] : [])].join('\n') || '  - ';
   const daysNote = '';
   // 제목 링크 = 대시보드 화면 (예전 회의록의 구글시트 링크 대신)
   return `### 1. [주간 CX 리포트](#/monthly)\n- **분석 기간: ${cur.label}**\n- **전주 대비 (${prev.label} → ${cur.label})**${note}\n\n${table}\n\n- **주간 요약** (자동 · 필요하면 고쳐 주세요)\n${summary}${daysNote}\n\n### 2. [리뷰](#/reviews) / [VOC](#/report) (${ca ? labelOf(ca) : cur.label})\n${(reviewVoc && reviewVoc.text) || '- 핀카: \n- 하타: '}\n\n### 3. 논의사항\n- 오른쪽 '논의사항'에 하나씩 추가하면 완료될 때까지 다음 회의에 자동으로 따라가요\n`;
