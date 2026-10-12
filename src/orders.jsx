@@ -185,39 +185,151 @@ const BACKUP_TABLES = [
 ];
 const lastBackupOf = (codes) => ((codes || []).find(c => c.group_key === 'backup_log') || {}).label || '';
 
+// 엑셀 백업: 표마다 시트 하나 (엑셀 한 칸은 32,767자까지 · 목록·객체는 글자로)
+async function buildBackupWorkbook(setBusy) {
+  const wb = XLSX.utils.book_new();
+  const counts = [], data = {};
+  for (const [table, sheet] of BACKUP_TABLES) {
+    setBusy(`${sheet} 받는 중...`);
+    let rows = [];
+    try { rows = await fetchAll(() => db.from(table).select('*').order('id')); } catch { continue; }   // 없는 표는 건너뜀
+    data[table] = rows;
+    const clean = rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v === null ? '' : typeof v === 'object' ? JSON.stringify(v).slice(0, 32000) : String(v).length > 32000 ? String(v).slice(0, 32000) : v])));
+    XLSX.utils.book_append_sheet(wb, clean.length ? XLSX.utils.json_to_sheet(clean) : XLSX.utils.aoa_to_sheet([['(비어 있음)']]), sheet);
+    counts.push(`${sheet} ${rows.length}`);
+  }
+  return { wb, counts, data };
+}
+
+// 사진 파일 이름 = 날짜_브랜드_상품_사유_V번호_순서 (윈도우에서 못 쓰는 글자는 빼고 너무 길면 자름)
+const safeName = (s, max = 40) => String(s || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+const photoFileName = (c, i, path, productById) => {
+  const ext = (String(path).match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase();
+  return [c.received_date, c.brand, safeName(caseProductName(c, productById), 40), safeName(c.reason_category || c.voc_type || '사유없음', 20), `V${c.id}`, i + 1].join('_') + '.' + ext;
+};
+
+// 리포트·사진 확인용 VOC 표 (고객 이름·메모 칸은 뺌) — 사진 파일 이름과 짝
+const vocReportRows = (cases, productById) => cases.map(c => ({
+  'VOC번호': c.id, '접수일': c.received_date, '브랜드': c.brand, '판매처': c.platform || '', '문의 채널': c.consult_method || '', '주문번호': c.order_no || '',
+  '상품명': caseProductName(c, productById), '대분류': caseCategory(c, productById), '중분류': caseSubCategory(c, productById), '추가분류': caseLineType(c, productById),
+  'VOC 구분': c.voc_type || '', '과실': isFault(c.voc_type) ? 'O' : '', '사유': c.reason_category || '', '상세 사유': c.reason_detail || '', '처리': c.handling || '', '상태': c.status || '',
+  '사진 수': (c.photos || []).length, '사진 파일': (c.photos || []).map((p, i) => photoFileName(c, i, p, productById)).join('\n'),
+}));
+
+// 저장소 파일을 4개씩 동시에 받아 zip 폴더에 넣음. 못 받은 파일은 목록으로 돌려줌
+async function addStorageFiles(folder, bucket, items, setBusy, label) {
+  const failed = [];
+  let done = 0;
+  for (let i = 0; i < items.length; i += 4) {
+    await Promise.all(items.slice(i, i + 4).map(async ({ path, name }) => {
+      const { data, error } = await db.storage.from(bucket).download(path);
+      if (error || !data) failed.push(path); else folder.file(name, data, { binary: true });
+      done++;
+    }));
+    setBusy(`${label} ${done}/${items.length} 받는 중...`);
+  }
+  return failed;
+}
+
+async function downloadZip(zip, fileName, setBusy) {
+  setBusy('zip 파일 만드는 중...');
+  // 사진은 이미 압축된 파일이라 다시 압축하지 않음 (빠르고 메모리 덜 씀)
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = fileName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  return blob.size;
+}
+
+const mb = (n) => `${(n / 1024 / 1024).toFixed(1)}MB`;
+
 function BackupCard() {
-  const { codes, loadCodes } = useApp();
+  const { codes, loadCodes, productById, cases } = useApp();
   const toast = useToast();
   const [busy, setBusy] = useState('');
   const last = lastBackupOf(codes);
-  const run = async () => {
+  // 리포트용 내보내기 기간·브랜드 (기본 = 올해 하반기, 2026-10-12)
+  const [rFrom, setRFrom] = useState(`${today().slice(0, 4)}-${today().slice(5, 7) >= '07' ? '07' : '01'}-01`);
+  const [rTo, setRTo] = useState(today());
+  const [rBrand, setRBrand] = useState('');
+
+  const markBackup = async () => {
+    const item = (codes || []).find(c => c.group_key === 'backup_log');
+    if (item) await db.from('code_items').update({ label: today() }).eq('id', item.id);
+    else await db.from('code_items').insert({ group_key: 'backup_log', label: today(), sort_order: 1 });
+    await loadCodes();
+  };
+
+  // ① 엑셀만 (예전과 같음)
+  const runExcel = async () => {
     try {
-      const wb = XLSX.utils.book_new();
-      const counts = [];
-      for (const [table, sheet] of BACKUP_TABLES) {
-        setBusy(`${sheet} 받는 중...`);
-        let rows = [];
-        try { rows = await fetchAll(() => db.from(table).select('*').order('id')); } catch { continue; }   // 없는 표는 건너뜀
-        // 엑셀 한 칸은 32,767자까지 · 목록·객체는 글자로
-        const clean = rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v === null ? '' : typeof v === 'object' ? JSON.stringify(v).slice(0, 32000) : String(v).length > 32000 ? String(v).slice(0, 32000) : v])));
-        XLSX.utils.book_append_sheet(wb, clean.length ? XLSX.utils.json_to_sheet(clean) : XLSX.utils.aoa_to_sheet([['(비어 있음)']]), sheet);
-        counts.push(`${sheet} ${rows.length}`);
-      }
+      const { wb, counts } = await buildBackupWorkbook(setBusy);
       setBusy('파일 만드는 중...');
       XLSX.writeFile(wb, `CX대시보드_백업_${today()}.xlsx`);
-      const item = (codes || []).find(c => c.group_key === 'backup_log');
-      if (item) await db.from('code_items').update({ label: today() }).eq('id', item.id);
-      else await db.from('code_items').insert({ group_key: 'backup_log', label: today(), sort_order: 1 });
-      await loadCodes();
+      await markBackup();
       toast(`✅ 백업 파일을 받았어요 (${counts.length}개 표) · 회사 드라이브 비공개 폴더에 보관해 주세요`);
     } catch (e) { toast('❌ 백업 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
   };
+
+  // ② 전체 내보내기 = 엑셀 백업 + VOC 사진 + 매뉴얼 첨부파일을 zip 하나로
+  const runFull = async () => {
+    try {
+      const { wb, counts, data } = await buildBackupWorkbook(setBusy);
+      const zip = new JSZip();
+      zip.file(`CX대시보드_백업_${today()}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+      const vocs = data.voc_cases || [];
+      const vwb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(vwb, XLSX.utils.json_to_sheet(vocReportRows(vocs, productById)), 'VOC');
+      zip.file('VOC사진_목록.xlsx', XLSX.write(vwb, { bookType: 'xlsx', type: 'array' }));
+      const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: photoFileName(c, i, path, productById) })));
+      const failedPhotos = await addStorageFiles(zip.folder('VOC사진'), PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
+      const files = (data.manuals || []).flatMap(m => (m.attachments || []).map((a, i) => ({ path: a.path, name: `${m.id}_${safeName(m.title, 30)}_${i + 1}_${safeName(a.name, 60)}` })));
+      const failed = [...failedPhotos, ...await addStorageFiles(zip.folder('매뉴얼첨부'), 'manual-files', files, setBusy, '매뉴얼 첨부')];
+      if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
+      const size = await downloadZip(zip, `CX대시보드_전체내보내기_${today()}.zip`, setBusy);
+      await markBackup();
+      toast(`✅ 전체 내보내기 완료 (${mb(size)}) · 표 ${counts.length}개 · 사진 ${photos.length - failedPhotos.length}장${failed.length ? ` · 못 받은 파일 ${failed.length}개(zip 안 목록 참고)` : ''}`);
+    } catch (e) { toast('❌ 전체 내보내기 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
+  };
+
+  // ③ 리포트용 = 기간·브랜드의 VOC 표(고객 이름 없음) + 그 사진
+  const runReport = async () => {
+    const vocs = (cases || []).filter(c => c.received_date >= rFrom && c.received_date <= rTo && (!rBrand || c.brand === rBrand))
+      .sort((a, b) => (a.received_date || '').localeCompare(b.received_date || '') || a.id - b.id);
+    if (!vocs.length) { toast('그 기간에 VOC가 없어요', 'err'); return; }
+    try {
+      const zip = new JSZip();
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vocReportRows(vocs, productById)), 'VOC');
+      const tag = `${rBrand || '핀카하타'}_${rFrom}~${rTo}`;
+      zip.file(`VOC_${tag}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+      const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: photoFileName(c, i, path, productById) })));
+      const failed = await addStorageFiles(zip.folder('사진'), PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
+      if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
+      const size = await downloadZip(zip, `리포트용_VOC_${tag}.zip`, setBusy);
+      toast(`✅ 리포트용 내보내기 완료 (${mb(size)}) · VOC ${vocs.length}건 · 사진 ${photos.length - failed.length}장`);
+    } catch (e) { toast('❌ 리포트용 내보내기 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
+  };
+
+  const off = !!busy;
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="card-title">📦 백업 받기 <small>한 달에 한 번 · 마지막 백업 {last ? fmtDate(last) : '없음'}</small></div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={run} disabled={!!busy}>{busy || '📦 전체 백업 받기 (엑셀)'}</button>
-        <span className="hint">VOC·CS 데일리·리뷰·게시판·주문·예약배송·회의록·업무·매뉴얼·기준 목록을 엑셀 한 파일로 받아요. <b>고객 이름이 들어 있어서 회사 드라이브 비공개 폴더에만</b> 보관하세요 (GitHub·메신저 X). 사진은 포함되지 않아요.</span>
+      {busy && <div className="hint" style={{ marginBottom: 10, color: 'var(--accent)', fontWeight: 600 }}>⏳ {busy} (창을 닫지 마세요)</div>}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+        <button className="btn btn-primary" onClick={runFull} disabled={off}>🗂 전체 내보내기 (엑셀 + 사진 zip)</button>
+        <button className="btn" onClick={runExcel} disabled={off}>📦 엑셀만 받기</button>
+        <span className="hint"><b>전체 내보내기</b> = 모든 표 엑셀 + <b>VOC 사진</b> + 매뉴얼 첨부파일을 zip 하나로 (사진이 많으면 몇 분 걸려요). <b>고객 이름이 들어 있어서 회사 드라이브 비공개 폴더에만</b> 보관하세요 (GitHub·메신저 X).</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+        <b style={{ fontSize: 13 }}>📑 리포트용 VOC</b>
+        <input className="input" type="date" value={rFrom} onChange={e => setRFrom(e.target.value)} style={{ width: 150 }} />
+        <span>~</span>
+        <input className="input" type="date" value={rTo} onChange={e => setRTo(e.target.value)} style={{ width: 150 }} />
+        <div style={{ width: 160 }}><Select value={rBrand} onChange={setRBrand} options={['핀카', '하타']} placeholder="핀카·하타 모두" /></div>
+        <button className="btn" onClick={runReport} disabled={off || !rFrom || !rTo}>⬇ VOC 엑셀 + 사진 zip</button>
+        <span className="hint">반기 VOC 리포트용 · 고객 이름 없이 · 사진 이름 = 날짜_브랜드_상품_사유_VOC번호</span>
       </div>
     </div>
   );
