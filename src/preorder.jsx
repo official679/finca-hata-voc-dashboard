@@ -77,19 +77,46 @@ function toPreorderLines({ rows, get }) {
   return [...out.values()];
 }
 
+// 예약상품리스트 → 상품 일정. **파일에 값이 있는 칸만** 담음 (빈칸이 대시보드에 적어 둔 날짜를 지우지 않게, 2026-10-13)
+//   예판 상태: '종료'/'진행'이라고 적힌 경우만 바꿈 (빈칸이면 그대로, 새 상품은 진행)
 function toPreorderProducts({ rows, get }) {
   const m = new Map();
+  const cols = [['product_name', '상품명', str], ['option_text', '옵션', str],
+    ['first_in', '최초 입고예정', ymd], ['first_out', '최초 출고일 공지', ymd],
+    ['change1_notice', '1차 일정 변경 공지일', ymd], ['change1_in', '1차 변경 입고일', ymd], ['change1_out', '1차 변경 출고안내일', ymd],
+    ['change2_notice', '2차 일정 변경 공지일', ymd], ['change2_in', '2차 변경 입고일', ymd], ['change2_out', '2차 변경 출고안내일', ymd],
+    ['actual_in', '실제입고일', ymd], ['note', '비고', str]];
   rows.forEach(r => {
     const code = str(get(r, '단품코드')); if (!code) return;
-    m.set(code, {
-      code, product_name: str(get(r, '상품명')), option_text: str(get(r, '옵션')),
-      first_in: ymd(get(r, '최초 입고예정')), first_out: ymd(get(r, '최초 출고일 공지')),
-      change1_notice: ymd(get(r, '1차 일정 변경 공지일')), change1_in: ymd(get(r, '1차 변경 입고일')), change1_out: ymd(get(r, '1차 변경 출고안내일')),
-      change2_notice: ymd(get(r, '2차 일정 변경 공지일')), change2_in: ymd(get(r, '2차 변경 입고일')), change2_out: ymd(get(r, '2차 변경 출고안내일')),
-      actual_in: ymd(get(r, '실제입고일')), note: str(get(r, '비고')), status: /종료/.test(String(get(r, '예판 상태'))) ? '종료' : '진행',
-    });
+    const row = { code };
+    cols.forEach(([k, h, f]) => { const v = f(get(r, h)); if (v) row[k] = v; });
+    const st = String(get(r, '예판 상태') || '');
+    if (/종료/.test(st)) row.status = '종료'; else if (/진행/.test(st)) row.status = '진행';
+    m.set(code, row);
   });
   return [...m.values()];
+}
+
+// 파일의 상품을 이미 있는 예약상품과 맞춰 저장: 단품코드가 쉼표로 여러 개인 상품(구·신코드)도 그중 하나만 맞으면 같은 상품
+async function savePreorderProducts(ps, existing) {
+  const byCode = productCodeMap(existing);
+  let added = 0, updated = 0;
+  for (const p of ps) {
+    const codes = productCodes(p);
+    const cur = codes.map(c => byCode.get(c)).find(Boolean);
+    const { code, ...fields } = p;
+    if (cur) {
+      if (!Object.keys(fields).length) continue;
+      const { error } = await db.from('preorder_products').update(fields).eq('id', cur.id);
+      if (error) throw error;
+      updated++;
+    } else {
+      const { error } = await db.from('preorder_products').insert({ status: '진행', ...p, code: codes.join(', ') });
+      if (error) throw error;
+      added++;
+    }
+  }
+  return { added, updated };
 }
 
 function toPreorderNotices({ rows, get }) {
@@ -901,8 +928,8 @@ function PreorderUpload({ lines, products, uploads, reload }) {
       if (productSheets.length) {
         setBusy('예약상품 일정 저장 중...');
         const ps = productSheets.flatMap(toPreorderProducts);
-        await upsertChunks('preorder_products', ps, 'code');
-        msgs.push(`🗓️ 예약상품 ${ps.length}개 일정 저장`);
+        const { added, updated } = await savePreorderProducts(ps, products || []);
+        msgs.push(`🗓️ 예약상품 일정 저장: 새로 ${added}개 · 수정 ${updated}개 (파일의 빈칸은 대시보드 값을 그대로 둠)`);
       }
       // 2) 오클릭 미출고 파일 (하루치 한 장만)
       let current = lines;
@@ -997,7 +1024,7 @@ function PreorderUpload({ lines, products, uploads, reload }) {
         <ul className="hint" style={{ marginTop: 12, lineHeight: 1.8, paddingLeft: 18 }}>
           <li><b>오클릭 예약주문</b>: 첫 줄에 {PREORDER_FORMATS[0].headers.join(' · ')} 칸이 있는 파일 (구글시트 A~L열에 붙여넣던 원본). 올릴 때마다 <b>파일에 없는 주문은 출고완</b>으로 바뀌어요.{' '}
             <TemplateButton name="예약주문_오클릭미출고" headers={['주문번호', '판매처', '판매처주문번호', '입력일', '주문자', '바코드', '품명', '사이즈', '수량', '재고', '가용재고', '미출고']} /></li>
-          <li><b>예약상품리스트</b>: {PREORDER_FORMATS[1].headers.join(' · ')} … 칸. 같은 단품코드는 새 내용으로 덮어써요. 여러 상품 일정을 한 번에 넣을 때 편해요.{' '}
+          <li><b>예약상품리스트</b>: {PREORDER_FORMATS[1].headers.join(' · ')} … 칸. 이미 있는 상품(구·신코드 포함)은 <b>파일에 적힌 칸만</b> 바꾸고 빈칸은 그대로 둬요. 새 단품코드는 새 상품으로 추가(예판 상태 = 진행). 여러 상품 일정을 한 번에 넣을 때 편해요.{' '}
             <TemplateButton name="예약상품리스트" headers={['단품코드', '상품명', '옵션', '최초 입고예정', '최초 출고일 공지', '1차 일정 변경 공지일', '1차 변경 입고일', '1차 변경 출고안내일', '2차 일정 변경 공지일', '2차 변경 입고일', '2차 변경 출고안내일', '실제입고일', '비고', '예판 상태']} /> <span className="muted">(날짜는 2026-11-09 형식 · 예판 상태는 진행/종료)</span></li>
           <li><b>예약 지연안내리스트</b>: 기존 안내 기록(1차·2차 안내, 사은품, 배송구분)을 옮겨와요. 대시보드에 이미 적힌 칸은 건드리지 않아요.{' '}
             <TemplateButton name="예약_지연안내리스트" headers={['판매처', '바코드', '상품명', '옵션', '수량', '주문번호', '발주등록일', '고객명', '배송구분', '1차 안내', '1차 안내일자', '2차 안내', '2차 안내일자', '사은품', '출고여부', '비고']} /></li>
