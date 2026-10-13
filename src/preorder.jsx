@@ -70,6 +70,8 @@ function toPreorderLines({ rows, get }) {
       input_date, purchase_date: orderDate.get(order_no) || input_date, orderer: str(get(r, '주문자')),
       barcode, product_name: str(get(r, '품명')), size: size || null, qty,
       stock: intOr(get(r, '재고')), avail: intOr(get(r, '가용재고')), unshipped: intOr(get(r, '미출고')),
+      // 품절 구분용 (23 SQL): 상품상태 = 판매·종료/취소·생산… · 입고예정일 = '20261023->250개' 같은 글
+      item_state: str(get(r, '상품상태')), restock_eta: str(get(r, '입고예정일')), soldout_memo: str(get(r, '품절메모')),
     });
   });
   return [...out.values()];
@@ -121,9 +123,13 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
     const s = preorderStage(l, prod);
     const done = (l.notice1_date ? 1 : 0) + (l.notice2_date ? 1 : 0);
     const isGift = giftCodes.includes(l.barcode);
-    // 저재고 = 아직 출고대기인 상품만 (분리배송으로 먼저 나간 상품·취소한 상품은 빼고 판단)
-    const low = l.status === '출고대기' && l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
-    return { ...l, prod, ...s, done, low, isGift, pending: l.status === '출고대기' && s.need > done };
+    // 품절 = 예약상품이 아닌 출고대기 상품의 오클릭 재고 0 (창고에 하나도 없음, 2026-10-13 사용자 요청)
+    //   상품상태 종료/취소 = 단종(재입고 없음 → 취소 안내), 그 밖 = 입고 대기(입고예정일 안내) · 맞춤 제작은 원래 재고 0이라 제외 · 사은품 제외
+    const soldout = l.status === '출고대기' && !prod && !isGift && l.stock !== null && l.stock <= 0 && !/맞춤\s*제작/.test(l.product_name || '');
+    const discontinued = soldout && /종료|취소/.test(l.item_state || '');
+    // 저재고 = 아직 출고대기인 상품만 (분리배송으로 먼저 나간 상품·취소한 상품은 빼고 판단, 품절은 따로)
+    const low = !soldout && l.status === '출고대기' && l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
+    return { ...l, prod, ...s, done, low, soldout, discontinued, isGift, pending: l.status === '출고대기' && s.need > done };
   });
   const orders = new Map();
   rows.forEach(r => {
@@ -141,12 +147,20 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
       // 출고대기 상품이 하나도 없으면 끝난 주문 (일부 취소 + 나머지 출고완 = 출고완)
       status: ls.some(l => l.status === '출고대기') ? '출고대기' : ls.every(l => l.status === '취소') ? '취소' : '출고완',
       stage: worst, pending: ls.some(l => l.pending), low: ls.some(l => l.low), mixed: ls.some(l => !l.prod),
+      soldout: ls.some(l => l.soldout), discontinued: ls.some(l => l.discontinued),
       final_out: maxDate(pre.map(l => l.current)), split: ls.map(l => l.split).find(Boolean) || '',
       preLines: pre, done: Math.max(0, ...pre.map(l => l.done)),
       shipped_on: maxDate(ls.map(l => l.shipped_on)),
     };
   }).sort((a, b) => (rank[b.stage] - rank[a.stage]) || String(a.purchase_date || '').localeCompare(String(b.purchase_date || '')));
 }
+
+// 품절 칩: 단종(종료/취소) = 빨강, 입고 대기 = 주황 · 마우스를 올리면 상품·입고예정
+const soldoutText = (l) => `${l.product_name} — ${l.discontinued ? '단종(재입고 없음)' : `재고 0${l.restock_eta ? ` · 입고예정 ${l.restock_eta}` : ''}`}${l.soldout_memo ? ` · ${l.soldout_memo}` : ''}`;
+const SoldoutChip = ({ lines }) => {
+  const disc = lines.some(l => l.discontinued);
+  return <span className={`chip ${disc ? 'chip-red' : 'chip-amber'}`} style={{ marginRight: 4 }} title={lines.map(soldoutText).join('\n')}>{disc ? '단종 포함' : '품절 포함'}{lines.length > 1 ? ` ${lines.length}` : ''}</span>;
+};
 
 const STAGE_CHIP = { '정상': 'chip-green', '1차 지연': 'chip-amber', '2차 지연': 'chip-red', '공지일 확인': 'chip-blue' };
 const StageChip = ({ stage, sameDay }) => (stage ? <span className={`chip ${STAGE_CHIP[stage] || ''}`} title={sameDay ? '공지 당일 주문 — 주문 시각 확인 필요' : ''}>{stage}{sameDay ? ' *' : ''}</span> : <span className="muted">-</span>);
@@ -306,7 +320,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
         <table className="table table-wide">
           <thead><tr>
             {setSelected && <th style={{ width: 36 }}><input type="checkbox" checked={pageAll} title="이 페이지 전체 선택" onChange={() => setSelected(prev => { const n = new Set(prev); shown.forEach(o => (pageAll ? n.delete(o.order_no) : n.add(o.order_no))); return n; })} /></th>}
-            <th>구매일</th><th>판매처</th><th>판매처주문번호</th><th>주문자</th><th>예약상품</th><th>단계</th><th>주문 당시 안내</th><th>현재 출고예정</th><th>주문 최종 출고</th><th>안내</th><th>배송구분</th><th>저재고</th>{!todo && <th>상태</th>}</tr></thead>
+            <th>구매일</th><th>판매처</th><th>판매처주문번호</th><th>주문자</th><th>예약상품</th><th>단계</th><th>주문 당시 안내</th><th>현재 출고예정</th><th>주문 최종 출고</th><th>안내</th><th>배송구분</th><th>재고</th>{!todo && <th>상태</th>}</tr></thead>
           <tbody>
             {shown.map(o => {
               const l = o.preLines.find(x => x.stage === o.stage) || o.preLines[0] || o.lines[0];
@@ -334,7 +348,10 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   <td><b>{o.final_out ? fmtDate(o.final_out) : '-'}</b></td>
                   <td>{[o.lines.find(x => x.notice1_date), o.lines.find(x => x.notice2_date)].map((x, i) => x ? <span key={i} className="chip chip-green" style={{ marginRight: 4 }}>{i + 1}차 {x[`notice${i + 1}_method`] || ''} {fmtDate(x[`notice${i + 1}_date`]).slice(3)}</span> : null)}{!o.lines.some(x => x.notice1_date) && <span className="muted">-</span>}</td>
                   <td>{o.split || (o.mixed ? <span className="muted">일반상품 함께</span> : '-')}</td>
-                  <td>{o.low ? (o.lines.some(l => l.split_notice_date) ? <span className="chip chip-green" title={`분리배송 안내 ${o.lines.map(l => l.split_notice_method).find(Boolean) || ''} ${fmtDate(maxDate(o.lines.map(l => l.split_notice_date)))}`}>저재고 ✓안내</span> : <span className="chip chip-amber">저재고</span>) : ''}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {o.soldout && <SoldoutChip lines={o.lines.filter(l => l.soldout)} />}
+                    {o.low ? (o.lines.some(l => l.split_notice_date) ? <span className="chip chip-green" title={`분리배송 안내 ${o.lines.map(l => l.split_notice_method).find(Boolean) || ''} ${fmtDate(maxDate(o.lines.map(l => l.split_notice_date)))}`}>저재고 ✓안내</span> : <span className="chip chip-amber">저재고</span>) : ''}
+                  </td>
                   {!todo && <td>{o.status === '출고완' ? <span className="chip chip-green">출고완 {fmtDate(o.shipped_on).slice(3)}</span> : o.status === '취소' ? <span className="chip">취소</span> : '출고대기'}</td>}
                 </tr>
               );
@@ -358,23 +375,25 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const [outTo, setOutTo] = useState('');
   const [q, setQ] = useState('');
   const [lowOnly, setLowOnly] = useState(!!initLow);   // 가용재고 0~10 상품이 든 주문만 (분리배송 검토)
+  const [soldOnly, setSoldOnly] = useState(false);     // 품절(재고 0) 상품이 든 주문만 (품절 안내, 2026-10-13)
   const [selected, setSelected] = useState(() => new Set());
   const [method, setMethod] = useState('문자');
   const [busy, setBusy] = useState(false);
 
   // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
   const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
-  const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) &&
+  const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) && (!soldOnly || o.soldout) &&
     // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
     (!product || (product === NO_PRE ? !o.preLines.length : o.preLines.some(l => l.product_name === product))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     // 상태를 출고대기로 보면 상품명·바코드 검색도 아직 안 나간 상품에서만 (분리배송으로 먼저 나간 상품은 오클릭 미출고에 없음, 2026-10-12)
     matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
-  const filterKey = [status, stage, product, outFrom, outTo, q, lowOnly].join('|');
+  const filterKey = [status, stage, product, outFrom, outTo, q, lowOnly, soldOnly].join('|');
   useEffect(() => { setSelected(new Set()); }, [filterKey]);
   const picked = rows.filter(o => selected.has(o.order_no));
   const lowCount = orders.filter(o => o.low && o.status === '출고대기').length;
-  const hasFilter = !!(stage || product || outFrom || outTo || q || lowOnly || (todo ? status : status !== '출고대기'));
+  const soldCount = orders.filter(o => o.soldout && o.status === '출고대기').length;
+  const hasFilter = !!(stage || product || outFrom || outTo || q || lowOnly || soldOnly || (todo ? status : status !== '출고대기'));
 
   const run = async (label, fn) => {
     if (!picked.length) return;
@@ -428,7 +447,10 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
           <label className={`chip ${lowOnly ? 'chip-amber' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="가용재고 0~10 상품이 들어 있는 주문 (분리배송 검토)">
             <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} style={{ width: 'auto' }} /> 저재고 주문만{lowCount ? ` ${lowCount}` : ''}
           </label>
-          {hasFilter && <button className="btn-link" onClick={() => { setStatus(todo ? '' : '출고대기'); setStage(''); setProduct(''); setOutFrom(''); setOutTo(''); setQ(''); setLowOnly(false); }}>초기화</button>}
+          <label className={`chip ${soldOnly ? 'chip-red' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="예약상품이 아닌 상품의 오클릭 재고가 0인 주문 (단종 = 재입고 없음 → 취소 안내, 그 밖 = 입고 대기) · 맞춤 제작 제외">
+            <input type="checkbox" checked={soldOnly} onChange={e => setSoldOnly(e.target.checked)} style={{ width: 'auto' }} /> 품절 포함 주문만{soldCount ? ` ${soldCount}` : ''}
+          </label>
+          {hasFilter && <button className="btn-link" onClick={() => { setStatus(todo ? '' : '출고대기'); setStage(''); setProduct(''); setOutFrom(''); setOutTo(''); setQ(''); setLowOnly(false); setSoldOnly(false); }}>초기화</button>}
           <span className="muted">{rows.length.toLocaleString()}건{todo ? '' : ' · 출고완은 최근 60일'}</span>
         </div>
       </div>
@@ -574,7 +596,8 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
                     <b>{l.product_name}{l.size && l.size !== '0' ? ` (${l.size})` : ''} × {l.qty}</b>
                     {l.status !== '출고대기' && <span className={'chip' + (l.status === '출고완' ? ' chip-green' : '')}>{l.status}</span>}
                   </label>
-                  <span>{e.prod ? <><StageChip stage={e.stage} sameDay={e.sameDay} /> <span className="muted">안내 {fmtDate(e.seen)} → 현재 {fmtDate(e.current)}</span></> : <span className="muted">일반상품</span>}{e.low && <span className="chip chip-amber" style={{ marginLeft: 6 }}>가용재고 {l.avail}</span>}</span>
+                  <span>{e.prod ? <><StageChip stage={e.stage} sameDay={e.sameDay} /> <span className="muted">안내 {fmtDate(e.seen)} → 현재 {fmtDate(e.current)}</span></> : <span className="muted">일반상품</span>}{e.low && <span className="chip chip-amber" style={{ marginLeft: 6 }}>가용재고 {l.avail}</span>}
+                    {e.soldout && <span className={`chip ${e.discontinued ? 'chip-red' : 'chip-amber'}`} style={{ marginLeft: 6 }} title={soldoutText(e)}>{e.discontinued ? '단종 · 재고 0' : `품절 · 재고 0${e.restock_eta ? ` · 입고예정 ${e.restock_eta}` : ''}`}</span>}</span>
                 </div>
                 {!e.prod && (noPre || l.notice1_date || l.notice2_date) && (
                   <div className="form-grid">
