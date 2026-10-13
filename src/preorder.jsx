@@ -365,6 +365,8 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
 }
 
 const NO_PRE = '__none';   // 예약상품 선택 칸의 '예약상품 없는 주문'
+// 예약상품 없는 주문 = 진행 중인 예약상품이 없는 주문 (예판 종료 상품만 있으면 일반 주문으로 봄, 2026-10-13 사용자 요청)
+const noLivePre = (o) => !o.preLines.some(l => l.prod.status !== '종료');
 // 주문 목록 + 조회(상태·단계·출고예정일·예약상품·검색) + 선택한 주문 일괄 처리
 function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const toast = useToast();
@@ -384,7 +386,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
   const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) && (!soldOnly || o.soldout) &&
     // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
-    (!product || (product === NO_PRE ? !o.preLines.length : o.preLines.some(l => l.product_name === product))) &&
+    (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => l.product_name === product))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     // 상태를 출고대기로 보면 상품명·바코드 검색도 아직 안 나간 상품에서만 (분리배송으로 먼저 나간 상품은 오클릭 미출고에 없음, 2026-10-12)
     matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
@@ -414,7 +416,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
     const d = today(), n1 = [], n2 = [];
     picked.forEach(o => o.lines.forEach(l => {
       // 예약상품 없는 주문은 출고대기 상품 줄에 1차→2차로 기록
-      if (!o.preLines.length && l.status === '출고대기') {
+      if (noLivePre(o) && !(l.prod && l.need > 0) && l.status === '출고대기') {
         if (!l.notice1_date) n1.push(l.id); else if (!l.notice2_date) n2.push(l.id);
         return;
       }
@@ -438,7 +440,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
         <div className="filters">
           {!todo && <Select value={status} onChange={setStatus} options={['출고대기', '출고완', '취소']} placeholder="상태 전체" />}
           <Select value={stage} onChange={setStage} options={['정상', '1차 지연', '2차 지연', '공지일 확인']} placeholder="단계 전체" />
-          <Select value={product} onChange={setProduct} options={[{ value: NO_PRE, label: `⚪ 예약상품 없는 주문 (출고대기 ${orders.filter(o => !o.preLines.length && o.status === '출고대기').length})` }, ...productNames]} placeholder="예약상품 전체" />
+          <Select value={product} onChange={setProduct} options={[{ value: NO_PRE, label: `⚪ 예약상품 없는 주문 (출고대기 ${orders.filter(o => noLivePre(o) && o.status === '출고대기').length})` }, ...productNames]} placeholder="예약상품 전체" />
           <span className="muted" style={{ whiteSpace: 'nowrap' }}>출고예정일</span>
           <input className="input" type="date" value={outFrom} onChange={e => setOutFrom(e.target.value)} title="주문 최종 출고예정일 (부터)" />
           <span className="muted">~</span>
@@ -515,7 +517,7 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   //   + 저재고 주문이면 분리배송 안내도 기록 (20 SQL split_notice_*, 2026-10-07 사용자 요청)
   const splitNeeded = order.low && order.status === '출고대기';
   //   + 예약상품 없는 주문(품절·입고 대기 등)은 출고대기 상품 줄에 1차→2차 안내로 기록 (2026-10-12 사용자 요청)
-  const noPre = !order.preLines.length && order.status === '출고대기';
+  const noPre = noLivePre(order) && order.status === '출고대기';
   const markNotice = (method) => setLs(prev => prev.map(l => {
     const e = order.lines.find(x => x.id === l.id);
     let n = l;
