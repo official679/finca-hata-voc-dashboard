@@ -567,8 +567,19 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .view-mode-badge small { display: block; font-weight: 500; font-size: 11px; opacity: 0.8; }
 .sidebar-footer .view-mode-toggle { display: block; width: 100%; margin-bottom: 12px; padding: 8px 12px; font-size: 13px; font-weight: 600; background: rgba(78, 142, 247, 0.25); color: #fff; }
 
-/* VOC 담당 부서 여러 개 고르기 */
-.dept-picker { display: flex; flex-wrap: wrap; gap: 6px; min-height: 38px; align-items: center; }
-.dept-opt { border: 1px solid var(--border, #D1D5DB); background: #fff; color: #374151; border-radius: 16px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+/* VOC 처리 기록 (팀마다 한 줄씩) */
+.plog { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.plog-row { display: grid; grid-template-columns: 64px 60px 1fr 24px; gap: 10px; align-items: start; padding: 8px 12px; border-bottom: 1px solid #EEF0F3; font-size: 14px; }
+.plog-row > .muted { font-size: 12px; padding-top: 2px; }
+.plog-empty { padding: 12px; color: var(--muted); font-size: 13px; text-align: center; border-bottom: 1px solid #EEF0F3; }
+.plog-del { border: 0; background: none; color: #B0B5BD; cursor: pointer; font-size: 16px; line-height: 1; }
+.plog-del:hover { color: var(--danger); }
+.plog-dept { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; background: #E8F0FE; color: #1D4FA3; margin-left: 4px; }
+.plog-row .plog-dept { margin-left: 0; }
+.plog-add { background: #F8FAFD; padding: 10px 12px; }
+.plog-depts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; margin-bottom: 8px; }
+.plog-line { display: flex; gap: 8px; }
+.plog-line input { flex: 1; min-width: 0; }
+.dept-opt { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 16px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
 .dept-opt:hover { border-color: #93B4F0; }
 .dept-opt.on { background: #E8F0FE; border-color: #1D4FA3; color: #1D4FA3; font-weight: 600; }

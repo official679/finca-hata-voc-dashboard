@@ -167,23 +167,48 @@ function guessCategory(name, products) {
   return null;
 }
 
-// 담당 부서 = 여러 개 가능 (2026-10-14 사용자 요청) → '상품, 물류'처럼 쉼표로 이어 한 칸에 저장 (SQL 변경 없음)
+// 처리 기록 (2026-10-14 사용자 요청, 25 SQL voc_cases.process_log): 팀마다 한 줄씩 쌓음 [{ d, dept, text }]
+//   담당 부서 = 기록에 나온 부서('CX, 물류'처럼 쉼표로 한 칸), 처리 메모(note) = 기록을 글로 이은 것(데일리 리포트·검색용)
+//   이미 있는 VOC는 추가·지우기 즉시 저장. 기록이 없는 예전 VOC는 처리 메모를 첫 기록으로 보여 줌
 const splitDepts = (v) => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+const logDepts = (log) => [...new Set(log.map(l => l.dept).filter(Boolean))].join(', ');
+const logNote = (log) => log.map(l => `${fmtDate(l.d)} ${l.dept ? l.dept + ': ' : ''}${l.text}`).join('\n');
+const initialLog = (c) => {
+  if (Array.isArray(c?.process_log) && c.process_log.length) return c.process_log;
+  if (c?.note && String(c.note).trim()) return [{ d: c.received_date || today(), dept: splitDepts(c.department)[0] || 'CX', text: String(c.note).trim() }];
+  return [];
+};
 
-function DeptPicker({ value, options, onChange }) {
-  const picked = splitDepts(value);
-  const all = [...options, ...picked.filter(d => !options.includes(d))];
-  const toggle = (d) => {
-    const next = picked.includes(d) ? picked.filter(x => x !== d) : [...picked, d];
-    onChange(all.filter(x => next.includes(x)).join(', '));
+function ProcessLog({ log, options, onAdd, onRemove, busy }) {
+  const [dept, setDept] = useState(options.includes('CX') ? 'CX' : (options[0] || ''));
+  const [text, setText] = useState('');
+  const add = async () => {
+    const t = text.trim();
+    if (!t || busy) return;
+    if (await onAdd({ d: today(), dept, text: t })) setText('');
   };
   return (
-    <div className="dept-picker">
-      {all.map(d => (
-        <button type="button" key={d} className={'dept-opt' + (picked.includes(d) ? ' on' : '')} onClick={() => toggle(d)}>
-          {picked.includes(d) ? '✓ ' : ''}{d}
-        </button>
+    <div className="plog">
+      {log.length === 0 && <div className="plog-empty">아직 기록이 없어요</div>}
+      {log.map((l, i) => (
+        <div className="plog-row" key={i}>
+          <span className="muted">{fmtDate(l.d)}</span>
+          <span>{l.dept && <span className="plog-dept">{l.dept}</span>}</span>
+          <span style={{ whiteSpace: 'pre-wrap' }}>{l.text}</span>
+          <button type="button" className="plog-del" title="이 기록 지우기" disabled={busy} onClick={() => onRemove(i)}>×</button>
+        </div>
       ))}
+      <div className="plog-add">
+        <div className="plog-depts">
+          <span className="muted">부서</span>
+          {options.map(d => <button type="button" key={d} className={'dept-opt' + (d === dept ? ' on' : '')} onClick={() => setDept(d)}>{d}</button>)}
+        </div>
+        <div className="plog-line">
+          <input value={text} onChange={e => setText(e.target.value)} placeholder="무엇을 했는지 한 줄로 (예: 재발송 처리, 상품팀에 불량 사진 전달)"
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy || !text.trim()} onClick={add}>{busy ? '저장 중…' : '추가'}</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -202,6 +227,27 @@ function VocForm({ initial, onSaved, onCancel }) {
   const [keptPhotos, setKeptPhotos] = useState(initial?.photos || []);
   const [newFiles, setNewFiles] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [log, setLog] = useState(() => initialLog(initial));
+  const [logBusy, setLogBusy] = useState(false);
+  // 담당 부서: 기록이 있으면 기록에서, 없으면 예전 값 그대로
+  const deptOf = (l) => (l.length ? logDepts(l) : (form.department || ''));
+
+  // 이미 있는 VOC = 바로 저장 (사용자 선택: 추가하는 순간 저장), 새 VOC = 'VOC 접수' 때 같이 저장
+  const saveLog = async (next) => {
+    if (!initial) { setLog(next); return true; }
+    setLogBusy(true);
+    const patch = { process_log: next, department: deptOf(next) || null, note: logNote(next) || null };
+    const { data, error } = await db.from('voc_cases').update(patch).eq('id', initial.id).select().single();
+    setLogBusy(false);
+    if (error) { toast('❌ 기록 저장 실패: ' + error.message, 'err'); return false; }
+    setLog(next);
+    setForm(prev => ({ ...prev, department: patch.department || '', note: patch.note || '' }));
+    setCases(prev => prev.map(c => c.id === data.id ? data : c));
+    toast('✅ 기록 저장');
+    return true;
+  };
+  const addLog = (entry) => saveLog([...log, entry]);
+  const removeLog = (i) => (confirm('이 기록을 지울까요?') ? saveLog(log.filter((_, j) => j !== i)) : false);
 
   const set = (k) => (v) => setForm(prev => ({ ...prev, [k]: v }));
   const onInput = (k) => (e) => set(k)(e.target.value);
@@ -252,10 +298,11 @@ function VocForm({ initial, onSaved, onCancel }) {
         status: form.status || '접수',
         reason_category: form.reason_category || null,
         reason_detail: form.reason_detail.trim() || null,
-        note: form.note.trim() || null,
+        process_log: log,
+        note: logNote(log) || null,
         action_required: form.action_required || null,
         handling: form.handling || null,
-        department: form.department || null,
+        department: deptOf(log) || null,
         completed_at: form.completed_at || null,
         // 상품 마스터에 없는 상품만 직접 고른 분류 저장 (마스터와 연결되면 마스터 분류 사용)
         ...(matchedProduct || !(form.category || initial?.category) ? {} : { category: form.category || null, sub_category: form.category ? (form.sub_category || null) : null }),
@@ -278,7 +325,7 @@ function VocForm({ initial, onSaved, onCancel }) {
       toast(initial ? '✅ VOC 수정 완료' : '✅ VOC 접수 완료');
       newFiles.forEach(f => URL.revokeObjectURL(f.preview));
       if (onSaved) onSaved(data);
-      if (!initial) { setForm(prev => ({ ...emptyCase(), received_date: prev.received_date, brand: prev.brand, handler: prev.handler })); setKeptPhotos([]); setNewFiles([]); }
+      if (!initial) { setForm(prev => ({ ...emptyCase(), received_date: prev.received_date, brand: prev.brand, handler: prev.handler })); setKeptPhotos([]); setNewFiles([]); setLog([]); }
     } catch (err) {
       toast('❌ 저장 실패: ' + (err.message || err), 'err');
     } finally {
@@ -366,18 +413,16 @@ function VocForm({ initial, onSaved, onCancel }) {
 
       <div className="form-section">처리</div>
       <div className="form-grid">
-        {SHOW_FOLLOWUP && <div className="field" style={{ gridColumn: '1 / -1' }}>
-          <label>담당 부서 <span className="muted" style={{ fontWeight: 400 }}>(누르면 추가 · 다시 누르면 빼기, 여러 개 가능)</span></label>
-          <DeptPicker value={form.department} options={codeOptions('department')} onChange={set('department')} />
-        </div>}
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>처리 기록 <span className="muted" style={{ fontWeight: 400 }}>{initial ? '(추가하면 바로 저장돼요)' : '(VOC 접수 때 같이 저장돼요)'}</span>
+            {deptOf(log) && <span style={{ marginLeft: 8 }}>담당 부서 {splitDepts(deptOf(log)).map(d => <span key={d} className="plog-dept">{d}</span>)}</span>}
+          </label>
+          <ProcessLog log={log} options={codeOptions('department')} onAdd={addLog} onRemove={removeLog} busy={logBusy} />
+        </div>
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
         {field('처리 구분', <Select className="" value={form.handling} onChange={set('handling')} options={withCurrent(codeOptions('handling'), form.handling)} placeholder="선택" />)}
         {field('완료일', <input type="date" value={form.completed_at} onChange={onInput('completed_at')} />)}
         {SHOW_FOLLOWUP && field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
-        <div className="field" style={{ gridColumn: '1 / -1' }}>
-          <label>처리 메모</label>
-          <textarea value={form.note} onChange={onInput('note')} rows="2" placeholder="회수 송장, 처리 결과 등" />
-        </div>
       </div>
 
       <div className="form-actions">
@@ -554,6 +599,7 @@ function VocListPage({ initialFilter }) {
               {rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE).map(c => {
                 const meta = [caseCategory(c, productById), caseSubCategory(c, productById), c.platform].filter(x => x && x !== '-' && x !== '(미분류)');
                 const follow = [c.department, c.action_required].filter(Boolean);
+                const lastLog = Array.isArray(c.process_log) && c.process_log.length ? c.process_log[c.process_log.length - 1] : null;
                 return (
                   <tr key={c.id} className="clickable" onClick={() => setEditing(c)}>
                     <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.received_date)}{tab === 'all' || !f.brand ? <div className="muted" style={{ fontSize: 12 }}>{c.brand}</div> : null}</td>
@@ -567,7 +613,8 @@ function VocListPage({ initialFilter }) {
                       </div>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}{c.voc_type && <div className="muted" style={{ fontSize: 12 }}>{c.voc_type}</div>}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}><StatusChip status={c.status} />{follow.length > 0 && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{follow.join(' · ')}</div>}</td>
+                    <td style={{ whiteSpace: 'nowrap', maxWidth: 220 }}><StatusChip status={c.status} />{follow.length > 0 && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{follow.join(' · ')}</div>}
+                      {lastLog && <div className="muted ellipsis" style={{ fontSize: 12 }} title={logNote(c.process_log)}>최근: {lastLog.dept ? lastLog.dept + ' ' : ''}{lastLog.text}</div>}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{c.handler || '-'}</td>
                     <td className="num">{(c.photos || []).length || ''}</td>
                   </tr>
