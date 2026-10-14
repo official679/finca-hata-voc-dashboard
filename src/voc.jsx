@@ -167,6 +167,27 @@ function guessCategory(name, products) {
   return null;
 }
 
+// 담당 부서 = 여러 개 가능 (2026-10-14 사용자 요청) → '상품, 물류'처럼 쉼표로 이어 한 칸에 저장 (SQL 변경 없음)
+const splitDepts = (v) => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+
+function DeptPicker({ value, options, onChange }) {
+  const picked = splitDepts(value);
+  const all = [...options, ...picked.filter(d => !options.includes(d))];
+  const toggle = (d) => {
+    const next = picked.includes(d) ? picked.filter(x => x !== d) : [...picked, d];
+    onChange(all.filter(x => next.includes(x)).join(', '));
+  };
+  return (
+    <div className="dept-picker">
+      {all.map(d => (
+        <button type="button" key={d} className={'dept-opt' + (picked.includes(d) ? ' on' : '')} onClick={() => toggle(d)}>
+          {picked.includes(d) ? '✓ ' : ''}{d}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function VocForm({ initial, onSaved, onCancel }) {
   const { products, productById, codeOptions, setCases } = useApp();
   const toast = useToast();
@@ -347,8 +368,11 @@ function VocForm({ initial, onSaved, onCancel }) {
       <div className="form-grid">
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
         {field('처리 구분', <Select className="" value={form.handling} onChange={set('handling')} options={withCurrent(codeOptions('handling'), form.handling)} placeholder="선택" />)}
-        {SHOW_FOLLOWUP && field('담당 부서', <Select className="" value={form.department} onChange={set('department')} options={withCurrent(codeOptions('department'), form.department)} placeholder="선택" />)}
         {field('완료일', <input type="date" value={form.completed_at} onChange={onInput('completed_at')} />)}
+        {SHOW_FOLLOWUP && <div className="field" style={{ gridColumn: 'span 2' }}>
+          <label>담당 부서 <span className="muted" style={{ fontWeight: 400 }}>(여러 개 고를 수 있어요)</span></label>
+          <DeptPicker value={form.department} options={codeOptions('department')} onChange={set('department')} />
+        </div>}
         {SHOW_FOLLOWUP && field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>처리 메모</label>
@@ -428,7 +452,7 @@ function VocListPage({ initialFilter }) {
     const q = f.q.trim().toLowerCase();
     return cases.filter(c =>
       (tab === 'all' || (tab === 'open' ? OPEN_STATUS.includes(c.status || '접수') : !OPEN_STATUS.includes(c.status || '접수'))) &&
-      (!f.dept || c.department === f.dept) &&
+      (!f.dept || splitDepts(c.department).includes(f.dept)) &&
       (!f.from || c.received_date >= f.from) && (!f.to || c.received_date <= f.to) &&
       (!f.brand || c.brand === f.brand) && (!f.handler || c.handler === f.handler) && (!f.platform || c.platform === f.platform) && (!f.channel || c.consult_method === f.channel) &&
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
