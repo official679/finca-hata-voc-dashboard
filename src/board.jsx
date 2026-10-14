@@ -292,7 +292,7 @@ function BoardAnalysisPage() {
               {r.option_text && <span className="chip">{r.option_text}</span>}
             </div>
             <div className="review-body">{r.title && r.title !== r.product_name ? <b>{r.title} · </b> : null}{r.content}</div>
-            {r.answer && <div className="hint" style={{ marginTop: 6 }}>↳ 답변: {r.answer.slice(0, 160)}{r.answer.length > 160 ? '…' : ''}</div>}
+            {/* 우리 답변은 목록에 안 보임 (2026-10-14 사용자 요청, 데이터엔 남겨 둠) */}
           </div>
         )} />
       </div>
