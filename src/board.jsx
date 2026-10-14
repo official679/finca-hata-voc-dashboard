@@ -2,15 +2,27 @@
 
 // 문의 유형 자동 분류 (위에서부터 먼저 맞는 유형). 담당자가 화면에서 직접 바꿀 수 있음
 const BOARD_TYPES = [
-  ['재입고', /재입고|재 입고|입고\s*(예정|계획|일정|되나|될까|언제|문의)|언제\s*입고|재생산|리오더|다시\s*(판매|입고|나오|들어)|품절.*(언제|예정|다시)|restock/i],
-  ['불량/하자', /불량|하자|구멍|오염|얼룩|이염|뜯어|찢어|끊어|파손|박음질|실밥|누락|깨져|깨졌/],
+  ['재입고', /재입고|재 입고|입고\s*(예정|계획|일정|되나|될까|언제|문의)|언제(쯤)?\s*입고|입고될|재생산|리오더|다시\s*(판매|입고|나오|들어)|restock|품절|언제(쯤)?\s*구매|옵션.{0,8}(없|안\s*보|사라)|재고\s*(있|남)/i],
+  ['불량/하자', /불량|하자|구멍|오염|얼룩|이염|뜯어|찢어|끊어|파손|박음질|실밥|누락|깨져|깨졌|다른\s*(게|거|상품|제품).{0,6}(왔|와|배송)|잘못\s*(왔|와|배송)|오배송|주문했는데.{0,20}(이|가)\s*왔|반대로/],
   ['교환/반품', /교환|반품|환불|회수/],
   ['취소/변경', /취소|주소\s*변경|옵션\s*변경|변경\s*(가능|하고|부탁|요청)/],
-  ['배송', /배송|출고|발송|송장|운송장|도착|언제\s*(받|오|와)|택배|못\s*받|받지\s*못|안\s*와|안\s*오/],
-  ['사이즈/상품정보', /사이즈|크기|치수|길이|무게|재질|소재|두께|세탁|색상|컬러|구성|실측|착용|호수/],
+  ['배송', /배송|출고|발송|송장|운송장|도착|언제\s*(받|오|와)|택배|못\s*받|받지\s*못|안\s*와|안\s*오|받(을|아\s*볼|아볼|아봐야)\s*수\s*있|수령\s*(가능|할\s*수)|출발|까지\s*(받|도착)|선물\s*포장/],
+  ['상품문의', /사이즈|크기|치수|길이|무게|재질|소재|두께|세탁|색상|컬러|구성|실측|착용|호수|따로|단품|상의만|하의만|하의|상의|일체형|원피스|분리|제작|맞춤|차단|기능|랜덤|어떤\s*(제품|상품)|판매\s*(하시|하나|되나)|입을\s*수|높이|패드|커버만|세트|가격|할인\s*(되|가능)|용도|사용\s*(가능|해도)|혼방|코튼|구매\s*(불가|안\s*되)|구매\s*버튼|장바구니/],
 ];
+// 2026-10-14 사용자 요청으로 넓힘: '기타'의 대부분이 상품 질문이었음 → 단어 추가, '사이즈/상품정보' → '상품문의', '결제/쿠폰·회원' 새로,
+//   단어로 못 잡아도 상품에 달린 문의면 '상품문의' (상품 페이지 Q&A는 대부분 상품 질문), 상품 없는 글만 '기타'
+BOARD_TYPES.splice(4, 0, ['결제/쿠폰·회원', /입금|결제|무통장|쿠폰|적립금|포인트|주문\s*(내역|확인|조회)|구매\s*내역|조회가?\s*안|사은품|사은\s*행사|회원|로그인|로그아웃|가입|비밀번호|영수증|증빙/]);
 const BOARD_TYPE_NAMES = [...BOARD_TYPES.map(t => t[0]), '기타'];
-const classifyBoard = (text) => (BOARD_TYPES.find(([, re]) => re.test(text || '')) || ['기타'])[0];
+const classifyBoard = (text, hasProduct) => (BOARD_TYPES.find(([, re]) => re.test(text || '')) || [hasProduct ? '상품문의' : '기타'])[0];
+// 상품문의 세부 (저장하지 않고 화면에서 내용으로 나눔)
+const PRODUCT_Q_SUBTYPES = [
+  ['맞춤 제작', /맞춤|제작|규격|주문\s*제작/],
+  ['사이즈·핏', /사이즈|크기|치수|길이|높이|실측|핏|착용|호수|라지|스몰|킹|퀸|슈퍼\s*싱글|(?:^|[^a-z])(ss|qk|xl|[sml])(?![a-z])/i],
+  ['색상', /색상|컬러|색깔|색이|톤|어두|밝/],
+  ['소재·세탁·기능', /소재|재질|원단|두께|혼방|코튼|면\s*\d|세탁|건조|차단|기능|흡수|냉감|보온|몇\s*수|무게|중량|라이트|스탠다드|솜/],
+  ['구성·구매 방법', /구성|세트|따로|단품|만\s*(구매|판매)|커버만|상의만|하의만|구매\s*(불가|안\s*되|버튼|가능)|장바구니|옵션|패키지|선물/],
+];
+const productQSubtype = (text) => (PRODUCT_Q_SUBTYPES.find(([, re]) => re.test(text || '')) || ['그 외'])[0];
 
 // 카페24 등 일부 파일에는 우리가 단 답변 글도 한 줄로 들어 있음 → 집계에서 제외 (상품 찾기에는 사용)
 const ANSWER_TYPE = '답변(제외)';
@@ -102,7 +114,7 @@ const BOARD_UPLOAD = {
     product_name: str(r.product_name), option_text: str(r.option_text), platform_category: str(r.platform_category),
     title: str(r.title), content: str(r.content), written_at: r.when ? r.when.iso : null,
     answer: str(r.answer), answered_at: r.answered ? r.answered.iso : null,
-    inquiry_type: isStaffAnswer(r.content) ? ANSWER_TYPE : classifyBoard(`${r.platform_category || ''} ${r.title || ''} ${r.content || ''}`),
+    inquiry_type: isStaffAnswer(r.content) ? ANSWER_TYPE : classifyBoard(`${r.platform_category || ''} ${r.title || ''} ${r.content || ''}`, !!str(r.product_name)),
   }),
 };
 
@@ -136,6 +148,7 @@ function BoardAnalysisPage() {
   const [period, setPeriod] = useState('6');     // 기본 최근 6개월
   const [rows, setRows] = useBoard(period === 'all' ? null : reviewPeriodStart(period)[0]);
   const [type, setType] = useState('');
+  const [sub, setSub] = useState('');   // 상품문의 세부 (2026-10-14)
   const [q, setQ] = useState('');
   const [product, setProduct] = useState('');
 
@@ -161,7 +174,10 @@ function BoardAnalysisPage() {
 
   const query = q.trim().toLowerCase();
   const nameOf = (r) => { const full = (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name; return full ? coreName(full) : '(상품 미지정)'; };
-  const list = scoped.filter(r => (!type || r.inquiry_type === type) && (!product || nameOf(r) === product) &&
+  const qText = (r) => `${r.title || ''} ${r.content || ''}`;
+  const productQs = scoped.filter(r => r.inquiry_type === '상품문의');
+  const subs = PRODUCT_Q_SUBTYPES.map(([k]) => k).concat('그 외').map(k => ({ label: k, count: productQs.filter(r => productQSubtype(qText(r)) === k).length })).filter(x => x.count).sort((a, b) => b.count - a.count);
+  const list = scoped.filter(r => (!type || r.inquiry_type === type) && (!sub || (r.inquiry_type === '상품문의' && productQSubtype(qText(r)) === sub)) && (!product || nameOf(r) === product) &&
     matchQuery(query, r.product_name, r.title, r.content));
 
   const setInquiryType = async (id, t) => {
@@ -209,7 +225,11 @@ function BoardAnalysisPage() {
       <div className="grid grid-2w">
         <div className="card">
           <div className="card-title">문의 유형 <small>누르면 해당 문의를 볼 수 있어요</small></div>
-          <ThemeBars items={types} total={scoped.length} color="var(--accent)" onPick={t => { setType(t); setProduct(''); }} />
+          <ThemeBars items={types} total={scoped.length} color="var(--accent)" onPick={t => { setType(t); setSub(''); setProduct(''); }} />
+          {subs.length > 0 && <>
+            <div className="card-title" style={{ marginTop: 14 }}>상품문의 세부 <small>{productQs.length.toLocaleString()}건 · 문의 내용으로 나눔 · 누르면 문의 보기</small></div>
+            <ThemeBars items={subs} total={productQs.length} color="#7C9CF0" onPick={k => { setType('상품문의'); setSub(k); setProduct(''); }} />
+          </>}
         </div>
         <div className="card">
           <div className="card-title">월별 문의 <small>진한 색 = 재입고 문의</small></div>
@@ -254,12 +274,12 @@ function BoardAnalysisPage() {
         <div className="card-title">
           <span>문의 목록 <small>{list.length.toLocaleString()}건{product ? ` · ${product}` : ''} · 유형이 틀리면 바로 바꿀 수 있어요</small></span>
           <span className="filters">
-            <Select value={type} onChange={v => { setType(v); }} options={BOARD_TYPE_NAMES} placeholder="유형 전체" />
+            <Select value={type} onChange={v => { setType(v); setSub(''); }} options={BOARD_TYPE_NAMES} placeholder="유형 전체" />{sub && <span className="chip chip-blue">세부: {sub} <button className="btn-link" onClick={() => setSub('')}>✕</button></span>}
             <input className="input" value={q} onChange={e => setQ(e.target.value)} placeholder="상품명·내용 검색" />
-            {(type || product || q) && <button className="btn-link" onClick={() => { setType(''); setProduct(''); setQ(''); }}>초기화</button>}
+            {(type || sub || product || q) && <button className="btn-link" onClick={() => { setType(''); setSub(''); setProduct(''); setQ(''); }}>초기화</button>}
           </span>
         </div>
-        <Paged items={list} resetKey={`${type}|${product}|${q}|${brand}|${platform}|${period}`} empty="해당하는 문의가 없어요" render={r => (
+        <Paged items={list} resetKey={`${type}|${sub}|${product}|${q}|${brand}|${platform}|${period}`} empty="해당하는 문의가 없어요" render={r => (
           <div className="review-card" key={r.id}>
             <div className="review-head">
               <Select value={r.inquiry_type || '기타'} onChange={t => setInquiryType(r.id, t)} options={BOARD_TYPE_NAMES} />
