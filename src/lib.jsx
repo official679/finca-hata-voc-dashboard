@@ -206,7 +206,8 @@ const categoryOf = (productId, productById) => (productId && productById.get(pro
 const caseCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.category) || c.category || NO_CATEGORY;
 const caseSubCategory = (c, productById) => (c.product_id && productById.get(c.product_id)?.size_gender) || c.sub_category || '-';
 // 추가분류 (오클릭 '추가분류': 앵커 / 레귤러 등) — 상품 마스터와 연결된 VOC만
-const caseLineType = (c, productById) => (c.product_id && productById.get(c.product_id)?.line_type) || '';
+// 추가분류: 상품 마스터와 연결되면 상품 값, 아니면 VOC에 직접 고른 값 (24 SQL voc_cases.line_type, 2026-10-14)
+const caseLineType = (c, productById) => (c.product_id && productById.get(c.product_id)?.line_type) || c.line_type || '';
 // 추가분류 뜻 (VOC 볼 때: 앵커 = 브랜드 대표라 우선 대응 · 캐리오버 = 재생산·품질 개선 근거)
 const LINE_TYPE_INFO = {
   '앵커': { cls: 'chip-blue', desc: '브랜드를 대표하는 핵심 상품 · VOC 한 건도 브랜드 이미지에 직결 → 우선 대응' },

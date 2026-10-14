@@ -129,8 +129,24 @@ function ProductSearchInput({ value, onChange, products }) {
 const emptyCase = () => ({
   received_date: today(), brand: '핀카', handler: '', platform: '', order_no: '', orderer: '', receiver: '',
   product_name: '', voc_type: '', consult_method: '', status: '접수', reason_category: '', reason_detail: '',
-  note: '', action_required: '', photos: [], handling: '', department: '', completed_at: '', category: '', sub_category: '',
+  note: '', action_required: '', photos: [], handling: '', department: '', completed_at: '', category: '', sub_category: '', line_type: '',
 });
+
+// 추가분류 추천: 분류 추천과 같은 방식(이름의 단어가 들어간 상품들의 추가분류가 70% 이상 같으면)
+//   색 이름(버건디브라운·핑크민트 등)은 상품 라인과 상관없어서 건너뜀
+const GUESS_COLOR = /^(딥|라이트|다크|페일|더스트)?(버건디|와인|퍼플|라일락|라벤더|플럼|핑크|로즈|마젠타|체리|레드|코랄|오렌지|옐로우|레몬|버터|베이지|크림|아이보리|화이트|그레이|차콜|블랙|네이비|블루|스카이|틸|민트|그린|올리브|카키|브라운|초콜릿|모카|카멜|골드|실버)+$/;
+function guessLineType(name, products) {
+  const words = [...new Set(coreName(name).toLowerCase().split(/[\s_/,·&+()-]+/).filter(w => w.length >= 2 && !/^\d+$/.test(w) && !GUESS_SKIP.test(w) && !GUESS_COLOR.test(w)))].reverse();
+  for (const word of words) {
+    const hits = products.filter(p => p.line_type && String(p.product_name || '').toLowerCase().includes(word));
+    if (hits.length < 2) continue;
+    const count = {}; hits.forEach(p => { count[p.line_type] = (count[p.line_type] || 0) + 1; });
+    const [top, n] = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+    if (n / hits.length < 0.7) continue;
+    return { word, n: hits.length, line_type: top };
+  }
+  return null;
+}
 
 // 상품 마스터에 없는 이름의 분류 추천: 이름의 단어마다 그 단어가 들어간 같은 브랜드 상품을 모아,
 // 분류가 거의 하나로 모이는(80% 이상, 2개 이상) 단어를 고름. 상품 종류는 보통 이름 끝에 오므로 뒤 단어부터 봄
@@ -182,6 +198,9 @@ function VocForm({ initial, onSaved, onCancel }) {
   const categoryHint = useMemo(
     () => (matchedProduct || !form.product_name.trim() ? null : guessCategory(form.product_name, brandProducts)),
     [matchedProduct, form.product_name, brandProducts]);
+  const lineHint = useMemo(
+    () => (matchedProduct || !form.product_name.trim() ? null : guessLineType(form.product_name, brandProducts)),
+    [matchedProduct, form.product_name, brandProducts]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -219,6 +238,7 @@ function VocForm({ initial, onSaved, onCancel }) {
         completed_at: form.completed_at || null,
         // 상품 마스터에 없는 상품만 직접 고른 분류 저장 (마스터와 연결되면 마스터 분류 사용)
         ...(matchedProduct || !(form.category || initial?.category) ? {} : { category: form.category || null, sub_category: form.category ? (form.sub_category || null) : null }),
+        ...(matchedProduct ? (initial?.line_type ? { line_type: null } : {}) : (form.line_type || initial?.line_type ? { line_type: form.line_type || null } : {})),
         // 후속 조치가 바뀌면 다시 '진행 중'으로
         action_done: !!(initial && initial.action_done && (initial.action_required || '') === form.action_required),
         photos: [...keptPhotos, ...uploaded],
@@ -286,7 +306,15 @@ function VocForm({ initial, onSaved, onCancel }) {
         {matchedProduct ? <>
           {field('대분류 (상품에서 자동)', <input value={matchedProduct.category || '-'} disabled />)}
           {field('중분류 (상품에서 자동)', <input value={matchedProduct.size_gender || '-'} disabled />)}
+          {field('추가분류 (상품에서 자동)', <input value={matchedProduct.line_type || '-'} disabled />)}
         </> : <>
+          {field('추가분류', <Select className="" value={form.line_type} onChange={set('line_type')} options={withCurrent(Object.keys(LINE_TYPE_INFO), form.line_type)} placeholder="선택" />)}
+          {lineHint && form.line_type !== lineHint.line_type && (
+            <div className="hint" style={{ gridColumn: '1 / -1' }}>
+              💡 이름에 <b>'{lineHint.word}'</b>가 들어간 상품 {lineHint.n}개는 주로 <b>{lineHint.line_type}</b>이에요{' '}
+              <button type="button" className="btn btn-sm" onClick={() => set('line_type')(lineHint.line_type)}>추가분류 넣기</button>
+            </div>
+          )}
           {field('대분류', <Select className="" value={form.category} onChange={v => setForm(prev => ({ ...prev, category: v, sub_category: '' }))} options={withCurrent(allCategories, form.category)} placeholder="선택" />)}
           {field('중분류', <Select className="" value={form.sub_category} onChange={set('sub_category')} options={withCurrent(subCategories, form.sub_category)} placeholder={form.category ? '선택' : '대분류 먼저'} />)}
           {categoryHint && (form.category !== categoryHint.category || form.sub_category !== (categoryHint.sub || '')) && (
