@@ -32,15 +32,18 @@ function useLight(table, columns, since = monthsAgo(12)) {
   return useSince(table, columns, since)[0];
 }
 
-// 리뷰 목록에서 '체크필요'로 표시했는데 아직 VOC로 안 보낸 리뷰 수
+// 오늘 업로드된 리뷰 중 '체크필요'(4~5점인데 아쉬운 말) 수 · 2026-10-14: 체크가 자동이 되면서 '전체 미처리'를 세면 계속 쌓여서
+//   오늘 올라온 것만 세고, 리뷰 목록을 한 번 열면 그날은 완료(PC별 'reviewCheckSeen')
 function useReviewCheckCount(brand) {
   const [n, setN] = useState(null);
   useEffect(() => {
     db.from('review_items').select('id', { count: 'exact', head: true }).eq('brand', brand).eq('check_status', '체크필요').is('voc_case_id', null)
+      .gte('created_at', `${today()}T00:00:00+09:00`)
       .then(({ count, error }) => setN(error ? -1 : count || 0));
   }, [brand]);
   return n;
 }
+const reviewCheckSeen = () => { try { return localStorage.getItem('reviewCheckSeen') || ''; } catch { return ''; } };
 
 // 오늘(0시 이후) 그 브랜드로 올린 주문·리뷰·게시판 파일이 있는지 ('오늘 할 일' ① 파일 올리기)
 function useTodayUploads(brand) {
@@ -134,7 +137,9 @@ function HomePage() {
       done: reportDoneDate() === todayISO, sub: '핀카·하타 한 장 · 📋 이미지 복사하면 ✓' },
     { label: '예약배송 안내', to: 'preorder', count: !preorder ? null : preorder.error ? '-' : preorder.pending,
       sub: preorder && !preorder.error ? `안내 필요 · 출고대기 ${preorder.open}건` : '예약배송 관리' },
-    { label: '리뷰 체크필요', to: `review-list?period=all&check=${encodeURIComponent('체크필요')}&brand=${encodeURIComponent(brand)}`, count: n(checkNeed), sub: 'VOC로 안 보낸 것' },
+    { label: '체크필요 리뷰 훑어보기', to: `review-list?period=7d&check=${encodeURIComponent('체크필요')}&brand=${encodeURIComponent(brand)}`, count: n(checkNeed),
+      seen: reviewCheckSeen() === todayISO, onClick: () => { try { localStorage.setItem('reviewCheckSeen', todayISO); } catch {} },
+      sub: '오늘 올라온 4~5점 아쉬운 리뷰 · 실제 문제만 VOC로' },
     { label: '처리 대기 VOC', to: 'voc-list', count: openCases.length, sub: '접수·확인중' },
   ];
   // 한 달(30일)이 지나도록 백업을 안 받았으면 알림
@@ -142,7 +147,7 @@ function HomePage() {
   const backupDue = !lastBackup || lastBackup < toISODate(addDays(now, -30));
   if (backupDue) steps.push({ label: '데이터 백업', to: 'upload', done: false, sub: lastBackup ? `마지막 ${fmtDate(lastBackup)} · 한 달에 한 번` : '아직 한 번도 안 함' });
   // 건수가 있는 일은 0건이면 끝, 1건 이상이면 할 일
-  steps.forEach(t => { if ('count' in t) t.done = t.count === null ? null : t.count === '-' ? null : t.count === 0; });
+  steps.forEach(t => { if ('count' in t) t.done = t.seen ? true : t.count === null ? null : t.count === '-' ? null : t.count === 0; });
   const active = steps.filter(t => !t.skip);
   const doneCount = active.filter(t => t.done).length;
   const nextIdx = steps.findIndex(t => !t.skip && t.done === false);
@@ -165,7 +170,7 @@ function HomePage() {
       {todoOpen ? (
         <div className="todo-steps">
           {steps.map((t, i) => (
-            <a key={t.label} href={`#/${t.to}`} className={`todo-step${t.skip ? ' skip' : t.done ? ' done' : ''}${i === nextIdx ? ' next' : ''}`}>
+            <a key={t.label} href={`#/${t.to}`} onClick={t.onClick} className={`todo-step${t.skip ? ' skip' : t.done ? ' done' : ''}${i === nextIdx ? ' next' : ''}`}>
               <span className="todo-num">{t.done && !t.skip ? '✓' : i + 1}</span>
               <span className="todo-label">{t.label}{'count' in t && t.count !== null && <b className={t.count > 0 ? 'todo-count' : 'todo-zero'}> {typeof t.count === 'number' ? `${t.count.toLocaleString()}건` : t.count}</b>}</span>
               <span className="todo-sub">{t.skip ? '오늘은 안 해도 돼요' : t.sub}</span>
@@ -175,7 +180,7 @@ function HomePage() {
         </div>
       ) : nextIdx >= 0 ? (
         <div className="todo-steps">
-          <a href={`#/${steps[nextIdx].to}`} className="todo-step next">
+          <a href={`#/${steps[nextIdx].to}`} onClick={steps[nextIdx].onClick} className="todo-step next">
             <span className="todo-num">{nextIdx + 1}</span>
             <span className="todo-label">다음: {steps[nextIdx].label}</span>
             <span className="todo-sub">{steps[nextIdx].sub}</span>
