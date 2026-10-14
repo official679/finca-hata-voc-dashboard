@@ -706,6 +706,17 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
     setPicked(new Set());
     reload();
   };
+  // 예판 상태 한 번에 (2026-10-14 사용자 요청: 입고된 상품 여러 개를 한 번에 종료). 되돌리기 = '종료된 상품도 보기' → 체크 → 진행으로
+  const applyStatus = async (status) => {
+    if (!confirm(`선택한 예약상품 ${picked.size}개를 '${status}'(으)로 바꿀까요?${status === '종료' ? '\n종료하면 일정 계산(지연 단계)에서 빠지고, 이 상품만 있는 주문은 일반 주문으로 보여요.' : ''}`)) return;
+    setBusy(true);
+    const { error } = await db.from('preorder_products').update({ status }).in('id', [...picked]);
+    setBusy(false);
+    if (error) { toast('❌ 저장 실패: ' + error.message, 'err'); return; }
+    toast(`✅ ${picked.size}개 상품을 예판 ${status}(으)로 바꿨어요`);
+    setPicked(new Set());
+    reload();
+  };
   return (
     <div className="card" style={{ padding: 0 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '16px 20px', flexWrap: 'wrap' }}>
@@ -714,13 +725,16 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
         <span className="muted" style={{ marginLeft: 'auto' }}>행을 누르면 일정을 고칠 수 있어요 · 여러 개는 체크해서 한 번에 · 수량 = 출고대기 기준</span>
       </div>
       <div className={`bulk-bar${picked.size ? ' on' : ''}`} style={{ margin: '0 20px 12px' }}>
-        <b>{picked.size ? `${picked.size}개 선택됨` : '체크한 상품의 날짜를 한 번에 바꿔요'}</b>
+        <b>{picked.size ? `${picked.size}개 선택됨` : '체크한 상품의 날짜·예판 상태를 한 번에 바꿔요'}</b>
         <span className="bulk-sep" />
         <select className="input" style={{ width: 'auto' }} value={field} onChange={e => setField(e.target.value)}>
           {PRODUCT_DATE_FIELDS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
         <input className="input" type="date" value={value} onChange={e => setValue(e.target.value)} title="비워 두고 적용하면 그 칸을 지워요" />
         <button className="btn btn-primary btn-sm" disabled={!picked.size || busy} onClick={applyBulk}>{busy ? '저장 중...' : '적용'}</button>
+        <span className="bulk-sep" />
+        <button className="btn btn-sm" disabled={!picked.size || busy} onClick={() => applyStatus('종료')}>🏁 예판 종료</button>
+        <button className="btn btn-sm" disabled={!picked.size || busy} onClick={() => applyStatus('진행')}>↩ 진행으로</button>
         {picked.size > 0 && <button className="btn-link" onClick={() => setPicked(new Set())}>선택 해제</button>}
       </div>
       <div className="table-wrap">
