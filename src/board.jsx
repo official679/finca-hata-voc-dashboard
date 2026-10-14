@@ -176,7 +176,9 @@ function BoardAnalysisPage() {
   const nameOf = (r) => { const full = (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name; return full ? coreName(full) : '(상품 미지정)'; };
   const qText = (r) => `${r.title || ''} ${r.content || ''}`;
   const productQs = scoped.filter(r => r.inquiry_type === '상품문의');
-  const subs = PRODUCT_Q_SUBTYPES.map(([k]) => k).concat('그 외').map(k => ({ label: k, count: productQs.filter(r => productQSubtype(qText(r)) === k).length })).filter(x => x.count).sort((a, b) => b.count - a.count);
+  // '그 외'는 맨 아래·회색 (2026-10-14 사용자 요청)
+  const subs = PRODUCT_Q_SUBTYPES.map(([k]) => k).map(k => ({ label: k, count: productQs.filter(r => productQSubtype(qText(r)) === k).length })).filter(x => x.count).sort((a, b) => b.count - a.count)
+    .concat([{ label: '그 외', muted: true, count: productQs.filter(r => productQSubtype(qText(r)) === '그 외').length }].filter(x => x.count));
   const list = scoped.filter(r => (!type || r.inquiry_type === type) && (!sub || (r.inquiry_type === '상품문의' && productQSubtype(qText(r)) === sub)) && (!product || nameOf(r) === product) &&
     matchQuery(query, r.product_name, r.title, r.content));
 

@@ -283,8 +283,8 @@ function ThemeBars({ items, total, color, onPick }) {
     <div className="bars">
       {items.map(i => (
         <div className="bar-row clickable-bar" key={i.label} onClick={() => onPick(i.label)} title={`${i.label}: ${i.count}건 (${pct(i.count, total)})`}>
-          <span className="bar-label">{i.label}</span>
-          <div className="bar-track"><div className="bar-fill" style={{ width: `${(i.count / top) * 100}%`, background: color }} /></div>
+          <span className="bar-label" style={i.muted ? { color: 'var(--muted)' } : undefined}>{i.label}</span>
+          <div className="bar-track"><div className="bar-fill" style={{ width: `${(i.count / top) * 100}%`, background: i.muted ? '#D1D5DB' : color }} /></div>
           <span className="bar-value">{i.count}</span>
         </div>
       ))}
