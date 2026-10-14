@@ -96,61 +96,6 @@ const ORDER_UPLOAD = {
   finishRow: (row) => (row.item_no && isCancelRow(row) ? { ...row, cancel_seen_date: cancelSeenDate(row.order_date) } : row),
 };
 
-// 업로드 기록: 최근 7일 동안 언제 무엇을 올렸는지 (저장된 시각 created_at 기준) · 양이 많아서 버튼을 눌렀을 때만 불러옴
-const HISTORY_SOURCES = [
-  { table: 'order_items', label: '주문', unit: '줄', dateCol: 'order_date' },
-  { table: 'review_items', label: '리뷰', unit: '건', dateCol: 'written_at' },
-  { table: 'board_items', label: '게시판', unit: '건', dateCol: 'written_at' },
-  { table: 'return_items', label: '반품·교환', unit: '건', dateCol: 'order_date' },
-];
-function UploadHistory() {
-  const [rows, setRows] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const load = async () => {
-    setLoading(true);
-    const since = `${toISODate(addDays(new Date(), -6))}T00:00:00+09:00`;
-    const out = [];
-    for (const s of HISTORY_SOURCES) {
-      const data = await fetchAll(() => db.from(s.table).select(`created_at,brand,platform,${s.dateCol}`).gte('created_at', since).order('id')).catch(() => []);
-      data.forEach(r => out.push({ src: s, day: toISODate(new Date(r.created_at)), brand: r.brand, platform: r.platform, dataDay: String(r[s.dateCol] || '').slice(0, 10) }));
-    }
-    setRows(out); setLoading(false);
-  };
-  const days = rows ? [...new Set(rows.map(r => r.day))].sort().reverse() : [];
-  const cell = (day, s) => {
-    const rs = rows.filter(r => r.day === day && r.src === s);
-    if (!rs.length) return <span className="muted">-</span>;
-    const groups = countBy(rs, r => `${r.brand} ${r.platform}`);
-    const dd = rs.map(r => r.dataDay).filter(Boolean).sort();
-    return (
-      <div>
-        <b>{rs.length.toLocaleString()}{s.unit}</b>
-        <div className="hint" style={{ margin: 0 }}>{groups.map(g => `${g.label} ${g.count.toLocaleString()}`).join(' · ')}</div>
-        {dd.length > 0 && <div className="hint" style={{ margin: 0 }}>데이터 {fmtDate(dd[0]).slice(3)}~{fmtDate(dd[dd.length - 1]).slice(3)}</div>}
-      </div>
-    );
-  };
-  return (
-    <div className="card" style={{ maxWidth: 960, marginTop: 16, padding: rows ? 0 : 20 }}>
-      <div className="card-title" style={rows ? { padding: '18px 20px 4px' } : null}>
-        📋 업로드 기록 <small>최근 7일 · 올린 날짜별로 무엇이 몇 건 저장됐는지 (중복으로 건너뛴 건 제외)</small>
-        {!rows && <button className="btn btn-sm" style={{ marginLeft: 10 }} onClick={load} disabled={loading}>{loading ? '불러오는 중...' : '기록 보기'}</button>}
-      </div>
-      {rows && (days.length ? (
-        <div className="table-wrap">
-          <table className="table">
-            <thead><tr><th>올린 날</th>{HISTORY_SOURCES.map(s => <th key={s.table}>{s.label}</th>)}</tr></thead>
-            <tbody>{days.map(day => (
-              <tr key={day}><td style={{ whiteSpace: 'nowrap' }}><b>{fmtDate(day)}</b> ({'일월화수목금토'[parseDate(day).getDay()]})</td>
-                {HISTORY_SOURCES.map(s => <td key={s.table}>{cell(day, s)}</td>)}</tr>
-            ))}</tbody>
-          </table>
-        </div>
-      ) : <div className="empty">최근 7일 동안 올린 데이터가 없어요</div>)}
-    </div>
-  );
-}
-
 // 리뷰·게시판·주문을 한 곳에서 올리는 화면 (파일마다 종류를 알아서 구분)
 function DataUploadPage() {
   const [counts, setCounts] = useState({});
@@ -168,7 +113,6 @@ function DataUploadPage() {
         guide={<UploadGuide kinds={['review', 'board', 'order', 'return']} />}
         onDone={() => setVersion(v => v + 1)}
       />
-      <UploadHistory key={'h' + version} />
       <ProductMasterUpload />
       <BackupCard />
       <OrderCategorySummary key={version} />
@@ -201,38 +145,29 @@ async function buildBackupWorkbook(setBusy) {
   return { wb, counts, data };
 }
 
-// 사진 파일 이름 = 날짜_브랜드_상품_사유_V번호_순서 (윈도우에서 못 쓰는 글자는 빼고 너무 길면 자름)
-const safeName = (s, max = 40) => String(s || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-const photoFileName = (c, i, path, productById) => {
-  const ext = (String(path).match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase();
-  return [c.received_date, c.brand, safeName(caseProductName(c, productById), 40), safeName(c.reason_category || c.voc_type || '사유없음', 20), `V${c.id}`, i + 1].join('_') + '.' + ext;
-};
-
-// 리포트·사진 확인용 VOC 표 (고객 이름·메모 칸은 뺌) — 사진 파일 이름과 짝
-const vocReportRows = (cases, productById) => cases.map(c => ({
-  'VOC번호': c.id, '접수일': c.received_date, '브랜드': c.brand, '판매처': c.platform || '', '문의 채널': c.consult_method || '', '주문번호': c.order_no || '',
-  '상품명': caseProductName(c, productById), '대분류': caseCategory(c, productById), '중분류': caseSubCategory(c, productById), '추가분류': caseLineType(c, productById),
-  'VOC 구분': c.voc_type || '', '과실': isFault(c.voc_type) ? 'O' : '', '사유': c.reason_category || '', '상세 사유': c.reason_detail || '', '처리': c.handling || '', '상태': c.status || '',
-  '사진 수': (c.photos || []).length, '사진 파일': (c.photos || []).map((p, i) => photoFileName(c, i, p, productById)).join('\n'),
-}));
-
-// ── 📚 보관용 자료 (2026-10-14 사용자 요청: 대시보드를 안 쓰게 돼도 구글시트·AI로 예전 자료를 보게) ──
-//   한글 칸 이름 · 화면에서 보던 모양 · 고객 이름 없음 · 사진은 VOC별 폴더 (VOC사진/2026-10/V216_상품_사유/1.jpg)
+// ── 🗂 백업 받기 = zip 하나 (2026-10-14 사용자 요청으로 전체 내보내기·엑셀만·보관용·리포트용 4개를 하나로) ──
+//   ① CX보관용자료.xlsx = 사람이 보는 한글 칸 엑셀 (구글시트·AI용, 고객 이름 없음) — 대시보드를 안 쓰게 돼도 예전 자료를 보게
+//   ② 복구용_원본.xlsx = DB 표 그대로 (대시보드를 다시 살릴 때)
+//   ③ VOC사진/월/V번호_상품_사유/1.jpg (사진은 한 벌, 순서 = voc_cases.photos 순서) · 매뉴얼첨부/
 //   주문은 원본 대신 월·판매처·상품별 요약 (6월까지 = order_monthly, 7월부터 = order_items를 CS 데일리와 같은 방식으로 셈)
+//   반기 VOC 리포트도 이 zip의 VOC 시트를 기간으로 걸러서 씀 (리포트용 버튼은 뺌)
+const safeName = (s, max = 40) => String(s || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const kstDate = (s) => (s ? toISODate(new Date(s)) : '');
 const vocPhotoFolder = (c, productById) => `${String(c.received_date || '').slice(0, 7) || '날짜없음'}/V${c.id}_${safeName(caseProductName(c, productById), 40)}_${safeName(c.reason_category || c.voc_type || '사유없음', 20)}`;
-const ARCHIVE_README = `CX 대시보드 보관용 자료
+const ARCHIVE_README = `CX 대시보드 백업
 
-이 zip은 대시보드를 쓰지 않게 되더라도 예전 자료를 보기 위한 것이에요.
-- CX보관용자료_날짜.xlsx : 구글 드라이브에 올리면 구글시트로 열려요. 시트마다 한 종류의 자료예요.
-  · VOC : 한 줄 = VOC 한 건. '사진 폴더' 칸의 이름으로 VOC사진 폴더를 찾으면 사진이 있어요.
-  · 리뷰 · 게시판 : 고객이 쓴 글 그대로. AI(ChatGPT·Claude 등)에 시트를 올리고 "이번 달 불만 정리해 줘"처럼 물어보면 돼요.
-  · CS데일리 : 보고일마다 판매처별 숫자 (데이터 날짜 = 보고일 전날, 월요일은 금~일).
-  · 주문요약 : 월·브랜드·판매처·상품별 주문(상품 수)·출고전 취소.
-  · 반품교환 · 회의록 · 회의논의사항
-- VOC사진/월/V번호_상품_사유/ : VOC 사진 (VOC 시트의 VOC번호와 같아요)
+1) CX보관용자료_날짜.xlsx  ← 사람이 보는 자료 (대부분 이것만 보면 돼요)
+   구글 드라이브에 올리면 구글시트로 열려요. 시트마다 한 종류의 자료예요.
+   · VOC : 한 줄 = VOC 한 건. '사진 폴더' 칸의 이름으로 VOC사진 폴더를 찾으면 사진이 있어요.
+          반기 VOC 리포트 = 이 시트를 접수일로 걸러서 쓰면 돼요.
+   · 리뷰 · 게시판 : 고객이 쓴 글 그대로. AI(ChatGPT·Claude 등)에 시트를 올리고 "이번 달 불만 정리해 줘"처럼 물어보면 돼요.
+   · CS데일리 : 보고일마다 판매처별 숫자 (데이터 날짜 = 보고일 전날, 월요일은 금~일).
+   · 주문요약 : 월·브랜드·판매처·상품별 주문(상품 수)·출고전 취소.
+   · 반품교환 · 회의록 · 회의논의사항
+2) 복구용_원본_날짜.xlsx  ← 대시보드를 다시 살릴 때 쓰는 DB 원본 (칸 이름이 영어예요. 평소엔 안 봐도 돼요)
+3) VOC사진/월/V번호_상품_사유/  ← VOC 사진 (VOC 시트의 VOC번호와 같아요)
 
-고객 이름·연락처는 넣지 않았어요. 그래도 고객 글이 들어 있으니 회사 드라이브 비공개 폴더에만 보관하세요.
+복구용 원본에는 고객 이름이 들어 있어요. 회사 드라이브(또는 NAS) 비공개 폴더에만 보관하세요.
 숫자 기준은 노션 CX본부 '숫자 규칙 한 장'을 보세요.`;
 
 async function archiveOrderSummary(setBusy) {
@@ -356,10 +291,6 @@ function BackupCard() {
   const toast = useToast();
   const [busy, setBusy] = useState('');
   const last = lastBackupOf(codes);
-  // 리포트용 내보내기 기간·브랜드 (기본 = 올해 하반기, 2026-10-12)
-  const [rFrom, setRFrom] = useState(`${today().slice(0, 4)}-${today().slice(5, 7) >= '07' ? '07' : '01'}-01`);
-  const [rTo, setRTo] = useState(today());
-  const [rBrand, setRBrand] = useState('');
 
   const markBackup = async () => {
     const item = (codes || []).find(c => c.group_key === 'backup_log');
@@ -368,94 +299,36 @@ function BackupCard() {
     await loadCodes();
   };
 
-  // ① 엑셀만 (예전과 같음)
-  const runExcel = async () => {
+  // 백업 zip 하나 = 보관용 엑셀(사람용) + 복구용 원본 엑셀 + VOC별 사진 폴더 + 매뉴얼 첨부 + 읽어주세요
+  const runBackup = async () => {
     try {
-      const { wb, counts } = await buildBackupWorkbook(setBusy);
-      setBusy('파일 만드는 중...');
-      XLSX.writeFile(wb, `CX대시보드_백업_${today()}.xlsx`);
-      await markBackup();
-      toast(`✅ 백업 파일을 받았어요 (${counts.length}개 표) · 회사 드라이브 비공개 폴더에 보관해 주세요`);
-    } catch (e) { toast('❌ 백업 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
-  };
-
-  // ② 전체 내보내기 = 엑셀 백업 + VOC 사진 + 매뉴얼 첨부파일을 zip 하나로
-  const runFull = async () => {
-    try {
-      const { wb, counts, data } = await buildBackupWorkbook(setBusy);
+      const { wb: raw, counts, data } = await buildBackupWorkbook(setBusy);
+      const vocs = data.voc_cases || cases || [];
+      const { wb: arch } = await buildArchiveWorkbook(vocs, productById, setBusy);
+      setBusy('엑셀 파일 만드는 중...');
       const zip = new JSZip();
-      zip.file(`CX대시보드_백업_${today()}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
-      const vocs = data.voc_cases || [];
-      const vwb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(vwb, XLSX.utils.json_to_sheet(vocReportRows(vocs, productById)), 'VOC');
-      zip.file('VOC사진_목록.xlsx', XLSX.write(vwb, { bookType: 'xlsx', type: 'array' }));
-      const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: photoFileName(c, i, path, productById) })));
+      zip.file('읽어주세요.txt', ARCHIVE_README.replace(/\n/g, '\r\n'));
+      zip.file(`CX보관용자료_${today()}.xlsx`, XLSX.write(arch, { bookType: 'xlsx', type: 'array' }));
+      zip.file(`복구용_원본_${today()}.xlsx`, XLSX.write(raw, { bookType: 'xlsx', type: 'array' }));
+      const ext = (path) => (String(path).match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase();
+      const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: `${vocPhotoFolder(c, productById)}/${i + 1}.${ext(path)}` })));
       const failedPhotos = await addStorageFiles(zip, 'VOC사진', PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
       const files = (data.manuals || []).flatMap(m => (m.attachments || []).map((a, i) => ({ path: a.path, name: `${m.id}_${safeName(m.title, 30)}_${i + 1}_${safeName(a.name, 60)}` })));
       const failed = [...failedPhotos, ...await addStorageFiles(zip, '매뉴얼첨부', 'manual-files', files, setBusy, '매뉴얼 첨부')];
       if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
-      const size = await downloadZip(zip, `CX대시보드_전체내보내기_${today()}.zip`, setBusy);
+      const size = await downloadZip(zip, `CX백업_${today()}.zip`, setBusy);
       await markBackup();
-      toast(`✅ 전체 내보내기 완료 (${mb(size)}) · 표 ${counts.length}개 · 사진 ${photos.length - failedPhotos.length}장${failed.length ? ` · 못 받은 파일 ${failed.length}개(zip 안 목록 참고)` : ''}`);
-    } catch (e) { toast('❌ 전체 내보내기 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
+      toast(`✅ 백업 완료 (${mb(size)}) · 표 ${counts.length}개 · 사진 ${photos.length - failedPhotos.length}장${failed.length ? ` · 못 받은 파일 ${failed.length}개(zip 안 목록 참고)` : ''} · 회사 드라이브 비공개 폴더에 올려 주세요`);
+    } catch (e) { toast('❌ 백업 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
   };
 
-  // ④ 보관용 자료 = 사람이 보는 엑셀(한글 칸) + VOC별 사진 폴더 + 읽어 주세요
-  const runArchive = async () => {
-    try {
-      const { wb, counts } = await buildArchiveWorkbook(cases || [], productById, setBusy);
-      const zip = new JSZip();
-      zip.file('읽어주세요.txt', ARCHIVE_README.replace(/\n/g, '\r\n'));
-      zip.file(`CX보관용자료_${today()}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
-      const photos = (cases || []).flatMap(c => (c.photos || []).map((path, i) => ({ path, name: `${vocPhotoFolder(c, productById)}/${i + 1}.${(String(path).match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase()}` })));
-      const failed = await addStorageFiles(zip, 'VOC사진', PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
-      if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
-      const size = await downloadZip(zip, `CX보관용자료_${today()}.zip`, setBusy);
-      toast(`✅ 보관용 자료 완료 (${mb(size)}) · ${counts.join(' · ')} · 사진 ${photos.length - failed.length}장`);
-    } catch (e) { toast('❌ 보관용 자료 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
-  };
-
-  // ③ 리포트용 = 기간·브랜드의 VOC 표(고객 이름 없음) + 그 사진
-  const runReport = async () => {
-    const vocs = (cases || []).filter(c => c.received_date >= rFrom && c.received_date <= rTo && (!rBrand || c.brand === rBrand))
-      .sort((a, b) => (a.received_date || '').localeCompare(b.received_date || '') || a.id - b.id);
-    if (!vocs.length) { toast('그 기간에 VOC가 없어요', 'err'); return; }
-    try {
-      const zip = new JSZip();
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vocReportRows(vocs, productById)), 'VOC');
-      const tag = `${rBrand || '핀카하타'}_${rFrom}~${rTo}`;
-      zip.file(`VOC_${tag}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
-      const photos = vocs.flatMap(c => (c.photos || []).map((path, i) => ({ path, name: photoFileName(c, i, path, productById) })));
-      const failed = await addStorageFiles(zip, '사진', PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
-      if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
-      const size = await downloadZip(zip, `리포트용_VOC_${tag}.zip`, setBusy);
-      toast(`✅ 리포트용 내보내기 완료 (${mb(size)}) · VOC ${vocs.length}건 · 사진 ${photos.length - failed.length}장`);
-    } catch (e) { toast('❌ 리포트용 내보내기 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
-  };
-
-  const off = !!busy;
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="card-title">📦 백업 받기 <small>한 달에 한 번 · 마지막 백업 {last ? fmtDate(last) : '없음'}</small></div>
       {busy && <div className="hint" style={{ marginBottom: 10, color: 'var(--accent)', fontWeight: 600 }}>⏳ {busy} (창을 닫지 마세요)</div>}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-        <button className="btn btn-primary" onClick={runFull} disabled={off}>🗂 전체 내보내기 (엑셀 + 사진 zip)</button>
-        <button className="btn" onClick={runExcel} disabled={off}>📦 엑셀만 받기</button>
-        <span className="hint"><b>전체 내보내기</b> = 모든 표 엑셀 + <b>VOC 사진</b> + 매뉴얼 첨부파일을 zip 하나로 (사진이 많으면 몇 분 걸려요). <b>고객 이름이 들어 있어서 회사 드라이브 비공개 폴더에만</b> 보관하세요 (GitHub·메신저 X).</span>
-      </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
-        <button className="btn" onClick={runArchive} disabled={off}>📚 보관용 자료 (사람이 보는 백업)</button>
-        <span className="hint">대시보드 없이도 볼 수 있게 <b>한글 칸 엑셀</b>(VOC·리뷰·게시판·CS 데일리·주문 요약·반품교환·회의록) + <b>VOC별 사진 폴더</b>. 구글시트·AI에 바로 넣을 수 있어요. 고객 이름은 빼요. <b>퇴사·인수인계 전에 꼭 한 번</b>.</span>
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-        <b style={{ fontSize: 13 }}>📑 리포트용 VOC</b>
-        <input className="input" type="date" value={rFrom} onChange={e => setRFrom(e.target.value)} style={{ width: 150 }} />
-        <span>~</span>
-        <input className="input" type="date" value={rTo} onChange={e => setRTo(e.target.value)} style={{ width: 150 }} />
-        <div style={{ width: 160 }}><Select value={rBrand} onChange={setRBrand} options={['핀카', '하타']} placeholder="핀카·하타 모두" /></div>
-        <button className="btn" onClick={runReport} disabled={off || !rFrom || !rTo}>⬇ VOC 엑셀 + 사진 zip</button>
-        <span className="hint">반기 VOC 리포트용 · 고객 이름 없이 · 사진 이름 = 날짜_브랜드_상품_사유_VOC번호</span>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary" onClick={runBackup} disabled={!!busy}>🗂 백업 받기 (zip)</button>
+        <span className="hint">zip 하나에 <b>사람이 보는 엑셀</b>(한글 칸 · VOC·리뷰·게시판·CS 데일리·주문 요약·반품교환·회의록, 구글시트·AI에 바로) + <b>복구용 원본 엑셀</b> + <b>VOC별 사진 폴더</b>가 들어 있어요. 반기 VOC 리포트도 이 엑셀의 VOC 시트를 기간으로 걸러 쓰면 돼요. 사진이 많으면 몇 분 걸려요. <b>고객 이름이 들어 있어서 회사 드라이브 비공개 폴더에만</b> 보관하세요 (GitHub·메신저 X).</span>
       </div>
     </div>
   );
