@@ -131,11 +131,16 @@ const RESTOCK_PATTERNS = ['도트', '스트라이프', '체크', '깅엄', '플�
 const COLOR_RE = new RegExp(`(?:${RESTOCK_COLORS.join('|')})+(?:${RESTOCK_PATTERNS.join('|')})?`, 'g');
 const SIZE_RES = [[/(?:^|[^a-z])ss(?![a-z])|슈퍼\s*싱글/i, 'SS'], [/q\s*\/?\s*k|퀸\s*\/?\s*킹/i, 'Q/K'], [/(?:^|[^a-z])q(?![a-z/])|퀸/i, 'Q'], [/킹/i, 'K'],
   [/엑스\s*라지|(?:^|[^a-z])xl(?![a-z])/i, 'XL'], [/(?<!엑스\s?)라지|(?:^|[^a-z])l(?![a-z])/i, 'L'], [/미디움|(?:^|[^a-z])m(?![a-z])/i, 'M'], [/스몰|(?:^|[^a-z])s(?![a-z])/i, 'S'], [/라이트/, '라이트'], [/스탠다드/, '스탠다드'], [/전\s*사이즈/, '전 사이즈']];
-function restockWants(text) {
+// 세트 상품에서 고객이 찾는 단품 (차렵이불 세트인데 "딥퍼플 배게"를 찾는 경우 등, 2026-10-14) · 상품명에 이미 있는 품목은 안 붙임
+const RESTOCK_ITEMS = [[/베개\s*커버|배게\s*커버|베개|배게/, '베개', /베개|배게/], [/매트리스\s*커버|매트\s*커버|매트리그\s*커버/, '매트리스커버', /매트리스\s*커버/], [/패드/, '패드', /패드/],
+  [/차렵\s*이불|이불/, '이불', /이불/], [/베개\s*솜|베개솜/, '베개솜', /베개\s*솜/], [/러그/, '러그', /러그/], [/쿠션/, '쿠션', /쿠션/]];
+function restockWants(text, productName) {
   const t = String(text || '');
   const colors = [...new Set((t.replace(/\s+/g, '').match(COLOR_RE) || []))];
   const sizes = []; SIZE_RES.forEach(([re, label]) => { if (re.test(t) && !(label === 'Q' && sizes.includes('Q/K')) && !(label === 'K' && sizes.includes('Q/K'))) sizes.push(label); });
-  return { colors, sizes };
+  const pn = String(productName || '');
+  const items = RESTOCK_ITEMS.filter(([re, , own]) => re.test(t) && !own.test(pn)).map(([, label]) => label).filter((l, i, a) => !(l === '베개' && a.includes('베개솜')));
+  return { colors, sizes, items };
 }
 
 // 리포트용 요약: 게시판 유형·재입고 상품(오늘 + 7일 누적)·리뷰 긍정/부정 비중과 많이 나온 말·액션 포인트
@@ -153,8 +158,9 @@ function reportInsights(brand, extra, vocs, from, to, week0, productById) {
     if (!restock.has(k)) restock.set(k, { name: r.product_name || '(상품 미지정)', week: 0, today: 0, wants: new Map() });
     const x = restock.get(k); x.week++; if (inDay(r.written_at)) x.today++;
     // 고객이 찾는 색·사이즈 (색이 있으면 '버건디 Q/K', 사이즈만 있으면 'SS')
-    const w = restockWants(`${r.title || ''} ${r.content || ''}`);
-    const labels = w.colors.length ? w.colors.map(c => [c, ...w.sizes].join(' ')) : w.sizes.length ? [w.sizes.join('·')] : [];
+    const w = restockWants(`${r.title || ''} ${r.content || ''}`, r.product_name);
+    const rest = [...w.items, ...w.sizes];
+    const labels = w.colors.length ? w.colors.map(c => [c, ...rest].join(' ')) : rest.length ? [rest.join(' ')] : [];
     labels.forEach(l => x.wants.set(l, (x.wants.get(l) || 0) + 1));
   });
   const restockTop = [...restock.values()].sort((a, b) => b.today - a.today || b.week - a.week).slice(0, 5)
