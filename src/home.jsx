@@ -127,9 +127,10 @@ function HomePage() {
     const list = negReviews.filter(r => { const x = toISODate(new Date(r.written_at)); return x >= cs[0] && x <= cs[1]; });
     if (!list.length) return null;
     const cnt = (keys) => { const m = {}; keys.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
-    const themes = cnt(list.flatMap(r => reviewThemes(r.content, true))).slice(0, 2).map(([k, v]) => `${k} ${v}`);
-    const prods = cnt(list.map(r => coreName(r.product_name || '').slice(0, 14))).slice(0, 2).map(([k]) => k);
-    return { n: list.length, text: [themes.join(' · '), prods.join(', ')].filter(Boolean).join(' — '), from: cs[0] };
+    // 불만 이름은 괄호 설명을 빼고 짧게 ('소재 불만 (미끌·물 튕김 등)' → '소재 불만')
+    const themes = cnt(list.flatMap(r => reviewThemes(r.content, true))).slice(0, 3).map(([k, v]) => `${k.replace(/\s*\(.*\)$/, '')} ${v}건`);
+    const prods = cnt(list.map(r => coreName(r.product_name || '').trim())).slice(0, 2).map(([k]) => k);
+    return { n: list.length, themes, prods };
   })();
 
   // 주간 추이 (최근 5주)
@@ -223,7 +224,11 @@ function HomePage() {
         <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} vs={vsLabel} />} />
         <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<>
           <Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} vs={vsLabel} />
-          {negWhy && <a className="kpi-why" href={`#/review-list?brand=${encodeURIComponent(brand)}&period=7d&stars=neg`} title="이번 주 1~3점 리뷰 보기">부정 {negWhy.n}건{negWhy.text ? ` · ${negWhy.text}` : ''} →</a>}
+          {negWhy && <a className="kpi-why" href={`#/review-list?brand=${encodeURIComponent(brand)}&period=7d&stars=neg`} title="이번 주 1~3점 리뷰 보기">
+            <b>이번 주 부정 리뷰 {negWhy.n}건 보기 →</b>
+            {negWhy.themes.length > 0 && <span>불만: {negWhy.themes.join(', ')}</span>}
+            {negWhy.prods.length > 0 && <span>상품: {negWhy.prods.join(', ')}</span>}
+          </a>}
         </>} />
       </div>
 
