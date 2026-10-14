@@ -366,13 +366,13 @@ function VocForm({ initial, onSaved, onCancel }) {
 
       <div className="form-section">처리</div>
       <div className="form-grid">
+        {SHOW_FOLLOWUP && <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>담당 부서 <span className="muted" style={{ fontWeight: 400 }}>(누르면 추가 · 다시 누르면 빼기, 여러 개 가능)</span></label>
+          <DeptPicker value={form.department} options={codeOptions('department')} onChange={set('department')} />
+        </div>}
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
         {field('처리 구분', <Select className="" value={form.handling} onChange={set('handling')} options={withCurrent(codeOptions('handling'), form.handling)} placeholder="선택" />)}
         {field('완료일', <input type="date" value={form.completed_at} onChange={onInput('completed_at')} />)}
-        {SHOW_FOLLOWUP && <div className="field" style={{ gridColumn: 'span 2' }}>
-          <label>담당 부서 <span className="muted" style={{ fontWeight: 400 }}>(여러 개 고를 수 있어요)</span></label>
-          <DeptPicker value={form.department} options={codeOptions('department')} onChange={set('department')} />
-        </div>}
         {SHOW_FOLLOWUP && field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>처리 메모</label>
