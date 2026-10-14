@@ -216,6 +216,111 @@ const vocReportRows = (cases, productById) => cases.map(c => ({
   '사진 수': (c.photos || []).length, '사진 파일': (c.photos || []).map((p, i) => photoFileName(c, i, p, productById)).join('\n'),
 }));
 
+// ── 📚 보관용 자료 (2026-10-14 사용자 요청: 대시보드를 안 쓰게 돼도 구글시트·AI로 예전 자료를 보게) ──
+//   한글 칸 이름 · 화면에서 보던 모양 · 고객 이름 없음 · 사진은 VOC별 폴더 (VOC사진/2026-10/V216_상품_사유/1.jpg)
+//   주문은 원본 대신 월·판매처·상품별 요약 (6월까지 = order_monthly, 7월부터 = order_items를 CS 데일리와 같은 방식으로 셈)
+const kstDate = (s) => (s ? toISODate(new Date(s)) : '');
+const vocPhotoFolder = (c, productById) => `${String(c.received_date || '').slice(0, 7) || '날짜없음'}/V${c.id}_${safeName(caseProductName(c, productById), 40)}_${safeName(c.reason_category || c.voc_type || '사유없음', 20)}`;
+const ARCHIVE_README = `CX 대시보드 보관용 자료
+
+이 zip은 대시보드를 쓰지 않게 되더라도 예전 자료를 보기 위한 것이에요.
+- CX보관용자료_날짜.xlsx : 구글 드라이브에 올리면 구글시트로 열려요. 시트마다 한 종류의 자료예요.
+  · VOC : 한 줄 = VOC 한 건. '사진 폴더' 칸의 이름으로 VOC사진 폴더를 찾으면 사진이 있어요.
+  · 리뷰 · 게시판 : 고객이 쓴 글 그대로. AI(ChatGPT·Claude 등)에 시트를 올리고 "이번 달 불만 정리해 줘"처럼 물어보면 돼요.
+  · CS데일리 : 보고일마다 판매처별 숫자 (데이터 날짜 = 보고일 전날, 월요일은 금~일).
+  · 주문요약 : 월·브랜드·판매처·상품별 주문(상품 수)·출고전 취소.
+  · 반품교환 · 회의록 · 회의논의사항
+- VOC사진/월/V번호_상품_사유/ : VOC 사진 (VOC 시트의 VOC번호와 같아요)
+
+고객 이름·연락처는 넣지 않았어요. 그래도 고객 글이 들어 있으니 회사 드라이브 비공개 폴더에만 보관하세요.
+숫자 기준은 노션 CX본부 '숫자 규칙 한 장'을 보세요.`;
+
+async function archiveOrderSummary(setBusy) {
+  setBusy('주문 요약 만드는 중...');
+  const [monthly, items] = await Promise.all([
+    fetchAll(() => db.from('order_monthly').select('ym,brand,platform,product_name,category,lines,cancels').lte('ym', ORDER_SUMMARY_UNTIL).order('id')),
+    fetchAll(() => db.from('order_items').select('brand,platform,source_key,order_date,status,claim_status,order_no,item_no,product_name,category').gte('order_date', toISODate(new Date(Number(ORDER_SUMMARY_UNTIL.slice(0, 4)), Number(ORDER_SUMMARY_UNTIL.slice(5)), 1))).order('id')),
+  ]);
+  const map = new Map();
+  const bump = (ym, r, field, n = 1) => {
+    const k = [ym, r.brand, r.platform, r.product_name].join('|');
+    if (!map.has(k)) map.set(k, { '월': ym, '브랜드': r.brand, '판매처': r.platform || '', '상품명': r.product_name || '', '대분류': r.category || '', '주문(상품 수)': 0, '출고전 취소': 0 });
+    map.get(k)[field] += n;
+  };
+  monthly.forEach(r => { bump(r.ym, r, '주문(상품 수)', r.lines || 0); bump(r.ym, r, '출고전 취소', r.cancels || 0); });
+  const seenOrder = new Set(), seenCancel = new Set();
+  items.forEach(r => {
+    if (r.claim_status && /교환|회수/.test(r.claim_status)) return;
+    const ym = String(r.order_date).slice(0, 7), cancelled = isCancelRow(r);
+    if (!r.item_no) { bump(ym, r, '주문(상품 수)'); if (cancelled) bump(ym, r, '출고전 취소'); return; }
+    const item = `${r.platform}|${r.order_no}|${r.item_no}`;
+    if (cancelled && !seenCancel.has(item)) { seenCancel.add(item); bump(ym, r, '출고전 취소'); }
+    if ((!cancelled || r.status !== '취소') && !/분실/.test(r.status || '') && !seenOrder.has(item)) { seenOrder.add(item); bump(ym, r, '주문(상품 수)'); }
+  });
+  return [...map.values()].sort((a, b) => a['월'].localeCompare(b['월']) || a['브랜드'].localeCompare(b['브랜드']) || a['판매처'].localeCompare(b['판매처']) || b['주문(상품 수)'] - a['주문(상품 수)']);
+}
+
+async function buildArchiveWorkbook(cases, productById, setBusy) {
+  const wb = XLSX.utils.book_new();
+  const counts = [];
+  const cut = (v) => (v === null || v === undefined ? '' : String(v).length > 32000 ? String(v).slice(0, 32000) : v);
+  const addSheet = (name, rows) => {
+    const clean = rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, cut(v)])));
+    XLSX.utils.book_append_sheet(wb, clean.length ? XLSX.utils.json_to_sheet(clean) : XLSX.utils.aoa_to_sheet([['(비어 있음)']]), name);
+    counts.push(`${name} ${rows.length}`);
+  };
+  const byDate = (a, b) => String(a).localeCompare(String(b));
+
+  setBusy('VOC 정리 중...');
+  addSheet('VOC', [...cases].sort((a, b) => byDate(a.received_date, b.received_date) || a.id - b.id).map(c => ({
+    'VOC번호': c.id, '접수일': c.received_date, '브랜드': c.brand, '판매처': c.platform || '', '문의 채널': c.consult_method || '', '주문번호': c.order_no || '',
+    '상품명': caseProductName(c, productById), '대분류': caseCategory(c, productById), '중분류': caseSubCategory(c, productById), '추가분류': caseLineType(c, productById),
+    'VOC 구분': c.voc_type || '', '과실': isFault(c.voc_type) ? 'O' : '', '사유': c.reason_category || '', '상세 사유': c.reason_detail || '',
+    '진행상황': c.status || '', '처리 구분': c.handling || '', '담당 부서': c.department || '', '후속 조치': c.action_required || '', '완료일': c.completed_at || '',
+    '처리 기록': logNote(initialLog(c)), '처리자': c.handler || '', '사진 수': (c.photos || []).length, '사진 폴더': (c.photos || []).length ? `VOC사진/${vocPhotoFolder(c, productById)}` : '',
+  })));
+
+  setBusy('리뷰 받는 중...');
+  const reviews = await fetchAll(() => db.from('review_items').select('brand,platform,product_name,option_text,rating,content,written_at,check_status,voc_case_id').order('id'));
+  addSheet('리뷰', reviews.map(r => ({ '작성일': kstDate(r.written_at), '브랜드': r.brand, '판매처': r.platform || '', '상품명': r.product_name || '', '옵션': r.option_text || '',
+    '별점': r.rating ?? '', '체크': r.check_status || '', '내용': r.content || '', 'VOC번호': r.voc_case_id || '' })).sort((a, b) => byDate(a['작성일'], b['작성일'])));
+
+  setBusy('게시판 받는 중...');
+  const boards = await fetchAll(() => db.from('board_items').select('brand,platform,product_name,option_text,title,content,written_at,inquiry_type').order('id'));
+  addSheet('게시판', boards.filter(r => r.inquiry_type !== ANSWER_TYPE && !isStaffAnswer(r.content)).map(r => ({
+    '작성일': kstDate(r.written_at), '브랜드': r.brand, '판매처': r.platform || '', '상품명': r.product_name || '', '옵션': r.option_text || '',
+    '문의 유형': r.inquiry_type || '', '상품문의 세부': r.inquiry_type === '상품문의' ? productQSubtype(`${r.title || ''} ${r.content || ''}`) : '',
+    '제목': r.title || '', '내용': r.content || '' })).sort((a, b) => byDate(a['작성일'], b['작성일'])));
+
+  setBusy('CS 데일리 받는 중...');
+  const daily = await fetchAll(() => db.from('cs_daily').select('*').order('report_date').order('id'));
+  const labels = [...PLATFORM_FIELDS, ...BRAND_FIELDS].flatMap(s => s.fields.map(([k, l]) => [k, `${s.section.replace(/ \(.*\)$/, '')} · ${l}`]));
+  addSheet('CS데일리', daily.map(r => {
+    const [from, to] = dataRangeOf(r.report_date);
+    const row = { '보고일': r.report_date, '데이터 날짜': from === to ? from : `${from}~${to}`, '브랜드': r.brand, '판매처': r.platform || '' };
+    labels.forEach(([k, l]) => { row[l] = r[k] ?? ''; });
+    return row;
+  }));
+
+  addSheet('주문요약', await archiveOrderSummary(setBusy));
+
+  setBusy('반품·교환 받는 중...');
+  const returns = await fetchAll(() => db.from('return_items').select('brand,platform,kind,order_no,product_name,option_text,qty,reason_raw,reason_detail,reason_group,is_fault,claim_status,order_date,claim_date').order('id'));
+  addSheet('반품교환', returns.map(r => ({ '접수일': r.claim_date || '', '주문일': r.order_date || '', '브랜드': r.brand, '판매처': r.platform || '', '구분': r.kind || '', '주문번호': r.order_no || '',
+    '상품명': r.product_name || '', '옵션': r.option_text || '', '수량': r.qty ?? '', '사유 묶음': r.reason_group || '', '과실': r.is_fault ? 'O' : '', '사유': r.reason_raw || '', '상세 사유': r.reason_detail || '', '처리 상태': r.claim_status || '' }))
+    .sort((a, b) => byDate(a['접수일'] || a['주문일'], b['접수일'] || b['주문일'])));
+
+  setBusy('회의록 받는 중...');
+  const [meetings, items] = await Promise.all([
+    fetchAll(() => db.from('meetings').select('*').order('meeting_date')),
+    fetchAll(() => db.from('meeting_items').select('*').order('id')),
+  ]);
+  const meetingDate = new Map(meetings.map(m => [m.id, m.meeting_date]));
+  addSheet('회의록', meetings.map(m => ({ '회의일': m.meeting_date, '제목': m.title || '', '종류': m.kind || '', '참석자': Array.isArray(m.attendees) ? m.attendees.join(', ') : (m.attendees || ''), '상태': m.status || '', '내용': m.body || '' })));
+  addSheet('회의논의사항', items.map(i => ({ '처음 나온 회의': meetingDate.get(i.meeting_id) || '', '논의사항': i.title || '', '내용': i.detail || '', '담당': i.owner || '', '상태': i.status || '', '결과': i.result || '', '완료일': i.done_at || '' })));
+  return { wb, counts };
+}
+
 // 저장소 파일을 4개씩 동시에 받아 zip 폴더에 넣음 (파일이 있을 때만 폴더를 만듦). 못 받은 파일은 목록으로 돌려줌
 async function addStorageFiles(zip, folderName, bucket, items, setBusy, label) {
   const failed = [];
@@ -295,6 +400,21 @@ function BackupCard() {
     } catch (e) { toast('❌ 전체 내보내기 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
   };
 
+  // ④ 보관용 자료 = 사람이 보는 엑셀(한글 칸) + VOC별 사진 폴더 + 읽어 주세요
+  const runArchive = async () => {
+    try {
+      const { wb, counts } = await buildArchiveWorkbook(cases || [], productById, setBusy);
+      const zip = new JSZip();
+      zip.file('읽어주세요.txt', ARCHIVE_README.replace(/\n/g, '\r\n'));
+      zip.file(`CX보관용자료_${today()}.xlsx`, XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+      const photos = (cases || []).flatMap(c => (c.photos || []).map((path, i) => ({ path, name: `${vocPhotoFolder(c, productById)}/${i + 1}.${(String(path).match(/\.([a-z0-9]{2,5})$/i) || [, 'jpg'])[1].toLowerCase()}` })));
+      const failed = await addStorageFiles(zip, 'VOC사진', PHOTO_BUCKET, photos, setBusy, 'VOC 사진');
+      if (failed.length) zip.file('받지_못한_파일.txt', failed.join('\r\n'));
+      const size = await downloadZip(zip, `CX보관용자료_${today()}.zip`, setBusy);
+      toast(`✅ 보관용 자료 완료 (${mb(size)}) · ${counts.join(' · ')} · 사진 ${photos.length - failed.length}장`);
+    } catch (e) { toast('❌ 보관용 자료 실패: ' + (e.message || e), 'err'); } finally { setBusy(''); }
+  };
+
   // ③ 리포트용 = 기간·브랜드의 VOC 표(고객 이름 없음) + 그 사진
   const runReport = async () => {
     const vocs = (cases || []).filter(c => c.received_date >= rFrom && c.received_date <= rTo && (!rBrand || c.brand === rBrand))
@@ -323,6 +443,10 @@ function BackupCard() {
         <button className="btn btn-primary" onClick={runFull} disabled={off}>🗂 전체 내보내기 (엑셀 + 사진 zip)</button>
         <button className="btn" onClick={runExcel} disabled={off}>📦 엑셀만 받기</button>
         <span className="hint"><b>전체 내보내기</b> = 모든 표 엑셀 + <b>VOC 사진</b> + 매뉴얼 첨부파일을 zip 하나로 (사진이 많으면 몇 분 걸려요). <b>고객 이름이 들어 있어서 회사 드라이브 비공개 폴더에만</b> 보관하세요 (GitHub·메신저 X).</span>
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '12px 0', borderTop: '1px solid var(--border)' }}>
+        <button className="btn" onClick={runArchive} disabled={off}>📚 보관용 자료 (사람이 보는 백업)</button>
+        <span className="hint">대시보드 없이도 볼 수 있게 <b>한글 칸 엑셀</b>(VOC·리뷰·게시판·CS 데일리·주문 요약·반품교환·회의록) + <b>VOC별 사진 폴더</b>. 구글시트·AI에 바로 넣을 수 있어요. 고객 이름은 빼요. <b>퇴사·인수인계 전에 꼭 한 번</b>.</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
         <b style={{ fontSize: 13 }}>📑 리포트용 VOC</b>
