@@ -416,6 +416,13 @@ function VocListPage({ initialFilter }) {
   const lineOptions = useMemo(() => [...new Set(products.map(p => p.line_type).filter(Boolean))].sort(), [products]);
   const [editing, setEditing] = useState(null);
   const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
+  // 회의록 등에서 #/voc-list?id=123 으로 오면 그 VOC 상세를 바로 엶 (2026-10-14)
+  const openId = useMemo(() => new URLSearchParams(location.hash.split('?')[1] || '').get('id'), []);
+  useEffect(() => {
+    if (!openId) return;
+    const c = cases.find(x => String(x.id) === openId);
+    if (c) setEditing(c);
+  }, [openId, cases.length]);
 
   const rows = useMemo(() => {
     const q = f.q.trim().toLowerCase();

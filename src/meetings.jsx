@@ -100,14 +100,16 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
   const reviews = await fetchAll(() => db.from('review_items').select('brand,product_name,rating,content,written_at')
     .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
   // 게시판 문의 유형 (문의가 크게 늘면 어떤 유형이 늘었는지 요약에 넣기, 2026-10-12 사용자 요청)
-  const boards = await fetchAll(() => db.from('board_items').select('brand,inquiry_type,written_at')
+  const boards = await fetchAll(() => db.from('board_items').select('brand,inquiry_type,written_at,product_name,title,content')
     .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
   const negMax = loadNegMax();
   const inWeek = (iso, f, t) => { const d = toISODate(new Date(iso)); return d >= f && d <= t; };
   const top = (list, n = 3) => { const m = {}; list.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, c]) => `${k} ${c}건`).join(', ') || '-'; };
   const short = (name) => coreName(name || '').slice(0, 30);
   const info = {};   // 주간 요약 문장용 (부정 리뷰 증가·주요 불만·과실 VOC)
-  const reviewLines = [], vocLines = [];
+  const reviewLines = [], vocLines = [], boardLines = [];
+  // VOC 링크: 회의록에서 누르면 VOC 목록에서 그 VOC 상세가 열림 (#/voc-list?id=…, 2026-10-14)
+  const vocLink = (c) => `[#${c.id}](#/voc-list?id=${c.id})`;
   ['핀카', '하타'].forEach(brand => {
     const cr = reviews.filter(r => r.brand === brand && inWeek(r.written_at, cf, ct));
     const pr = reviews.filter(r => r.brand === brand && !inWeek(r.written_at, cf, ct));
@@ -167,11 +169,38 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const fByProd = new Map();
     fault.forEach(c => { const k = vname(c); if (!fByProd.has(k)) fByProd.set(k, []); fByProd.get(k).push(c); });
     [...fByProd.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 4).forEach(([prod, list]) => {
-      vl.push(`    - ${prod}: ${names(list.map(c => c.reason_category || c.voc_type), 2).join(', ')}${list.length > 1 ? ` (${list.length}건)` : ''}`);
+      vl.push(`    - ${prod}: ${names(list.map(c => c.reason_category || c.voc_type), 2).join(', ')}${list.length > 1 ? ` (${list.length}건)` : ''} ${list.slice(0, 4).map(vocLink).join(' ')}`);
     });
+    // 특이건 (2026-10-14 사용자 요청: 회의에서 바로 열어 보게): 앵커 상품 VOC · 보상 처리 · 아직 접수/확인중
+    const special = vocs.map(c => {
+      const why = [caseLineType(c, productById) === '앵커' && '앵커 상품', /보상/.test(`${c.status || ''} ${c.handling || ''}`) && '보상', ['접수', '확인중'].includes(c.status || '접수') && `아직 ${c.status || '접수'}`].filter(Boolean);
+      return why.length ? { c, why } : null;
+    }).filter(Boolean);
+    if (special.length) {
+      vl.push(`    - ⚠️ 특이건 ${special.length}건`);
+      special.slice(0, 6).forEach(({ c, why }) => vl.push(`      - ${vocLink(c)} ${vname(c)} · ${c.reason_category || c.voc_type || '-'} · ${why.join(', ')}`));
+      if (special.length > 6) vl.push(`      - 외 ${special.length - 6}건은 [VOC 목록](#/voc-list)에서`);
+    }
     vocLines.push(vl.join('\n'));
+    // 게시판 (2026-10-14 회의록 자세히): 유형 TOP · 상품문의 세부 · 재입고 TOP(고객이 찾는 색·사이즈)
+    const bw = bb.filter(x => inWeek(x.written_at, cf, ct) && x.inquiry_type !== '답변(제외)');
+    if (bw.length) {
+      const bl = [`  - **${brand}**: ${bw.length}건 / ${top(bw.map(x => x.inquiry_type), 4)}`];
+      const pq = bw.filter(x => x.inquiry_type === '상품문의');
+      if (pq.length) bl.push(`    - 상품문의 ${pq.length}건: ${top(pq.map(x => productQSubtype(`${x.title || ''} ${x.content || ''}`)), 3)}`);
+      const rs = new Map();
+      bw.filter(x => x.inquiry_type === '재입고').forEach(x => {
+        const k = short(x.product_name) || '(상품 미지정)'; const e = rs.get(k) || rs.set(k, { n: 0, wants: new Map() }).get(k); e.n++;
+        const w = restockWants(`${x.title || ''} ${x.content || ''}`, x.product_name);
+        const rest = [...w.items, ...w.sizes];
+        (w.colors.length ? w.colors.map(c => [c, ...rest].join(' ')) : rest.length ? [rest.join(' ')] : []).forEach(l => e.wants.set(l, (e.wants.get(l) || 0) + 1));
+      });
+      const rTop = [...rs.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 3);
+      if (rTop.length) bl.push(`    - 재입고 문의: ${rTop.map(([k, e]) => `${k} ${e.n}건${e.wants.size ? ` (${[...e.wants.keys()].slice(0, 3).join(', ')})` : ''}`).join(' / ')}`);
+      boardLines.push(bl.join('\n'));
+    }
   });
-  const text = `- **리뷰**\n${reviewLines.join('\n')}\n- **VOC**\n${vocLines.join('\n')}`;
+  const text = `- **리뷰**\n${reviewLines.join('\n')}\n- **VOC**\n${vocLines.join('\n')}${boardLines.length ? `\n- **게시판**\n${boardLines.join('\n')}` : ''}`;
   return { text, info };
 }
 
