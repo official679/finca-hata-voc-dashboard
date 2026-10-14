@@ -43,6 +43,18 @@ function useReviewCheckCount(brand) {
   }, [brand]);
   return n;
 }
+// 최근 3주 1~3점 리뷰 (핵심 지표 '부정 리뷰율'이 튈 때 이유를 보여 주려고, 2026-10-14)
+function useRecentNegReviews(brand) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    db.from('review_items').select('product_name,content,written_at,rating').eq('brand', brand).lte('rating', 3)
+      .gte('written_at', `${toISODate(addDays(new Date(), -21))}T00:00:00+09:00`)
+      .then(({ data }) => alive && setRows(data || []));
+    return () => { alive = false; };
+  }, [brand]);
+  return rows;
+}
 const reviewCheckSeen = () => { try { return localStorage.getItem('reviewCheckSeen') || ''; } catch { return ''; } };
 
 // 오늘(0시 이후) 그 브랜드로 올린 주문·리뷰·게시판 파일이 있는지 ('오늘 할 일' ① 파일 올리기)
@@ -72,6 +84,7 @@ function HomePage() {
   const [brand, setBrand] = useState('핀카');
   const preorder = usePreorderPending();   // 예약배송은 브랜드 구분 없이 (지금은 핀카만 운영)
   const checkNeed = useReviewCheckCount(brand);
+  const negReviews = useRecentNegReviews(brand);
   const uploads = useTodayUploads(brand);
   // '오늘 할 일' 열기·접기 (PC별 기억). 접어 두면 다음 할 일 한 줄만
   const [todoOpen, setTodoOpen] = useState(() => { try { return localStorage.getItem('homeTodoOpen') !== '0'; } catch { return true; } });
@@ -105,6 +118,19 @@ function HomePage() {
   const md = (x) => fmtMD(parseDate(x));
   const vsLabel = full ? '전주' : '전주 같은 기간';
   const periodNote = cs ? `데이터 ${md(cs[0])}~${md(cs[1])} · ${vsLabel}(${ps ? `${md(ps[0])}~${md(ps[1])}` : '-'}) 대비` : '';
+  // 숫자가 튀는 이유 1: 이번 주나 비교 기간이 3일치 미만이면 변동이 큼 (주 초반·연휴)
+  const daysOf = (r) => (r ? Math.round((parseDate(r[1]) - parseDate(r[0])) / 86400000) + 1 : 0);
+  const fewDays = cs && (daysOf(cs) < 3 || daysOf(ps) < 3) ? `아직 이번 주 ${daysOf(cs)}일치${ps ? ` · 비교 ${daysOf(ps)}일치` : ''}라 변동이 커요` : '';
+  // 숫자가 튀는 이유 2: 이번 주 부정 리뷰(1~3점)의 많이 나온 불만·상품
+  const negWhy = (() => {
+    if (!cs || !negReviews) return null;
+    const list = negReviews.filter(r => { const x = toISODate(new Date(r.written_at)); return x >= cs[0] && x <= cs[1]; });
+    if (!list.length) return null;
+    const cnt = (keys) => { const m = {}; keys.forEach(k => { if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1]); };
+    const themes = cnt(list.flatMap(r => reviewThemes(r.content, true))).slice(0, 2).map(([k, v]) => `${k} ${v}`);
+    const prods = cnt(list.map(r => coreName(r.product_name || '').slice(0, 14))).slice(0, 2).map(([k]) => k);
+    return { n: list.length, text: [themes.join(' · '), prods.join(', ')].filter(Boolean).join(' — '), from: cs[0] };
+  })();
 
   // 주간 추이 (최근 5주)
   const weeks = recentWeeks(5).map(w => ({ ...w, s: sumRows(d.filter(r => periodDate(r.report_date) >= w.from && periodDate(r.report_date) <= w.to)) }));
@@ -190,12 +216,15 @@ function HomePage() {
       ) : <div className="todo-steps"><div className="todo-sub" style={{ padding: '4px 2px' }}>오늘 할 일을 모두 마쳤어요 ✓</div></div>}
       </>}
 
-      <div className="detail-section">📊 {cw.label} 핵심 지표 <small className="muted" style={{ fontWeight: 400 }}>{periodNote}</small></div>
+      <div className="detail-section">📊 {cw.label} 핵심 지표 <small className="muted" style={{ fontWeight: 400 }}>{periodNote}</small>{fewDays && <small className="chip chip-amber" style={{ marginLeft: 8, fontWeight: 400 }}>⚠️ {fewDays}</small>}</div>
       <div className="grid grid-kpi">
         <Kpi label="주문건" value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count vs={vsLabel} />} />
         <Kpi label="반품·교환율" value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratio(returnsExchanges(s), s.orders)} prev={ratio(returnsExchanges(p), p.orders)} vs={vsLabel} />} />
         <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} vs={vsLabel} />} />
-        <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} vs={vsLabel} />} />
+        <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<>
+          <Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} vs={vsLabel} />
+          {negWhy && <a className="kpi-why" href={`#/review-list?brand=${encodeURIComponent(brand)}&period=7d&stars=neg`} title="이번 주 1~3점 리뷰 보기">부정 {negWhy.n}건{negWhy.text ? ` · ${negWhy.text}` : ''} →</a>}
+        </>} />
       </div>
 
       <div className="grid home-bottom">
