@@ -75,16 +75,24 @@ function ReportsPage() {
   const sel = ymSel || (tab === 'weekly' ? RECENT : lastYm);
   const ym = sel === RECENT ? lastYm : sel;
   const monthOpts = [...months].reverse().map(v => ({ value: v, label: `${v.slice(0, 4)}년 ${Number(v.slice(5))}월` }));
+  // 딱 한 주 리포트 (2026-10-14 사용자 요청): 최근 12주를 'w:주 시작일'로
+  const latestPd = maxDate(daily.filter(r => r.brand === brand).map(r => periodDate(r.report_date))) || today();
+  const lastWeek = weekOf(latestPd);
+  const weekOpts = lastWeek ? Array.from({ length: 12 }, (_, k) => {
+    const from = toISODate(addDays(parseDate(lastWeek.from), -7 * k)); const w = weekOf(from);
+    return { value: `w:${from}`, label: `한 주 · ${w ? w.label : ''} (${fmtMD(addDays(parseDate(from), -1))}~${fmtMD(addDays(parseDate(from), 5))})` };
+  }) : [];
 
   const controls = (
     <>
       <Segmented options={REPORT_TABS} value={tab} onChange={setTab} />
       <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
-      <Select value={tab === 'weekly' ? sel : ym} onChange={setYm} options={tab === 'weekly' ? [{ value: RECENT, label: '최근 5주' }, ...monthOpts] : monthOpts} />
+      <Select value={tab === 'weekly' ? sel : ym} onChange={setYm} options={tab === 'weekly' ? [{ value: RECENT, label: '최근 5주' }, ...weekOpts, ...monthOpts] : monthOpts} />
       <button className="btn no-print" onClick={() => window.print()}>🖨 인쇄 / PDF</button>
     </>
   );
-  const props = { daily, reviews, board, brand, ym, months, controls };
+  const props = { daily, reviews, board, brand, ym: sel.startsWith('w:') ? (weekOf(sel.slice(2))?.ym || lastYm) : ym, months, controls };
+  if (tab === 'weekly' && sel.startsWith('w:')) return <OneWeekReview {...props} weekFrom={sel.slice(2)} />;
   return tab === 'weekly' ? (sel === RECENT ? <RecentWeeksReview {...props} /> : <WeeklyReview {...props} />) : <MonthlyReview {...props} />;
 }
 const RECENT = 'recent';
@@ -199,6 +207,41 @@ function RecentWeeksReview({ daily, reviews, board, brand, ym, controls }) {
       </div>
 
       <MonthDetails reviews={reviews} board={board} brand={brand} ym={ym} range={[weeks[0].from, weeks[4].to]} title="최근 5주" />
+    </>
+  );
+}
+
+// ---------- 딱 한 주 리포트 (2026-10-14) ----------
+// 고른 한 주 vs 그 전주 · 아래는 그 주의 리뷰·VOC·재입고 상세 · 인쇄/PDF로 한 장
+function OneWeekReview({ daily, reviews, board, brand, ym, controls, weekFrom }) {
+  const mine = daily.filter(r => r.brand === brand);
+  const pdOf = (r) => periodDate(r.report_date);
+  const mk = (from) => { const w = weekOf(from); return { from, to: toISODate(addDays(parseDate(from), 6)), label: w ? w.label : fmtMD(addDays(parseDate(from), -1)), short: w ? w.label.replace('주차', '주') : '', range: `${fmtMD(addDays(parseDate(from), -1))}~${fmtMD(addDays(parseDate(from), 5))}` }; };
+  const cw = mk(weekFrom), pw = mk(toISODate(addDays(parseDate(weekFrom), -7)));
+  const curRows = mine.filter(r => pdOf(r) >= cw.from && pdOf(r) <= cw.to);
+  const prevRows = mine.filter(r => pdOf(r) >= pw.from && pdOf(r) <= pw.to);
+  const s = sumRows(curRows), p = sumRows(prevRows);
+  const span = (list) => { const ds = [...new Set(list.map(r => r.report_date))].sort(); return ds.length ? [dataRangeOf(ds[0])[0], dataRangeOf(ds[ds.length - 1])[1]] : null; };
+  const cs = span(curRows), ps = span(prevRows);
+  const days = (r) => (r ? Math.round((parseDate(r[1]) - parseDate(r[0])) / 86400000) + 1 : 0);
+  const note = cs && days(cs) < 7 ? ` · ⚠️ 이 주는 ${days(cs)}일치라 전주와 단순 비교는 주의` : '';
+  return (
+    <>
+      <PageHeader title={`${brand} · ${cw.label} 주간 리포트`} desc={`데이터 ${cs ? `${fmtMD(parseDate(cs[0]))}~${fmtMD(parseDate(cs[1]))}` : cw.range} · 전주(${ps ? `${fmtMD(parseDate(ps[0]))}~${fmtMD(parseDate(ps[1]))}` : pw.range}) 대비${note}`}>{controls}</PageHeader>
+      <div className="grid grid-kpi">
+        <Kpi label={`주문건 (${cw.label})`} value={s.orders.toLocaleString()} sub={<Delta cur={s.orders} prev={p.orders} higherIsGood count vs="전주" />} />
+        <Kpi label="반품·교환율" value={pct(returnsExchanges(s), s.orders)} sub={<Delta cur={ratioOf(returnsExchanges(s), s.orders)} prev={ratioOf(returnsExchanges(p), p.orders)} vs="전주" />} />
+        <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratioOf(faults(s), s.orders)} prev={ratioOf(faults(p), p.orders)} vs="전주" />} />
+        <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<Delta cur={ratioOf(s.reviews_negative, s.reviews_total)} prev={ratioOf(p.reviews_negative, p.reviews_total)} vs="전주" />} />
+      </div>
+      <div className="section-title">{cw.label} vs 전주 <small className="muted">주문 · 반품교환 · 과실 · 리뷰 · 상담</small></div>
+      <div className="report-split">
+        <BrandWeekTable brand={brand} rows={[...prevRows, ...curRows]} weeks={[pw, cw]} totalLabel="2주 합계·평균" worstLabel="두 주 중 높은 주" />
+        <div className="report-side">
+          <ChannelTable brand={brand} rows={curRows.filter(r => r.platform !== BRAND_TOTAL)} period={`${cw.label} 합계`} />
+        </div>
+      </div>
+      <MonthDetails reviews={reviews} board={board} brand={brand} ym={ym} range={[cw.from, cw.to]} title={cw.label} />
     </>
   );
 }
