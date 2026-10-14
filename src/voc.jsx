@@ -326,7 +326,6 @@ function VocForm({ initial, onSaved, onCancel }) {
         </>}
         {field('VOC 구분', <Select className="" value={form.voc_type} onChange={set('voc_type')} options={withCurrent(codeOptions('voc_type'), form.voc_type)} placeholder="선택" />)}
         {field('문의 채널', <Select className="" value={form.consult_method} onChange={set('consult_method')} options={withCurrent(codeOptions('consult_method'), form.consult_method)} placeholder="선택" />)}
-        {field('처리 구분', <Select className="" value={form.handling} onChange={set('handling')} options={withCurrent(codeOptions('handling'), form.handling)} placeholder="선택" />)}
         {field('사유 카테고리', <Select className="" value={form.reason_category} onChange={set('reason_category')} options={withCurrent(codeOptions('reason'), form.reason_category)} placeholder="선택" />)}
         <div className="field" style={{ gridColumn: '1 / -1' }}>
           <label>상세 사유 (고객 문의 내용)</label>
@@ -347,6 +346,7 @@ function VocForm({ initial, onSaved, onCancel }) {
       <div className="form-section">처리</div>
       <div className="form-grid">
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
+        {field('처리 구분', <Select className="" value={form.handling} onChange={set('handling')} options={withCurrent(codeOptions('handling'), form.handling)} placeholder="선택" />)}
         {SHOW_FOLLOWUP && field('담당 부서', <Select className="" value={form.department} onChange={set('department')} options={withCurrent(codeOptions('department'), form.department)} placeholder="선택" />)}
         {field('완료일', <input type="date" value={form.completed_at} onChange={onInput('completed_at')} />)}
         {SHOW_FOLLOWUP && field('후속 조치', <Select className="" value={form.action_required} onChange={set('action_required')} options={withCurrent(codeOptions('action'), form.action_required)} placeholder="없음" />)}
@@ -404,9 +404,15 @@ const REASON_EMPTY = '(미입력)';   // 사유 카테고리를 안 넣은 VOC (
 function VocListPage({ initialFilter }) {
   const { cases, codeOptions, productById, products } = useApp();
   // 다른 화면에서 조건을 넘겨 열기 (예: 메인 '과실 VOC 사유' 막대 → #/voc-list?brand=핀카&from=…&fault=1&reason=(미입력))
-  const EMPTY_FILTER = { from: '', to: '', brand: '', handler: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', category: '', line: '', fault: '', q: '' };
+  const EMPTY_FILTER = { from: '', to: '', brand: '', handler: '', platform: '', channel: '', voc_type: '', status: '', reason: '', action: '', dept: '', category: '', line: '', fault: '', q: '' };
   const urlFilter = useMemo(() => Object.fromEntries([...new URLSearchParams(location.hash.split('?')[1] || '')].filter(([k]) => k in EMPTY_FILTER)), []);
   const [f, setF] = useState({ ...EMPTY_FILTER, ...initialFilter, ...urlFilter });
+  // 위쪽 탭 (2026-10-14 정리): 처리할 것(접수·확인중) / 끝난 것 / 전체 · 다른 화면에서 조건을 넘겨 열면 전체로
+  const OPEN_STATUS = ['접수', '확인중'];
+  const [tab, setTab] = useState(() => (Object.keys(urlFilter).length || (initialFilter && Object.keys(initialFilter).length) ? 'all' : 'open'));
+  // 자주 안 쓰는 필터는 접어 둠 (걸려 있으면 펼침)
+  const MORE_KEYS = ['handler', 'platform', 'channel', 'voc_type', 'category', 'line', 'reason', 'fault', 'status', 'dept', 'action'];
+  const [moreOpen, setMoreOpen] = useState(() => MORE_KEYS.some(k => ({ ...initialFilter, ...urlFilter })[k]));
   const lineOptions = useMemo(() => [...new Set(products.map(p => p.line_type).filter(Boolean))].sort(), [products]);
   const [editing, setEditing] = useState(null);
   const set = (k) => (v) => setF(prev => ({ ...prev, [k]: v }));
@@ -414,6 +420,8 @@ function VocListPage({ initialFilter }) {
   const rows = useMemo(() => {
     const q = f.q.trim().toLowerCase();
     return cases.filter(c =>
+      (tab === 'all' || (tab === 'open' ? OPEN_STATUS.includes(c.status || '접수') : !OPEN_STATUS.includes(c.status || '접수'))) &&
+      (!f.dept || c.department === f.dept) &&
       (!f.from || c.received_date >= f.from) && (!f.to || c.received_date <= f.to) &&
       (!f.brand || c.brand === f.brand) && (!f.handler || c.handler === f.handler) && (!f.platform || c.platform === f.platform) && (!f.channel || c.consult_method === f.channel) &&
       (!f.voc_type || c.voc_type === f.voc_type) && (!f.status || c.status === f.status) &&
@@ -421,7 +429,8 @@ function VocListPage({ initialFilter }) {
       (!f.line || caseLineType(c, productById) === f.line) &&
       (!f.action || (f.action === '__any' ? !!c.action_required : c.action_required === f.action)) &&
       matchQuery(q, caseProductName(c, productById), c.handler, c.order_no, c.orderer, c.receiver, c.reason_detail, c.note, c.voc_type, c.reason_category));
-  }, [cases, f, productById]);
+  }, [cases, f, productById, tab]);
+  const openCount = useMemo(() => cases.filter(c => OPEN_STATUS.includes(c.status || '접수') && (!f.brand || c.brand === f.brand)).length, [cases, f.brand]);
 
   const exportCsv = () => downloadCsv(`VOC목록_${today()}.csv`,
     ['접수일', '브랜드', '처리자', '플랫폼', '주문번호', '주문자', '수령자', '상품명', '대분류', '중분류', '추가분류', 'VOC구분', '처리구분', '문의채널', '진행상황', '담당부서', '완료일', '사유카테고리', '상세사유', '처리메모', '후속조치', '사진수'],
@@ -453,7 +462,7 @@ function VocListPage({ initialFilter }) {
   // 15건씩 페이지로 (필터를 바꾸면 1페이지로)
   const [PAGE_SIZE, setPageSize] = usePageSize('voc');
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [f]);
+  useEffect(() => { setPage(1); }, [f, tab]);
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const cur = Math.min(page, pages);
 
@@ -463,54 +472,79 @@ function VocListPage({ initialFilter }) {
         {unlinked.length > 0 && <button className="btn" onClick={relink} disabled={relinking} title="상품명으로 상품 마스터를 다시 찾아서 대분류·중분류를 채워요">{relinking ? '찾는 중...' : `🔗 미분류 ${unlinked.length}건 상품 다시 찾기`}</button>}
         <button className="btn" onClick={exportCsv}>⬇ 엑셀(CSV) 다운로드</button>
       </PageHeader>
+      {/* ① 할 일 탭 + 늘 보이는 조건(브랜드·기간·검색) */}
       <div className="card" style={{ marginBottom: 16 }}>
+        <div className="filters" style={{ marginBottom: 10 }}>
+          <Segmented options={[{ key: 'open', label: `🔥 처리할 것 ${openCount}` }, { key: 'done', label: '✅ 끝난 것' }, { key: 'all', label: '전체' }]} value={tab} onChange={setTab} />
+          <span style={{ flex: 1 }} />
+          <Segmented options={[{ key: '', label: '전체' }, ...codeOptions('brand', true).map(b => ({ key: b, label: b }))]} value={f.brand} onChange={set('brand')} />
+        </div>
         <div className="filters">
           <input className="input" type="date" value={f.from} onChange={e => set('from')(e.target.value)} title="시작일" />
           <span className="muted">~</span>
           <input className="input" type="date" value={f.to} onChange={e => set('to')(e.target.value)} title="종료일" />
-          <Select value={f.brand} onChange={set('brand')} options={codeOptions('brand', true)} placeholder="브랜드 전체" />
-          <Select value={f.handler} onChange={set('handler')} options={codeOptions('handler', true)} placeholder="처리자 전체" />
-          <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
-          <Select value={f.channel} onChange={set('channel')} options={codeOptions('consult_method', true)} placeholder="문의 채널 전체" />
-          <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
-          <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
-          {lineOptions.length > 0 && <Select value={f.line} onChange={set('line')} options={lineOptions} placeholder="추가분류 전체" />}
-          <Select value={f.reason} onChange={set('reason')} options={[...codeOptions('reason', true), REASON_EMPTY]} placeholder="사유 전체" />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><input type="checkbox" checked={!!f.fault} onChange={e => set('fault')(e.target.checked ? '1' : '')} /> 과실만</label>
-          <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
-          {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 지정된 건' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
-          <input className="input" style={{ minWidth: 200 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·처리자·내용 검색" />
+          <input className="input" style={{ flex: 1, minWidth: 220 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·처리자·내용 검색" />
           {hasFilter && <button className="btn-link" onClick={() => setF(EMPTY_FILTER)}>필터 초기화</button>}
         </div>
+        {/* ② 나머지 필터는 접어 둠 · 걸린 조건은 칩으로 */}
+        <div className="filters" style={{ marginTop: 10 }}>
+          <button className="btn-link" onClick={() => setMoreOpen(o => !o)}>{moreOpen ? '▾' : '▸'} 필터 더보기</button>
+          {MORE_KEYS.filter(k => f[k]).map(k => (
+            <span key={k} className={`chip ${k === 'fault' ? 'chip-red' : 'chip-blue'}`}>
+              {k === 'fault' ? '과실만' : k === 'action' && f.action === '__any' ? '후속 조치 있음' : f[k]}
+              <button className="btn-link" style={{ marginLeft: 4 }} onClick={() => set(k)('')} title="조건 빼기">✕</button>
+            </span>
+          ))}
+        </div>
+        {moreOpen && (
+          <div className="filters" style={{ marginTop: 8, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+            <Select value={f.handler} onChange={set('handler')} options={codeOptions('handler', true)} placeholder="처리자 전체" />
+            <Select value={f.platform} onChange={set('platform')} options={codeOptions('platform', true)} placeholder="플랫폼 전체" />
+            <Select value={f.channel} onChange={set('channel')} options={codeOptions('consult_method', true)} placeholder="문의 채널 전체" />
+            <Select value={f.voc_type} onChange={set('voc_type')} options={codeOptions('voc_type', true)} placeholder="VOC 구분 전체" />
+            <Select value={f.category} onChange={set('category')} options={categoryOptions(products)} placeholder="대분류 전체" />
+            {lineOptions.length > 0 && <Select value={f.line} onChange={set('line')} options={lineOptions} placeholder="추가분류 전체" />}
+            <Select value={f.reason} onChange={set('reason')} options={[...codeOptions('reason', true), REASON_EMPTY]} placeholder="사유 전체" />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><input type="checkbox" checked={!!f.fault} onChange={e => set('fault')(e.target.checked ? '1' : '')} /> 과실만</label>
+            <Select value={f.status} onChange={set('status')} options={codeOptions('status', true)} placeholder="진행상황 전체" />
+            {SHOW_FOLLOWUP && <Select value={f.dept} onChange={set('dept')} options={codeOptions('department', true)} placeholder="담당 부서 전체" />}
+            {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 있는 것' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
+          </div>
+        )}
       </div>
+      {/* ③ 목록: 분류·플랫폼은 상품명 아래, VOC 구분은 사유 아래, 담당 부서·후속 조치는 진행 아래 작게 */}
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap">
-          <table className="table table-wide">
+          <table className="table">
             <thead>
-              <tr><th>접수일</th><th>브랜드</th><th>플랫폼</th><th>주문번호</th><th>고객명</th><th>대분류</th><th>중분류</th><th>추가분류</th><th>상품명</th><th>사유</th><th>진행</th>{SHOW_FOLLOWUP && <th>후속 조치</th>}<th>처리자</th><th>📷</th></tr>
+              <tr><th>접수일</th><th>주문번호</th><th>고객명</th><th>상품</th><th>사유</th><th>진행</th><th>처리자</th><th>📷</th></tr>
             </thead>
             <tbody>
-              {rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE).map(c => (
-                <tr key={c.id} className="clickable" onClick={() => setEditing(c)}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.received_date)}</td>
-                  <td>{c.brand}</td>
-                  <td>{c.platform || '-'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{c.order_no || '-'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{caseCategory(c, productById)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{caseSubCategory(c, productById)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}><LineTypeChip type={caseLineType(c, productById)} /></td>
-                  <td className="ellipsis" title={caseProductName(c, productById)}>{c.consult_method === '리뷰' && <span className="chip chip-amber" style={{ marginRight: 6 }} title={c.note || '리뷰에서 등록'}>⭐ 리뷰</span>}{caseProductName(c, productById)}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}</td>
-                  <td><StatusChip status={c.status} /></td>
-                  {SHOW_FOLLOWUP && <td>{c.action_required ? <span className="chip chip-red">{c.action_required}</span> : <span className="muted">-</span>}</td>}
-                  <td style={{ whiteSpace: 'nowrap' }}>{c.handler || '-'}</td>
-                  <td className="num">{(c.photos || []).length || ''}</td>
-                </tr>
-              ))}
+              {rows.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE).map(c => {
+                const meta = [caseCategory(c, productById), caseSubCategory(c, productById), c.platform].filter(x => x && x !== '-' && x !== '(미분류)');
+                const follow = [c.department, c.action_required].filter(Boolean);
+                return (
+                  <tr key={c.id} className="clickable" onClick={() => setEditing(c)}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.received_date)}{tab === 'all' || !f.brand ? <div className="muted" style={{ fontSize: 12 }}>{c.brand}</div> : null}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{c.order_no || '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{c.orderer || '-'}</td>
+                    <td style={{ minWidth: 240, maxWidth: 420 }}>
+                      <div className="ellipsis" title={caseProductName(c, productById)}>{c.consult_method === '리뷰' && <span className="chip chip-amber" style={{ marginRight: 6 }} title={c.note || '리뷰에서 등록'}>⭐ 리뷰</span>}{caseProductName(c, productById)}</div>
+                      <div className="muted" style={{ fontSize: 12, marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>{meta.join(' · ') || '분류 없음'}</span>
+                        {caseLineType(c, productById) && <LineTypeChip type={caseLineType(c, productById)} />}
+                      </div>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{c.reason_category || '-'}{c.voc_type && <div className="muted" style={{ fontSize: 12 }}>{c.voc_type}</div>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}><StatusChip status={c.status} />{follow.length > 0 && <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{follow.join(' · ')}</div>}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{c.handler || '-'}</td>
+                    <td className="num">{(c.photos || []).length || ''}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-          {rows.length === 0 && <div className="empty">조건에 맞는 VOC가 없어요</div>}
+          {rows.length === 0 && <div className="empty">{tab === 'open' && !hasFilter ? '처리할 VOC가 없어요 👍' : '조건에 맞는 VOC가 없어요'}</div>}
         </div>
         <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} size={PAGE_SIZE} onSize={setPageSize} /></div>
       </div>

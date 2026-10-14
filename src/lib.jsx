@@ -32,8 +32,8 @@ async function shrinkImage(file) {
   }
 }
 
-// 후속 조치(상품개선·리오더 지정) 기능은 아직 쓰지 않아 모든 화면에서 숨김. 다시 쓰려면 true로
-const SHOW_FOLLOWUP = false;
+// 담당 부서·후속 조치(상품개선·리오더 등) 칸 · 2026-10-14 다시 켬 (VOC 목록은 '진행' 칸 아래 작은 글씨 + 필터 더보기, 상세는 '처리' 구역)
+const SHOW_FOLLOWUP = true;
 
 // 기준 코드 그룹 → voc_cases 컬럼 (기준 이름을 바꾸면 기존 VOC도 같이 바꿈)
 const CODE_GROUPS = [
