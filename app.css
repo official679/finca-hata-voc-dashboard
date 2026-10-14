@@ -461,6 +461,7 @@ table.table-wide td, table.table-wide th { white-space: nowrap; }
 .dr-mini td { padding: 4px 0; border-bottom: 1px dashed #E5E8EE; }
 .dr-mini td.n { text-align: right; width: 36px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dr-mini td.muted { color: #6B7280; font-weight: 500; }
+.dr-want { font-size: 11.5px; color: #B45309; margin-top: 2px; }
 .dr-ratio { display: flex; height: 26px; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 700; color: #fff; }
 .dr-ratio .pos { background: #2F9E6B; display: flex; align-items: center; padding-left: 8px; white-space: nowrap; }
 .dr-ratio .neg { background: #D64545; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; white-space: nowrap; }

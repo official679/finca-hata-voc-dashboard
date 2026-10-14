@@ -123,6 +123,21 @@ function DailyReportPanel({ date: startDate, onClose }) {
   );
 }
 
+// 재입고 문의 글에서 고객이 찾는 색상·사이즈 뽑기 (2026-10-13 사용자 요청: 상품명만으론 어떤 색을 리오더할지 모름)
+//   게시판 파일엔 옵션 칸이 비어 있고 본문에 "버건디 q/k 재입고되나요?"처럼 적혀 있음 → 색 단어 사전으로 찾음
+//   붙어 있는 색·무늬는 한 덩어리로 (네이비도트, 차콜브라운, 딥와인) · 사전에 없는 색은 못 찾음 → 필요하면 여기에 추가
+const RESTOCK_COLORS = ['딥퍼플', '딥와인', '딥버건디', '딥네이비', '딥그린', '버건디', '와인', '퍼플', '라일락', '라벤더', '플럼', '핑크', '로즈', '마젠타', '체리', '스트로베리', '레드', '코랄', '오렌지', '옐로우', '레몬', '버터', '머스타드', '베이지', '크림', '아이보리', '화이트', '그레이', '차콜', '블랙', '네이비', '블루', '스카이', '틸', '민트', '그린', '올리브', '카키', '브라운', '초콜릿', '초코', '모카', '카멜', '골드', '실버'];
+const RESTOCK_PATTERNS = ['도트', '스트라이프', '체크', '깅엄', '플라워', '솔리드', '레오파드'];
+const COLOR_RE = new RegExp(`(?:${RESTOCK_COLORS.join('|')})+(?:${RESTOCK_PATTERNS.join('|')})?`, 'g');
+const SIZE_RES = [[/(?:^|[^a-z])ss(?![a-z])|슈퍼\s*싱글/i, 'SS'], [/q\s*\/?\s*k|퀸\s*\/?\s*킹/i, 'Q/K'], [/(?:^|[^a-z])q(?![a-z/])|퀸/i, 'Q'], [/킹/i, 'K'],
+  [/엑스\s*라지|(?:^|[^a-z])xl(?![a-z])/i, 'XL'], [/(?<!엑스\s?)라지|(?:^|[^a-z])l(?![a-z])/i, 'L'], [/미디움|(?:^|[^a-z])m(?![a-z])/i, 'M'], [/스몰|(?:^|[^a-z])s(?![a-z])/i, 'S'], [/라이트/, '라이트'], [/스탠다드/, '스탠다드'], [/전\s*사이즈/, '전 사이즈']];
+function restockWants(text) {
+  const t = String(text || '');
+  const colors = [...new Set((t.replace(/\s+/g, '').match(COLOR_RE) || []))];
+  const sizes = []; SIZE_RES.forEach(([re, label]) => { if (re.test(t) && !(label === 'Q' && sizes.includes('Q/K')) && !(label === 'K' && sizes.includes('Q/K'))) sizes.push(label); });
+  return { colors, sizes };
+}
+
 // 리포트용 요약: 게시판 유형·재입고 상품(오늘 + 7일 누적)·리뷰 긍정/부정 비중과 많이 나온 말·액션 포인트
 function reportInsights(brand, extra, vocs, from, to, week0, productById) {
   if (!extra) return null;
@@ -135,10 +150,15 @@ function reportInsights(brand, extra, vocs, from, to, week0, productById) {
   const restock = new Map();
   boards.filter(r => r.inquiry_type === '재입고' && day(r.written_at) >= week0).forEach(r => {
     const k = normProductName(r.product_name) || '(상품 미지정)';
-    if (!restock.has(k)) restock.set(k, { name: r.product_name || '(상품 미지정)', week: 0, today: 0 });
+    if (!restock.has(k)) restock.set(k, { name: r.product_name || '(상품 미지정)', week: 0, today: 0, wants: new Map() });
     const x = restock.get(k); x.week++; if (inDay(r.written_at)) x.today++;
+    // 고객이 찾는 색·사이즈 (색이 있으면 '버건디 Q/K', 사이즈만 있으면 'SS')
+    const w = restockWants(`${r.title || ''} ${r.content || ''}`);
+    const labels = w.colors.length ? w.colors.map(c => [c, ...w.sizes].join(' ')) : w.sizes.length ? [w.sizes.join('·')] : [];
+    labels.forEach(l => x.wants.set(l, (x.wants.get(l) || 0) + 1));
   });
-  const restockTop = [...restock.values()].sort((a, b) => b.today - a.today || b.week - a.week).slice(0, 5);
+  const restockTop = [...restock.values()].sort((a, b) => b.today - a.today || b.week - a.week).slice(0, 5)
+    .map(x => ({ ...x, wantText: [...x.wants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([l, n]) => (n > 1 ? `${l} ${n}` : l)).join(' · ') }));
   // 리뷰
   const reviews = extra.reviews.filter(r => r.brand === brand);
   const neg = reviews.filter(r => r.rating !== null && r.rating <= 3), pos = reviews.filter(r => r.rating !== null && r.rating > 3);
@@ -208,7 +228,7 @@ function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from,
           {(ins.reorder.length > 0 || ins.fix.length > 0) && (
             <div className="dr-action">
               <div className="dr-action-title">📌 액션 포인트</div>
-              {ins.reorder.length > 0 && <div><b>🔁 리오더 검토</b> · 재입고 문의 (최근 7일) {ins.reorder.map(x => `${x.name} ${x.week}건`).join(' / ')}</div>}
+              {ins.reorder.length > 0 && <div><b>🔁 리오더 검토</b> · 재입고 문의 (최근 7일) {ins.reorder.map(x => `${x.name} ${x.week}건${x.wantText ? ` (${x.wantText})` : ''}`).join(' / ')}</div>}
               {ins.fix.length > 0 && <div><b>🛠 상품 검수·개선</b> · {ins.fix.map(x => `${x.name} (${x.why} ${x.n})`).join(' / ')}</div>}
             </div>
           )}
@@ -219,7 +239,7 @@ function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from,
               <div className="dr-box-sub">🔁 재입고 문의 상품 <span>오늘 · 최근 7일</span></div>
               {ins.restockTop.length ? (
                 <table className="dr-mini"><tbody>{ins.restockTop.map(x => (
-                  <tr key={x.name}><td>{x.name}</td><td className="n">{x.today}</td><td className="n muted">{x.week}</td></tr>
+                  <tr key={x.name}><td>{x.name}{x.wantText && <div className="dr-want">👉 {x.wantText}</div>}</td><td className="n">{x.today}</td><td className="n muted">{x.week}</td></tr>
                 ))}</tbody></table>
               ) : <div className="dr-note">최근 7일 재입고 문의 없음</div>}
             </div>
