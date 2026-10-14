@@ -171,16 +171,7 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     [...fByProd.entries()].sort((a, b) => b[1].length - a[1].length).slice(0, 4).forEach(([prod, list]) => {
       vl.push(`    - ${prod}: ${names(list.map(c => c.reason_category || c.voc_type), 2).join(', ')}${list.length > 1 ? ` (${list.length}건)` : ''} ${list.slice(0, 4).map(vocLink).join(' ')}`);
     });
-    // 특이건 (2026-10-14 사용자 요청: 회의에서 바로 열어 보게): 앵커 상품 VOC · 보상 처리 · 아직 접수/확인중
-    const special = vocs.map(c => {
-      const why = [caseLineType(c, productById) === '앵커' && '앵커 상품', /보상/.test(`${c.status || ''} ${c.handling || ''}`) && '보상', ['접수', '확인중'].includes(c.status || '접수') && `아직 ${c.status || '접수'}`].filter(Boolean);
-      return why.length ? { c, why } : null;
-    }).filter(Boolean);
-    if (special.length) {
-      vl.push(`    - ⚠️ 특이건 ${special.length}건`);
-      special.slice(0, 6).forEach(({ c, why }) => vl.push(`      - ${vocLink(c)} ${vname(c)} · ${c.reason_category || c.voc_type || '-'} · ${why.join(', ')}`));
-      if (special.length > 6) vl.push(`      - 외 ${special.length - 6}건은 [VOC 목록](#/voc-list)에서`);
-    }
+    // 특이건 목록은 2026-10-14 사용자 요청으로 뺌 (과실 상품 줄의 VOC 링크로 충분)
     vocLines.push(vl.join('\n'));
     // 게시판 (2026-10-14 회의록 자세히): 유형 TOP · 상품문의 세부 · 재입고 TOP(고객이 찾는 색·사이즈)
     const bw = bb.filter(x => inWeek(x.written_at, cf, ct) && x.inquiry_type !== '답변(제외)');
