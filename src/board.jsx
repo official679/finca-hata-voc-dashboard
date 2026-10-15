@@ -30,6 +30,7 @@ const STAFF_ANSWER = /^\s*(\[[^\]]*\]\s*)?(안녕하세요[\s,.!~]*)?(고객님[
 const isStaffAnswer = (text) => STAFF_ANSWER.test(text || '');
 const isInquiry = (r) => r.inquiry_type !== ANSWER_TYPE;
 const AUTO_PRODUCT_NOTE = '상품 자동 연결';
+const MANUAL_PRODUCT_NOTE = '상품 직접 지정';
 
 // 상품명에서 사이즈·색상 수·말머리를 빼고 상품 단위 이름만 남김 (SS·Q/K 같은 옵션을 한 상품으로 묶기 위함)
 function coreName(name) {
@@ -147,6 +148,8 @@ function BoardAnalysisPage() {
   const [onlyIds, setOnlyIds] = useState(() => { const v = urlParams.get('ids'); return v ? new Set(v.split(',').map(Number).filter(Boolean)) : null; });
   const [brand, setBrand] = useState(urlParams.get('brand') || '핀카');
   const scrolledRef = useRef(false);
+  const [editingId, setEditingId] = useState(null);
+  const productNames = useMemo(() => [...new Set(products.filter(p => p.brand === PRODUCT_BRAND[brand]).map(p => coreName(p.product_name)).filter(Boolean))].sort(), [products, brand]);
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [period, setPeriod] = useState('6');     // 기본 최근 6개월
@@ -191,6 +194,19 @@ function BoardAnalysisPage() {
     if (error) { toast('❌ ' + error.message, 'err'); return; }
     setRows(prev => prev.map(r => r.id === id ? { ...r, inquiry_type: t } : r));
     toast('✅ 유형을 바꿨어요');
+  };
+
+  // 상품 미지정 문의에 상품 직접 넣기 (2026-10-15 사용자 요청: 데일리 리포트 '(상품 미지정)'을 고치려고)
+  //   상품 마스터에 같은 이름이 있으면 연결, 없으면 쓴 이름만 저장 → 데일리 리포트·회의록·분석에 바로 반영
+  const assignProduct = async (r, name) => {
+    const nm = String(name || '').trim();
+    const hit = nm && products.find(p => p.brand === PRODUCT_BRAND[r.brand] && (p.product_name === nm || coreName(p.product_name) === nm));
+    const patch = { product_name: nm || null, product_id: hit ? hit.id : null, note: nm ? MANUAL_PRODUCT_NOTE : null };
+    const { error } = await db.from('board_items').update(patch).eq('id', r.id);
+    if (error) { toast('❌ ' + error.message, 'err'); return; }
+    setRows(prev => prev.map(x => x.id === r.id ? { ...x, ...patch } : x));
+    setEditingId(null);
+    toast(nm ? `✅ 상품을 '${nm}'(으)로 넣었어요` : '✅ 상품을 비웠어요');
   };
 
   const runTidy = async () => {
@@ -286,14 +302,28 @@ function BoardAnalysisPage() {
             {(type || sub || product || q) && <button className="btn-link" onClick={() => { setType(''); setSub(''); setProduct(''); setQ(''); }}>초기화</button>}
           </span>
         </div>
+        <datalist id={`board-products-${brand}`}>{productNames.map(n => <option key={n} value={n} />)}</datalist>
         <Paged items={list} resetKey={`${type}|${sub}|${product}|${q}|${brand}|${platform}|${period}`} empty="해당하는 문의가 없어요" render={r => (
           <div className="review-card" key={r.id}>
             <div className="review-head">
               <Select value={r.inquiry_type || '기타'} onChange={t => setInquiryType(r.id, t)} options={BOARD_TYPE_NAMES} />
               <span className="chip">{r.platform}</span>
               <span className="muted">{fmtDate((r.written_at || '').slice(0, 10))}</span>
-              <span className="review-product" title={r.product_name || ''}>{r.product_name || r.title || ''}</span>
+              {editingId === r.id ? (
+                <span style={{ display: 'flex', gap: 6, alignItems: 'center', flex: 1, minWidth: 260 }}>
+                  <input className="input" autoFocus list={`board-products-${r.brand}`} defaultValue={r.product_name || ''} placeholder="상품명 (목록에서 고르거나 직접 쓰기)" style={{ flex: 1 }}
+                    onKeyDown={e => { if (e.key === 'Enter') assignProduct(r, e.target.value); if (e.key === 'Escape') setEditingId(null); }} id={`assign-${r.id}`} />
+                  <button className="btn btn-primary btn-sm" onClick={() => assignProduct(r, document.getElementById(`assign-${r.id}`).value)}>저장</button>
+                  <button className="btn-link" onClick={() => setEditingId(null)}>취소</button>
+                </span>
+              ) : (
+                <>
+                  <span className="review-product" title={r.product_name || ''}>{r.product_name || <span className="muted">(상품 미지정)</span>}</span>
+                  <button className="btn-link" style={{ fontSize: 12 }} onClick={() => setEditingId(r.id)}>{r.product_name ? '✏️ 상품 바꾸기' : '＋ 상품 지정'}</button>
+                </>
+              )}
               {r.note === AUTO_PRODUCT_NOTE && <span className="chip chip-amber" title="문의·답변 내용에서 찾은 상품이에요">자동 연결</span>}
+              {r.note === MANUAL_PRODUCT_NOTE && <span className="chip" title="사람이 직접 고른 상품이에요">직접 지정</span>}
               {r.option_text && <span className="chip">{r.option_text}</span>}
             </div>
             <div className="review-body">{r.title && r.title !== r.product_name ? <b>{r.title} · </b> : null}{r.content}</div>

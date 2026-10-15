@@ -30,6 +30,7 @@ function DailyReportPanel({ date: startDate, onClose }) {
   const toast = useToast();
   const ref = useRef(null);
   const [busy, setBusy] = useState('');
+  const [editText, setEditText] = useState(false);   // ✏️ 글자 고치기 (2026-10-15): 리포트 글자를 바로 고침, 이번 이미지에만 (저장 안 됨)
   // ◀ ▶ 로 지난 리포트 넘겨 보기 (보고일은 평일만: 토·일 건너뜀). 저장된 숫자로 다시 만들어서 보여줌
   const [date, setDate] = useState(startDate);
   const shiftDay = (n) => {
@@ -64,7 +65,8 @@ function DailyReportPanel({ date: startDate, onClose }) {
   // 오늘 보고일 리포트를 복사·저장하면 메인 '오늘 할 일' ③에 ✓ (이 PC 기준)
   const markReportDone = () => { if (date === today()) try { localStorage.setItem('dailyReportDone', date); } catch {} };
   const capture = async () => {
-    const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+    if (document.activeElement) document.activeElement.blur();
+    const canvas = await html2canvas(ref.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true, onclone: (doc) => doc.querySelectorAll('.dr-editing').forEach(el => el.classList.remove('dr-editing')) });
     return new Promise(res => canvas.toBlob(res, 'image/png'));
   };
   const copy = async () => {
@@ -104,12 +106,15 @@ function DailyReportPanel({ date: startDate, onClose }) {
             <button className="btn btn-primary" onClick={copy} disabled={!!busy}>📋 이미지 복사</button>
             <button className="btn" onClick={save} disabled={!!busy}>⬇ PNG 저장</button>
             <button className="btn" onClick={async () => { await navigator.clipboard.writeText(slackText); toast('📋 제목 글을 복사했어요'); }}>📝 제목 글 복사</button>
+            <button className={`btn btn-sm${editText ? ' btn-primary' : ''}`} onClick={() => setEditText(v => !v)} title="리포트 글자를 눌러 바로 고쳐요 (이번 이미지에만, 저장 안 됨)">{editText ? '✅ 고치기 끝' : '✏️ 글자 고치기'}</button>
             <button className="btn btn-sm" onClick={onClose}>닫기</button>
           </div>
         </div>
-        <div className="hint" style={{ marginBottom: 10 }}>{busy || '저장된 CS 데일리 숫자와 그날 접수된 VOC로 만들어요. 숫자를 고쳤다면 먼저 저장해 주세요. 슬랙: 제목 글 붙여넣기 → 이미지 붙여넣기(Ctrl+V)'}</div>
+        <div className="hint" style={{ marginBottom: 10 }}>{busy || (editText
+          ? '✏️ 리포트 글자를 눌러 바로 고치세요. 고친 내용은 이번 이미지에만 들어가고 저장되지 않아요 (날짜·브랜드를 바꾸면 원래대로). 상품 미지정은 게시판에서 상품을 넣으면 다음부터 자동으로 나와요.'
+          : '저장된 CS 데일리 숫자와 그날 접수된 VOC로 만들어요. 숫자를 고쳤다면 먼저 저장해 주세요. 슬랙: 제목 글 붙여넣기 → 이미지 붙여넣기(Ctrl+V) · 재입고 상품 줄을 누르면 그 글을 봐요')}</div>
         <div style={{ overflowX: 'auto' }}>
-          <div ref={ref} className="dr">
+          <div ref={ref} key={`${date}|${only}`} className={`dr${editText ? ' dr-editing' : ''}`} contentEditable={editText} suppressContentEditableWarning>
             <div className="dr-head">
               <div><div className="dr-title">{titleBrand} CS 데일리 리포트</div>
                 <div className="dr-sub">{date.replace(/-/g, '.')} ({WEEKDAY[d.getDay()]}) · 전일 접수 기준 · 데이터 {dataLabel(date)}</div></div>
@@ -246,7 +251,7 @@ function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from,
               <div className="dr-box-sub">🔁 재입고 문의 상품 <span>오늘 · 최근 7일</span></div>
               {ins.restockTop.length ? (
                 <table className="dr-mini"><tbody>{ins.restockTop.map(x => (
-                  <tr key={x.name} className="clickable" title="누르면 이 문의 글을 게시판 화면에서 바로 봐요" onClick={() => { location.hash = `/board?brand=${encodeURIComponent(brand)}&ids=${x.ids.join(',')}`; }}><td>{x.name}{x.wantText && <div className="dr-want">👉 {x.wantText}</div>}</td><td className="n">{x.today}</td><td className="n muted">{x.week}</td></tr>
+                  <tr key={x.name} className="clickable" title="누르면 이 문의 글을 게시판 화면에서 바로 봐요" onClick={e => { if (e.currentTarget.closest('[contenteditable="true"]')) return; location.hash = `/board?brand=${encodeURIComponent(brand)}&ids=${x.ids.join(',')}`; }}><td>{x.name}{x.wantText && <div className="dr-want">👉 {x.wantText}</div>}</td><td className="n">{x.today}</td><td className="n muted">{x.week}</td></tr>
                 ))}</tbody></table>
               ) : <div className="dr-note">최근 7일 재입고 문의 없음</div>}
             </div>
