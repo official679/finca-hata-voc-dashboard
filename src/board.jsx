@@ -142,7 +142,11 @@ function restockRanking(rows, productById, since) {
 function BoardAnalysisPage() {
   const { productById, products } = useApp();
   const toast = useToast();
-  const [brand, setBrand] = useState('핀카');
+  // 데일리 리포트 재입고 상품 줄을 누르면 #/board?brand=…&ids=1,2 → 그 글만 목록에 (2026-10-15 사용자 요청)
+  const urlParams = useMemo(() => new URLSearchParams(location.hash.split('?')[1] || ''), []);
+  const [onlyIds, setOnlyIds] = useState(() => { const v = urlParams.get('ids'); return v ? new Set(v.split(',').map(Number).filter(Boolean)) : null; });
+  const [brand, setBrand] = useState(urlParams.get('brand') || '핀카');
+  const scrolledRef = useRef(false);
   const [category, setCategory] = useState('');
   const [platform, setPlatform] = useState('');
   const [period, setPeriod] = useState('6');     // 기본 최근 6개월
@@ -179,7 +183,7 @@ function BoardAnalysisPage() {
   // '그 외'는 맨 아래·회색 (2026-10-14 사용자 요청)
   const subs = PRODUCT_Q_SUBTYPES.map(([k]) => k).map(k => ({ label: k, count: productQs.filter(r => productQSubtype(qText(r)) === k).length })).filter(x => x.count).sort((a, b) => b.count - a.count)
     .concat([{ label: '그 외', muted: true, count: productQs.filter(r => productQSubtype(qText(r)) === '그 외').length }].filter(x => x.count));
-  const list = scoped.filter(r => (!type || r.inquiry_type === type) && (!sub || (r.inquiry_type === '상품문의' && productQSubtype(qText(r)) === sub)) && (!product || nameOf(r) === product) &&
+  const list = onlyIds ? scoped.filter(r => onlyIds.has(r.id)) : scoped.filter(r => (!type || r.inquiry_type === type) && (!sub || (r.inquiry_type === '상품문의' && productQSubtype(qText(r)) === sub)) && (!product || nameOf(r) === product) &&
     matchQuery(query, r.product_name, r.title, r.content));
 
   const setInquiryType = async (id, t) => {
@@ -272,12 +276,13 @@ function BoardAnalysisPage() {
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 16 }}>
+      <div className="card" style={{ marginTop: 16 }} ref={el => { if (el && onlyIds && !scrolledRef.current) { scrolledRef.current = true; setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150); } }}>
         <div className="card-title">
           <span>문의 목록 <small>{list.length.toLocaleString()}건{product ? ` · ${product}` : ''} · 유형이 틀리면 바로 바꿀 수 있어요</small></span>
           <span className="filters">
             <Select value={type} onChange={v => { setType(v); setSub(''); }} options={BOARD_TYPE_NAMES} placeholder="유형 전체" />{sub && <span className="chip chip-blue">세부: {sub} <button className="btn-link" onClick={() => setSub('')}>✕</button></span>}
             <input className="input" value={q} onChange={e => setQ(e.target.value)} placeholder="상품명·내용 검색" />
+            {onlyIds && <span className="chip chip-blue">📸 데일리 리포트에서 연 글 <button className="btn-link" onClick={() => { setOnlyIds(null); history.replaceState(null, '', '#/board'); }}>✕ 전체 보기</button></span>}
             {(type || sub || product || q) && <button className="btn-link" onClick={() => { setType(''); setSub(''); setProduct(''); setQ(''); }}>초기화</button>}
           </span>
         </div>

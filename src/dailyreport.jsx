@@ -55,7 +55,7 @@ function DailyReportPanel({ date: startDate, onClose }) {
     let alive = true;
     const s = (d) => `${d}T00:00:00+09:00`, e = (d) => `${d}T23:59:59+09:00`;
     Promise.all([
-      fetchAll(() => db.from('board_items').select('brand,platform,product_name,title,content,inquiry_type,written_at').gte('written_at', s(week0 < from ? week0 : from)).lte('written_at', e(to)).order('id')),
+      fetchAll(() => db.from('board_items').select('id,brand,platform,product_name,title,content,inquiry_type,written_at').gte('written_at', s(week0 < from ? week0 : from)).lte('written_at', e(to)).order('id')),
       fetchAll(() => db.from('review_items').select('brand,platform,product_name,rating,content,written_at').gte('written_at', s(from)).lte('written_at', e(to)).order('id')),
     ]).then(([boards, reviews]) => { if (alive) setExtra({ boards, reviews }); }).catch(() => { if (alive) setExtra({ boards: [], reviews: [] }); });
     return () => { alive = false; };
@@ -155,8 +155,9 @@ function reportInsights(brand, extra, vocs, from, to, week0, productById) {
   const restock = new Map();
   boards.filter(r => r.inquiry_type === '재입고' && day(r.written_at) >= week0).forEach(r => {
     const k = normProductName(r.product_name) || '(상품 미지정)';
-    if (!restock.has(k)) restock.set(k, { name: r.product_name || '(상품 미지정)', week: 0, today: 0, wants: new Map() });
+    if (!restock.has(k)) restock.set(k, { name: r.product_name || '(상품 미지정)', week: 0, today: 0, wants: new Map(), ids: [] });
     const x = restock.get(k); x.week++; if (inDay(r.written_at)) x.today++;
+    x.ids.push(r.id);
     // 고객이 찾는 색·사이즈 (색이 있으면 '버건디 Q/K', 사이즈만 있으면 'SS')
     const w = restockWants(`${r.title || ''} ${r.content || ''}`, r.product_name);
     const rest = [...w.items, ...w.sizes];
@@ -245,7 +246,7 @@ function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from,
               <div className="dr-box-sub">🔁 재입고 문의 상품 <span>오늘 · 최근 7일</span></div>
               {ins.restockTop.length ? (
                 <table className="dr-mini"><tbody>{ins.restockTop.map(x => (
-                  <tr key={x.name}><td>{x.name}{x.wantText && <div className="dr-want">👉 {x.wantText}</div>}</td><td className="n">{x.today}</td><td className="n muted">{x.week}</td></tr>
+                  <tr key={x.name} className="clickable" title="누르면 이 문의 글을 게시판 화면에서 바로 봐요" onClick={() => { location.hash = `/board?brand=${encodeURIComponent(brand)}&ids=${x.ids.join(',')}`; }}><td>{x.name}{x.wantText && <div className="dr-want">👉 {x.wantText}</div>}</td><td className="n">{x.today}</td><td className="n muted">{x.week}</td></tr>
                 ))}</tbody></table>
               ) : <div className="dr-note">최근 7일 재입고 문의 없음</div>}
             </div>

@@ -146,7 +146,7 @@ function Shell({ session }) {
     'review-list': <ReviewListPage key={location.hash} />,
     'upload-board': <DataUploadPage />,
     'upload-orders': <DataUploadPage />,
-    board: <BoardAnalysisPage />,
+    board: <BoardAnalysisPage key={location.hash} />,
     'voc-new': <VocEntryPage />,
     'voc-list': <VocListPage />,
     codes: <CodesPage />,
