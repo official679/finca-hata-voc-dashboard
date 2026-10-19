@@ -142,6 +142,8 @@ function ManualsPage() {
   const [q, setQ] = useState('');
   const [openId, setOpenId] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [reorder, setReorder] = useState(false);
+  const { codes, loadCodes } = useApp();
 
   const load = async () => {
     const { data, error } = await db.from('manuals').select('*').order('pinned', { ascending: false }).order('updated_at', { ascending: false });
@@ -159,14 +161,35 @@ function ManualsPage() {
   };
 
   if (!items) return <div className="loading-screen">불러오는 중...</div>;
-  const categories = [...new Set(items.map(m => m.category).filter(Boolean))].sort();
+  // 순서 = 사용자가 정한 순서(기준 목록 'manual_order' 한 줄에 '2,6,5,…') → 없는 글은 뒤에(고정 먼저, 최근 고친 순) (2026-10-19)
+  //   분류 칩도 글 순서대로(그 분류의 첫 글이 나오는 순서)
+  const orderItem = (codes || []).find(c => c.group_key === 'manual_order');
+  const savedOrder = String(orderItem?.label || '').split(',').map(Number).filter(Boolean);
+  const rank = (m) => { const i = savedOrder.indexOf(m.id); return i < 0 ? 1e6 : i; };
+  const sorted = [...items].sort((a, b) => rank(a) - rank(b));   // 같은 순위(정하지 않은 글)는 불러온 순서(고정·최근) 유지
+  const categories = [...new Set(sorted.map(m => m.category).filter(Boolean))];
   const query = q.trim().toLowerCase();
-  const list = items.filter(m => (!category || m.category === category) && matchQuery(query, m.title, m.body, m.category));
+  const list = sorted.filter(m => (!category || m.category === category) && matchQuery(query, m.title, m.body, m.category));
+  const move = async (m, dir) => {
+    const j = list.indexOf(m) + dir;
+    if (j < 0 || j >= list.length) return;
+    const other = list[j];
+    const ids = sorted.map(x => x.id);
+    const a = ids.indexOf(m.id), b = ids.indexOf(other.id);
+    [ids[a], ids[b]] = [ids[b], ids[a]];
+    const label = ids.join(',');
+    const { error } = orderItem
+      ? await db.from('code_items').update({ label }).eq('id', orderItem.id)
+      : await db.from('code_items').insert({ group_key: 'manual_order', label, sort_order: 1 });
+    if (error) { toast('❌ ' + error.message, 'err'); return; }
+    await loadCodes();
+  };
 
   return (
     <>
       <PageHeader title="업무 매뉴얼" desc="CS 업무 순서, 시스템 사용법, 자주 쓰는 답변 등을 모아 두는 곳이에요.">
         <input className="input" value={q} onChange={e => setQ(e.target.value)} placeholder="제목·내용 검색" />
+        <button className={`btn${reorder ? ' btn-primary' : ''}`} onClick={() => setReorder(r => !r)} title="▲▼로 글 순서를 바꿔요 (바로 저장)">{reorder ? '✅ 순서 바꾸기 끝' : '↕ 순서 바꾸기'}</button>
         <button className="btn btn-primary" onClick={() => setEditing({})}>＋ 새 매뉴얼</button>
       </PageHeader>
 
@@ -190,6 +213,10 @@ function ManualsPage() {
             <div className="manual-head" onClick={() => setOpenId(open ? null : m.id)}>
               <span>{m.pinned && '📌 '}{m.category && <span className="chip chip-blue" style={{ marginRight: 8 }}>{m.category}</span>}<b>{m.title}</b></span>
               <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                {reorder && <span onClick={e => e.stopPropagation()} style={{ marginRight: 10 }}>
+                  <button className="btn btn-sm" disabled={list.indexOf(m) === 0} onClick={() => move(m, -1)} title="위로">▲</button>{' '}
+                  <button className="btn btn-sm" disabled={list.indexOf(m) === list.length - 1} onClick={() => move(m, 1)} title="아래로">▼</button>
+                </span>}
                 {m.attachments?.length ? `📎${m.attachments.length} · ` : ''}{fmtDate(m.updated_at.slice(0, 10))} {open ? '▲' : '▼'}
               </span>
             </div>
