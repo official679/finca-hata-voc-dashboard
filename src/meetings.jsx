@@ -306,14 +306,17 @@ function useMeetings() {
   return [state, load];
 }
 
-// 이 회의에서 볼 논의사항: 이 회의에서 나온 것 + 이전 회의에서 나와 이 회의 날짜까지 안 끝난 것
+// 이 회의에서 볼 논의사항: 이 회의에서 나온 것 + 이전 회의에서 나와 이 회의 때까지 안 끝난 것
+// 완료 시각(done_ts, 27 SQL)이 있으면 회의록을 만든 시각과 비교 → 회의록 쓰기 전에 완료한 건 안 따라감 (2026-10-20 사용자 요청)
+// 예전 완료 건(시각 없음)은 날짜로: 회의 날짜 이후 완료면 따라감
 function itemsForMeeting(meeting, meetings, items) {
   const dateOf = new Map(meetings.map(m => [m.id, m.meeting_date]));
   const own = items.filter(i => i.meeting_id === meeting.id);
+  const doneAfter = (i) => i.done_ts ? new Date(i.done_ts) > new Date(meeting.created_at || Date.now()) : (i.done_at || '') >= meeting.meeting_date;
   const carried = items.filter(i => {
     if (i.meeting_id === meeting.id) return false;
     const origin = dateOf.get(i.meeting_id) || '';
-    return origin < meeting.meeting_date && (i.status !== '완료' || (i.done_at || '') >= meeting.meeting_date);
+    return origin < meeting.meeting_date && (i.status !== '완료' || doneAfter(i));
   });
   return { own, carried, originDate: (i) => dateOf.get(i.meeting_id) };
 }
@@ -423,7 +426,7 @@ function MeetingItemRow({ item, reload, origin, onOpenOrigin, carried, compact }
   const [f, setF] = useState({ title: item.title, detail: item.detail || '', owner: item.owner || '', result: item.result || '' });
   const done = item.status === '완료';
   const toggle = async () => {
-    const { error } = await db.from('meeting_items').update(done ? { status: '진행중', done_at: null } : { status: '완료', done_at: today() }).eq('id', item.id);
+    const { error } = await db.from('meeting_items').update(done ? { status: '진행중', done_at: null, done_ts: null } : { status: '완료', done_at: today(), done_ts: new Date().toISOString() }).eq('id', item.id);
     if (error) { toast('❌ ' + error.message, 'err'); return; }
     reload();
   };
