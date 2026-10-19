@@ -154,14 +154,14 @@ function Claims29Card() {
   useEffect(() => { if (ref.current) ref.current.setAttribute('href', CLAIMS29_BOOKMARKLET); }, []);   // React가 javascript: 주소를 막아서 직접 넣음
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-title">📋 29CM 반품·교환 정리 버튼 <small>손으로 따던 상품명·옵션·상세사유를 버튼 한 번으로</small></div>
+      <div className="card-title">📋 29CM 반품·교환·상품문의 정리 버튼 <small>손으로 따던 상품명·옵션·상세사유·문의를 버튼 한 번으로</small></div>
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
         <a ref={ref} className="btn btn-primary" onClick={e => { e.preventDefault(); alert('이 버튼은 여기서 누르는 게 아니라, 크롬 즐겨찾기 막대로 끌어다 놓아서 써요.'); }}
           title="크롬 즐겨찾기 막대로 끌어다 놓으세요">📋 29CM 반품·교환 정리</a>
         <ol className="hint" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>처음 한 번: 왼쪽 파란 버튼을 <b>크롬 즐겨찾기 막대로 끌어다 놓기</b> (막대가 안 보이면 Ctrl + Shift + B)</li>
-          <li>29CM 어드민 → 주문/배송 → <b>반품</b>(또는 <b>교환</b>) → 날짜 맞춰 조회 → 즐겨찾기의 <b>📋 29CM 반품·교환 정리</b> 누르기</li>
-          <li>CS 접수번호를 하나씩 자동으로 열어 모은 뒤 <b>29CM_반품_정리_날짜.csv</b>가 받아져요 → 여기 데이터 업로드에 그대로 올리기</li>
+          <li>29CM 어드민 → 주문/배송 → <b>반품</b>·<b>교환</b>, 또는 문의/리뷰 → <b>상품 문의</b> → 날짜 맞춰 조회 → 즐겨찾기의 <b>📋 29CM 반품·교환 정리</b> 누르기 (상품 문의는 마지막 쪽까지 알아서 넘겨요)</li>
+          <li>CS 접수번호를 하나씩 자동으로 열어 모은 뒤 <b>29CM_반품_정리_날짜.csv</b>(상품 문의는 29CM_상품문의_정리_날짜.csv)가 받아져요 → 여기 데이터 업로드에 그대로 올리기</li>
         </ol>
       </div>
       <div className="hint" style={{ marginTop: 8 }}>주문자·수령자·주소·연락처는 <b>읽지 않아요</b>. AI·서버를 거치지 않고 내 크롬 안에서만 돌아요. 한 화면에 보이는 목록만 정리하니 건수가 많으면 목록 개수를 늘리거나 쪽마다 눌러 주세요. 철회 건은 빼요.</div>
