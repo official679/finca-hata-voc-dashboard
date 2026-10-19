@@ -108,19 +108,21 @@ async function claims29Qna(opts) {
   const waitChange = async (before) => { for (let i = 0; i < 40; i++) { await sleep(150); if (firstNo() && firstNo() !== before) return true; } return false; };
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#1D4FA3;color:#fff;padding:12px 16px;border-radius:10px;font:14px sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2)';
-  // 날짜를 안 넣고 검색하면 전체 기간이 나와 끝없이 넘어감 (2026-10-19 사용자) → 최근 3일만 모으고 그 전 글이 나오면 멈춤
+  document.body.appendChild(toast);
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  // 기간 = 등록일 기준 어제, 월요일이면 금~일 (반품·교환과 같은 규칙, 2026-10-19 사용자) · 바꿔 적을 수 있음
+  // 기간 = 29CM에서 넣고 검색한 등록기간 (주소에 남음). 날짜 없이 검색하면 29CM이 오래된 글부터 끝없이 보여 줘서 멈춤 (2026-10-19)
+  //   매일 기준 = 어제, 월요일이면 금~일 (반품·교환과 같은 규칙) → 날짜가 없으면 그 기간을 알려 줌
   const t0 = new Date(); const y = new Date(t0); y.setDate(t0.getDate() - 1);
   const f = new Date(t0); f.setDate(t0.getDate() - (t0.getDay() === 1 ? 3 : 1));
-  let ans = '';
-  if (opts && opts.dryRun) ans = opts.range || `${ymd(f)}~${ymd(y)}`;
-  else ans = prompt(`상품 문의 '등록일'이 이 기간인 것만 모아요. (예: ${ymd(f)}~${ymd(y)})\n그대로 [확인]을 누르면 아래 기간이에요.`, `${ymd(f)}~${ymd(y)}`);
-  if (ans === null) { toast.remove(); return null; }
-  const m = String(ans).match(/(\d{4}-\d{2}-\d{2})\s*~?\s*(\d{4}-\d{2}-\d{2})?/);
-  if (!m) { toast.remove(); alert('기간을 2026-10-18~2026-10-18 처럼 적어 주세요.'); return null; }
-  const cutoff = m[1], until = m[2] || m[1];
+  const qs0 = new URLSearchParams(location.search);
+  const sd = (qs0.get('startDate') || '').slice(0, 10), ed = (qs0.get('endDate') || '').slice(0, 10);
+  if (!(opts && opts.dryRun) && (!sd || !ed)) {
+    toast.remove();
+    alert(`29CM 등록기간을 먼저 넣고 [검색하기]를 눌러 주세요.\n오늘 기준: ${ymd(f)} ~ ${ymd(y)}\n(날짜 없이 검색하면 오래된 글부터 끝없이 나와요)`);
+    return null;
+  }
+  const cutoff = (opts && opts.range) ? opts.range.slice(0, 10) : sd, until = (opts && opts.range) ? opts.range.slice(-10) : ed;
   let stop = false;
   toast.style.cursor = 'pointer'; toast.title = '누르면 여기까지 모은 것만 저장해요';
   toast.onclick = () => { stop = true; };
