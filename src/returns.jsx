@@ -49,8 +49,9 @@ const RETURN_FORMATS = [
   // 같은 반품이 접수→수거중→완료로 여러 날 올라와도 주문번호로 묶여서 한 번만 저장 · 주문자 이름은 읽지 않음
   ...[['반품', '반품사유', '반품접수일'], ['교환', '교환사유', '교환접수일']].map(([kind, col, dateCol]) => ({
     kind: 'return', label: `29CM ${kind} (데일리 정리)`, headers: ['처리상태', '주문번호', col],
-    map: (r) => ({ key: /철회/.test(retStr(r['처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}`,
-      brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']),
+    // '상품순번' 칸 = 29CM 정리 버튼(claims29.js)이 한 접수에 상품이 여러 개일 때 붙임 → 2번째 상품부터 따로 저장 (1번째는 예전 키 그대로)
+    map: (r) => ({ key: /철회/.test(retStr(r['처리상태'])) || !retStr(r['주문번호']) ? '' : `${kind}|${retStr(r['주문번호'])}${parseInt(r['상품순번'], 10) > 1 ? `|${parseInt(r['상품순번'], 10)}` : ''}`,
+      brand: normBrand(r['브랜드']), platform: '29CM', ret_kind: kind, order_no: retStr(r['주문번호']), ...(parseInt(r['수량'], 10) > 0 ? { qty: parseInt(r['수량'], 10) } : {}),
       reason_raw: retStr(r[col]), reason_detail: retClean(r['상세사유'] || r['상세 사유'] || r[`${kind} 상세사유`]), claim_status: retStr(r['처리상태']),
       claim_date: retDate(r[dateCol] || r['접수일']), ...given29(r), needs_product: true, when: {} }),
   })),

@@ -113,6 +113,7 @@ function DataUploadPage() {
         guide={<UploadGuide kinds={['review', 'board', 'order', 'return']} />}
         onDone={() => setVersion(v => v + 1)}
       />
+      <Claims29Card />
       <ProductMasterUpload />
       <BackupCard />
       <OrderCategorySummary key={version} />
@@ -143,6 +144,29 @@ async function buildBackupWorkbook(setBusy) {
     counts.push(`${sheet} ${rows.length}`);
   }
   return { wb, counts, data };
+}
+
+// 29CM 반품·교환 정리 버튼 설치 (2026-10-19): 즐겨찾기 막대로 끌어다 놓는 버튼 → 29CM 화면에서 누르면 src/claims29.js를 불러와 실행
+//   스크립트는 이 사이트에서 매번 새로 불러옴 → 29CM 화면이 바뀌어 고칠 때 claims29.js만 고치면 버튼은 다시 안 만들어도 됨
+const CLAIMS29_BOOKMARKLET = `javascript:(()=>{const s=document.createElement('script');s.src='${location.origin}/src/claims29.js?'+Date.now();s.onload=()=>claims29Run();s.onerror=()=>alert('대시보드에서 정리 버튼 파일을 못 불러왔어요');document.body.appendChild(s);})()`;
+function Claims29Card() {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.setAttribute('href', CLAIMS29_BOOKMARKLET); }, []);   // React가 javascript: 주소를 막아서 직접 넣음
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-title">📋 29CM 반품·교환 정리 버튼 <small>손으로 따던 상품명·옵션·상세사유를 버튼 한 번으로</small></div>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <a ref={ref} className="btn btn-primary" onClick={e => { e.preventDefault(); alert('이 버튼은 여기서 누르는 게 아니라, 크롬 즐겨찾기 막대로 끌어다 놓아서 써요.'); }}
+          title="크롬 즐겨찾기 막대로 끌어다 놓으세요">📋 29CM 반품·교환 정리</a>
+        <ol className="hint" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>처음 한 번: 왼쪽 파란 버튼을 <b>크롬 즐겨찾기 막대로 끌어다 놓기</b> (막대가 안 보이면 Ctrl + Shift + B)</li>
+          <li>29CM 어드민 → 주문/배송 → <b>반품</b>(또는 <b>교환</b>) → 날짜 맞춰 조회 → 즐겨찾기의 <b>📋 29CM 반품·교환 정리</b> 누르기</li>
+          <li>CS 접수번호를 하나씩 자동으로 열어 모은 뒤 <b>29CM_반품_정리_날짜.csv</b>가 받아져요 → 여기 데이터 업로드에 그대로 올리기</li>
+        </ol>
+      </div>
+      <div className="hint" style={{ marginTop: 8 }}>주문자·수령자·주소·연락처는 <b>읽지 않아요</b>. AI·서버를 거치지 않고 내 크롬 안에서만 돌아요. 한 화면에 보이는 목록만 정리하니 건수가 많으면 목록 개수를 늘리거나 쪽마다 눌러 주세요. 철회 건은 빼요.</div>
+    </div>
+  );
 }
 
 // ── 🗂 백업 받기 = zip 하나 (2026-10-14 사용자 요청으로 전체 내보내기·엑셀만·보관용·리포트용 4개를 하나로) ──
