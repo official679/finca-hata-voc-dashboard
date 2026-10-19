@@ -93,20 +93,34 @@ async function claims29Qna(opts) {
   const waitChange = async (before) => { for (let i = 0; i < 40; i++) { await sleep(150); if (firstNo() && firstNo() !== before) return true; } return false; };
   const toast = document.createElement('div');
   toast.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#1D4FA3;color:#fff;padding:12px 16px;border-radius:10px;font:14px sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2)';
-  document.body.appendChild(toast);
+  // 날짜를 안 넣고 검색하면 전체 기간이 나와 끝없이 넘어감 (2026-10-19 사용자) → 최근 3일만 모으고 그 전 글이 나오면 멈춤
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  let cutoff = '';
+  if (!new URLSearchParams(location.search).get('startDate')) {
+    const d = new Date(); d.setDate(d.getDate() - 3); cutoff = ymd(d);
+    if (!confirm(`검색 날짜가 비어 있어요.\n최근 3일(${cutoff} ~ 오늘) 문의만 모을까요?\n\n[취소]를 누르면 멈춰요. 다른 기간은 날짜를 넣고 [검색하기] 뒤에 다시 눌러 주세요.`)) { toast.remove(); return null; }
+  }
+  let stop = false;
+  toast.style.cursor = 'pointer'; toast.title = '누르면 여기까지 모은 것만 저장해요';
+  toast.onclick = () => { stop = true; };
   // 1쪽부터
   const p1 = [...document.querySelectorAll('li[title="1"]')].pop();
   if (p1 && !/active/.test(p1.className)) { const b = firstNo(); (p1.querySelector('a,button') || p1).click(); await waitChange(b); }
   const out = [], seen = new Set();
-  for (let page = 1; page <= 200; page++) {
-    toast.textContent = `📋 29CM 상품 문의 정리 중... ${page}쪽`;
+  for (let page = 1; page <= 50 && !stop; page++) {
+    toast.textContent = `📋 29CM 상품 문의 정리 중... ${page}쪽 · ${out.length}건 (누르면 멈춤)`;
+    let older = false;
     rowsOf().forEach((r) => {
       const no = norm(r.children[ix('번호')].innerText);
+      const when = norm(r.children[ix('등록일시')].innerText);
+      if (cutoff && when.slice(0, 10) < cutoff) { older = true; return; }
       if (!no || seen.has(no)) return;
       seen.add(no);
-      out.push({ '문의번호': no, '작성일': norm(r.children[ix('등록일시')].innerText), '브랜드': norm(r.children[ix('브랜드')].innerText),
+      out.push({ '문의번호': no, '작성일': when, '브랜드': norm(r.children[ix('브랜드')].innerText),
         '상품명': norm(r.children[ix('상품')].innerText), '문의 내용': norm(r.children[ix('문의 내용')].innerText) });
     });
+    if (older) break;   // 최신 글부터 나오므로 기간보다 오래된 글이 보이면 끝
     const next = [...document.querySelectorAll('li[title="Next Page"]')].pop();
     if (!next || next.getAttribute('aria-disabled') === 'true') break;
     const b = firstNo(); (next.querySelector('button,a') || next).click();
