@@ -17,6 +17,21 @@ async function claims29Run(opts) {
   if (miss.length) { alert('29CM 화면에서 이 칸을 못 찾았어요: ' + miss.join(', ') + '\n(29CM 화면이 바뀐 것 같아요. 버튼을 고쳐야 해요)'); return null; }
   let rows = [...table.querySelectorAll(':scope > tbody > tr')].filter((r) => r.children.length === heads.length);
   if (opts.limit) rows = rows.slice(0, opts.limit);
+  // 접수일 기준으로만 모음 (2026-10-19 사용자: 29CM 목록은 기본이 '주문일' 조회라서) · 기본 = 어제, 월요일이면 금~일
+  if (!opts.dryRun) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const t0 = new Date(); const y = new Date(t0); y.setDate(t0.getDate() - 1);
+    const f = new Date(t0); f.setDate(t0.getDate() - (t0.getDay() === 1 ? 3 : 1));
+    const ans = prompt(`${kind} '접수일'이 이 기간인 건만 모아요. (예: ${ymd(f)}~${ymd(y)})\n그대로 [확인]을 누르면 아래 기간이에요.`, `${ymd(f)}~${ymd(y)}`);
+    if (ans === null) return null;
+    const m = String(ans).match(/(\d{4}-\d{2}-\d{2})\s*~?\s*(\d{4}-\d{2}-\d{2})?/);
+    if (!m) { alert('기간을 2026-10-18~2026-10-18 처럼 적어 주세요.'); return null; }
+    const from = m[1], to = m[2] || m[1];
+    const all = rows.length;
+    rows = rows.filter((r) => { const d = norm(r.children[ix(kind + ' 접수일')].innerText).replace(/\./g, '-').slice(0, 10); return d >= from && d <= to; });
+    if (!rows.length) { alert(`이 화면 목록(${all}건) 중 접수일이 ${from}~${to}인 ${kind} 건이 없어요.\n29CM 조회 기간이 그 접수일을 포함하는지 확인해 주세요.`); return null; }
+  }
   // 상세 패널은 누를 때마다 새로 열림 → CS 접수번호가 같은 패널을 찾아 읽고 닫음
   const findPanel = (cs) => {
     const th = [...document.querySelectorAll('th')].find((t) => norm(t.innerText) === 'CS 접수번호' && t.nextElementSibling && norm(t.nextElementSibling.innerText) === cs);
@@ -96,11 +111,16 @@ async function claims29Qna(opts) {
   // 날짜를 안 넣고 검색하면 전체 기간이 나와 끝없이 넘어감 (2026-10-19 사용자) → 최근 3일만 모으고 그 전 글이 나오면 멈춤
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  let cutoff = '';
-  if (!new URLSearchParams(location.search).get('startDate')) {
-    const d = new Date(); d.setDate(d.getDate() - 3); cutoff = ymd(d);
-    if (!confirm(`검색 날짜가 비어 있어요.\n최근 3일(${cutoff} ~ 오늘) 문의만 모을까요?\n\n[취소]를 누르면 멈춰요. 다른 기간은 날짜를 넣고 [검색하기] 뒤에 다시 눌러 주세요.`)) { toast.remove(); return null; }
-  }
+  // 기간 = 등록일 기준 어제, 월요일이면 금~일 (반품·교환과 같은 규칙, 2026-10-19 사용자) · 바꿔 적을 수 있음
+  const t0 = new Date(); const y = new Date(t0); y.setDate(t0.getDate() - 1);
+  const f = new Date(t0); f.setDate(t0.getDate() - (t0.getDay() === 1 ? 3 : 1));
+  let ans = '';
+  if (opts && opts.dryRun) ans = opts.range || `${ymd(f)}~${ymd(y)}`;
+  else ans = prompt(`상품 문의 '등록일'이 이 기간인 것만 모아요. (예: ${ymd(f)}~${ymd(y)})\n그대로 [확인]을 누르면 아래 기간이에요.`, `${ymd(f)}~${ymd(y)}`);
+  if (ans === null) { toast.remove(); return null; }
+  const m = String(ans).match(/(\d{4}-\d{2}-\d{2})\s*~?\s*(\d{4}-\d{2}-\d{2})?/);
+  if (!m) { toast.remove(); alert('기간을 2026-10-18~2026-10-18 처럼 적어 주세요.'); return null; }
+  const cutoff = m[1], until = m[2] || m[1];
   let stop = false;
   toast.style.cursor = 'pointer'; toast.title = '누르면 여기까지 모은 것만 저장해요';
   toast.onclick = () => { stop = true; };
@@ -114,7 +134,8 @@ async function claims29Qna(opts) {
     rowsOf().forEach((r) => {
       const no = norm(r.children[ix('번호')].innerText);
       const when = norm(r.children[ix('등록일시')].innerText);
-      if (cutoff && when.slice(0, 10) < cutoff) { older = true; return; }
+      if (when.slice(0, 10) < cutoff) { older = true; return; }
+      if (when.slice(0, 10) > until) return;   // 기간보다 새 글(오늘 글 등)은 건너뜀
       if (!no || seen.has(no)) return;
       seen.add(no);
       out.push({ '문의번호': no, '작성일': when, '브랜드': norm(r.children[ix('브랜드')].innerText),
