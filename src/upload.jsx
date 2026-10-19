@@ -405,7 +405,9 @@ function UploadPanel({ configs, onDone, guide }) {
               <thead><tr><th>파일 · 시트</th><th>종류</th><th>인식된 형식</th><th>플랫폼</th><th className="num">건수</th><th>기간</th></tr></thead>
               <tbody>
                 {sheets.map(s => {
-                  const dates = s.rows.map(r => r.when?.key).filter(Boolean).sort();
+                  // 반품·교환은 작성 시각이 없어서 접수일로 보여 줌 · 접수일 칸이 없는 파일은 저장할 때 어제 날짜가 들어감 (2026-10-19)
+                  const isReturn = s.format?.kind === 'return';
+                  const dates = s.rows.map(r => r.when?.key || (isReturn ? r.claim_date || toISODate(addDays(new Date(), -1)) : '')).filter(Boolean).sort();
                   return (
                     <tr key={s.file + s.name}>
                       <td>{s.file} · {s.name}{s.format && s.rows.some(r => !r.brand) && <span className="chip chip-amber" style={{ marginLeft: 6 }} title="이 시트는 브랜드를 알 수 없어 위에서 고른 브랜드로 저장돼요">브랜드 선택 필요</span>}</td>

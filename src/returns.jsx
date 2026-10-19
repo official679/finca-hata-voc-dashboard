@@ -62,6 +62,17 @@ const RETURN_FORMATS = [
       product_name: retStr(r['상품명']), option_text: retStr(r['옵션명']), qty: parseInt(r['구매수량'], 10) || 1,
       reason_raw: retStr(r['반품사유']), reason_detail: retClean(r['반품 상세사유']), claim_status: retStr(r['주문상태']) || null,
       order_date: retDate(r['주문일']) || retDateFromNo(r['주문번호']), when: {} }) },
+  // W컨셉 반품 (관리자 반품 목록 다운로드, 2026-10-19): 주문자·수취인·연락처 칸은 읽지 않음 · 옵션은 옵션1~3을 이어 붙임
+  { kind: 'return', label: 'W컨셉 반품', headers: ['접수일시', '주문번호', '주문상태', '클레임사유', '상품명'],
+    map: (r) => {
+      const st = retStr(r['주문상태']); const kind = /교환/.test(st) ? '교환' : '반품';
+      const opt = ['옵션1', '옵션2', '옵션3'].map((k) => retStr(r[k])).filter(Boolean).join(' / ');
+      return { key: !retStr(r['주문번호']) || /철회|취소/.test(st) ? '' : `${kind}|${retStr(r['주문번호'])}|${retStr(r['상품코드']) || retStr(r['상품명'])}`,
+        brand: normBrand(r['브랜드명']), platform: 'W컨셉', ret_kind: kind, order_no: retStr(r['주문번호']),
+        product_name: retStr(r['상품명']), option_text: opt, qty: parseInt(r['수량'], 10) || 1,
+        reason_raw: retStr(r['클레임사유']), reason_detail: '', claim_status: st || null,
+        order_date: retDate(r['결제일시']), claim_date: retDate(r['접수일시']), when: {} };
+    } },
   // EQL 클레임 (관리자 다운로드): 클레임구분 = 반품/교환, 철회·취소 상태는 제외 · 주문자·수취인 칸은 읽지 않음 (2026-10-06)
   { kind: 'return', label: 'EQL 반품·교환', headers: ['클레임번호', '주문번호', '클레임구분', '클레임상태', '상품명', '클레임사유'],
     map: (r) => {
