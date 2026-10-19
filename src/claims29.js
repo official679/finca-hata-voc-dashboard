@@ -6,6 +6,7 @@ async function claims29Run(opts) {
   opts = opts || {};
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  if (/\/admin\/shopping\/answers/.test(location.pathname)) return imwebQna(opts);
   if (/29cm\.co\.kr$/.test(location.hostname) && /\/product\/qna/.test(location.pathname)) return claims29Qna(opts);
   const kind = /exchange/.test(location.pathname) ? '교환' : /return/.test(location.pathname) ? '반품' : '';
   if (!/29cm\.co\.kr$/.test(location.hostname) || !kind) { alert('29CM 파트너 어드민의 [주문/배송 → 반품]·[교환] 또는 [문의/리뷰 → 상품 문의] 목록 화면에서 눌러 주세요.'); return null; }
@@ -162,4 +163,68 @@ async function claims29Qna(opts) {
   document.body.appendChild(a); a.click(); a.remove();
   alert(`✅ 29CM 상품 문의 ${out.length}건을 저장했어요.\n대시보드 → 데이터 업로드에 그대로 올려 주세요.`);
   return { kind: 'Q&A', count: out.length };
+}
+
+// 아임웹 관리자 문의 (2026-10-19): /admin/shopping/answers 목록은 쪽마다 주소가 있어서 화면을 넘기지 않고 받아 읽음 (최신 글부터)
+//   제목·내용·문의 상품·작성일만 읽음 (작성자 이름·우리 답변은 안 읽음) · 기간 = 작성일 전날, 월요일이면 금~일
+//   저장 = '아임웹 게시판 (간단)' 모양 CSV(상품명·문의제목·문의내용·작성일자) → 예전에 손으로 올린 글과 같은 키라 겹쳐도 중복 안 됨
+async function imwebQna(opts) {
+  opts = opts || {};
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const pad = (n) => String(n).padStart(2, '0');
+  const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const t0 = new Date(); const y = new Date(t0); y.setDate(t0.getDate() - 1);
+  const f = new Date(t0); f.setDate(t0.getDate() - (t0.getDay() === 1 ? 3 : 1));
+  const ans = opts.dryRun ? (opts.range || `${ymd(f)}~${ymd(y)}`) : prompt(`아임웹 문의 '작성일'이 이 기간인 것만 모아요.\n그대로 [확인]을 누르면 아래 기간이에요.`, `${ymd(f)}~${ymd(y)}`);
+  if (ans === null) return null;
+  const m = String(ans).match(/(\d{4}-\d{2}-\d{2})\s*~?\s*(\d{4}-\d{2}-\d{2})?/);
+  if (!m) { alert('기간을 2026-10-18~2026-10-18 처럼 적어 주세요.'); return null; }
+  const from = m[1], to = m[2] || m[1];
+  const brand = /hata/i.test(location.hostname) ? '하타' : '핀카';
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#1D4FA3;color:#fff;padding:12px 16px;border-radius:10px;font:14px sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2);cursor:pointer';
+  toast.title = '누르면 여기까지 모은 것만 저장해요';
+  let stop = false; toast.onclick = () => { stop = true; };
+  document.body.appendChild(toast);
+  const out = [], seen = new Set();
+  const base = new URLSearchParams(location.search); base.delete('page');
+  for (let page = 1; page <= 50 && !stop; page++) {
+    toast.textContent = `📋 아임웹 문의 정리 중... ${page}쪽 · ${out.length}건 (누르면 멈춤)`;
+    base.set('page', page);
+    let doc;
+    try { doc = new DOMParser().parseFromString(await fetch(`${location.pathname}?${base.toString()}`, { credentials: 'include' }).then((r) => r.text()), 'text/html'); }
+    catch (e) { break; }
+    const items = [...doc.querySelectorAll('.qr-card-item')];
+    if (!items.length) break;
+    let older = false;
+    items.forEach((it) => {
+      const when = norm(it.querySelector('.qr-card-item__date') && it.querySelector('.qr-card-item__date').textContent);
+      const day = when.slice(0, 10);
+      if (!day) return;
+      if (day < from) { older = true; return; }
+      if (day > to) return;
+      const id = it.getAttribute('data-qna-idx') || when + norm(it.querySelector('.qr-card-item__title') && it.querySelector('.qr-card-item__title').textContent);
+      if (seen.has(id)) return;
+      seen.add(id);
+      const body = it.querySelector('.qr-card-item__body');
+      if (body) body.querySelectorAll('br').forEach((b) => b.replaceWith('\n'));   // 받아 읽은 화면은 줄바꿈이 <br>이라 글자로 바꿈
+      out.push({ '상품명': norm(it.querySelector('.qr-card-item__product-name') && it.querySelector('.qr-card-item__product-name').textContent),
+        '문의제목': norm(it.querySelector('.qr-card-item__title') && it.querySelector('.qr-card-item__title').textContent),
+        '문의내용': body ? String(body.innerText || body.textContent || '').trim() : '', '작성일자': when });
+    });
+    if (older) break;
+    if (!doc.querySelector('.qr-pagination__pages li.next a')) break;
+  }
+  toast.remove();
+  if (opts.dryRun) return { kind: '아임웹 문의', out };
+  if (!out.length) { alert(`작성일이 ${from}~${to}인 아임웹 문의가 없어요.`); return null; }
+  const cols = ['상품명', '문의제목', '문의내용', '작성일자'];
+  const esc = (v) => { v = String(v == null ? '' : v); return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = '﻿' + [cols.join(','), ...out.map((o) => cols.map((k) => esc(o[k])).join(','))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `${brand}_아임웹_게시판_정리_${from}~${to}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  alert(`✅ ${brand} 아임웹 문의 ${out.length}건을 저장했어요 (${from}~${to}).\n대시보드 → 데이터 업로드에 그대로 올려 주세요.`);
+  return { kind: '아임웹 문의', count: out.length };
 }
