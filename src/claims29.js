@@ -6,8 +6,9 @@ async function claims29Run(opts) {
   opts = opts || {};
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  if (/29cm\.co\.kr$/.test(location.hostname) && /\/product\/qna/.test(location.pathname)) return claims29Qna(opts);
   const kind = /exchange/.test(location.pathname) ? '교환' : /return/.test(location.pathname) ? '반품' : '';
-  if (!/29cm\.co\.kr$/.test(location.hostname) || !kind) { alert('29CM 파트너 어드민의 [주문/배송 → 반품] 또는 [교환] 목록 화면에서 눌러 주세요.'); return null; }
+  if (!/29cm\.co\.kr$/.test(location.hostname) || !kind) { alert('29CM 파트너 어드민의 [주문/배송 → 반품]·[교환] 또는 [문의/리뷰 → 상품 문의] 목록 화면에서 눌러 주세요.'); return null; }
   const table = document.querySelector('table');
   const heads = table ? [...table.querySelectorAll('thead th')].map((h) => norm(h.innerText)) : [];
   const ix = (n) => heads.indexOf(n);
@@ -74,4 +75,54 @@ async function claims29Run(opts) {
   document.body.appendChild(a); a.click(); a.remove();
   alert(`✅ 29CM ${kind} ${out.length}줄을 저장했어요 (철회 ${skipped}건 제외${fail ? `, 상세를 못 읽은 ${fail}건은 상품 칸이 비어 있어요` : ''}).\n대시보드 → 데이터 업로드에 그대로 올려 주세요.`);
   return { kind, count: out.length };
+}
+
+// 29CM 상품 Q&A (2026-10-19): 목록에 상품·문의 내용·등록일시가 바로 있음 → 상세를 열지 않고 1쪽부터 마지막 쪽까지 넘기며 모음
+//   고객명·고객 아이디·답변 처리자는 읽지 않음 · 저장 = '29CM 상품 Q&A (정리 버튼)' 모양 CSV (문의번호로 중복 저장 안 됨)
+async function claims29Qna(opts) {
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const qtable = () => [...document.querySelectorAll('table')].find((t) => [...t.querySelectorAll('thead th')].some((h) => norm(h.innerText) === '문의 내용'));
+  let t = qtable();
+  const heads = t ? [...t.querySelectorAll('thead th')].map((h) => norm(h.innerText)) : [];
+  const ix = (n) => heads.indexOf(n);
+  const miss = ['번호', '브랜드', '상품', '문의 내용', '등록일시'].filter((n) => ix(n) < 0);
+  if (miss.length) { alert('29CM 상품 문의 화면에서 이 칸을 못 찾았어요: ' + miss.join(', ') + '\n(날짜를 넣고 [검색하기]를 먼저 눌러 주세요. 그래도 안 되면 29CM 화면이 바뀐 거예요)'); return null; }
+  const rowsOf = () => [...qtable().querySelectorAll('tbody tr')].filter((r) => r.children.length === heads.length);
+  const firstNo = () => { const r = rowsOf()[0]; return r ? norm(r.children[ix('번호')].innerText) : ''; };
+  const waitChange = async (before) => { for (let i = 0; i < 40; i++) { await sleep(150); if (firstNo() && firstNo() !== before) return true; } return false; };
+  const toast = document.createElement('div');
+  toast.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;background:#1D4FA3;color:#fff;padding:12px 16px;border-radius:10px;font:14px sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.2)';
+  document.body.appendChild(toast);
+  // 1쪽부터
+  const p1 = [...document.querySelectorAll('li[title="1"]')].pop();
+  if (p1 && !/active/.test(p1.className)) { const b = firstNo(); (p1.querySelector('a,button') || p1).click(); await waitChange(b); }
+  const out = [], seen = new Set();
+  for (let page = 1; page <= 200; page++) {
+    toast.textContent = `📋 29CM 상품 문의 정리 중... ${page}쪽`;
+    rowsOf().forEach((r) => {
+      const no = norm(r.children[ix('번호')].innerText);
+      if (!no || seen.has(no)) return;
+      seen.add(no);
+      out.push({ '문의번호': no, '작성일': norm(r.children[ix('등록일시')].innerText), '브랜드': norm(r.children[ix('브랜드')].innerText),
+        '상품명': norm(r.children[ix('상품')].innerText), '문의 내용': norm(r.children[ix('문의 내용')].innerText) });
+    });
+    const next = [...document.querySelectorAll('li[title="Next Page"]')].pop();
+    if (!next || next.getAttribute('aria-disabled') === 'true') break;
+    const b = firstNo(); (next.querySelector('button,a') || next).click();
+    if (!(await waitChange(b))) break;
+  }
+  toast.remove();
+  if (opts && opts.dryRun) return { kind: 'Q&A', out };
+  if (!out.length) { alert('이 조건에 상품 문의가 없어요.'); return null; }
+  const cols = ['문의번호', '작성일', '브랜드', '상품명', '문의 내용'];
+  const esc = (v) => { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const csv = '﻿' + [cols.join(','), ...out.map((o) => cols.map((k) => esc(o[k])).join(','))].join('\r\n');
+  const d = new Date(); const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `29CM_상품문의_정리_${day}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  alert(`✅ 29CM 상품 문의 ${out.length}건을 저장했어요.\n대시보드 → 데이터 업로드에 그대로 올려 주세요.`);
+  return { kind: 'Q&A', count: out.length };
 }
