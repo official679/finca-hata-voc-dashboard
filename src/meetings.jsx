@@ -191,7 +191,17 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
       boardLines.push(bl.join('\n'));
     }
   });
-  const text = `- **리뷰**\n${reviewLines.join('\n')}\n- **VOC**\n${vocLines.join('\n')}${boardLines.length ? `\n- **게시판**\n${boardLines.join('\n')}` : ''}`;
+  // 🔧 진행 중 개선 이슈 (2026-10-19): 부서별 완료 여부 · 마지막 기록 뒤 며칠째 · 이슈 링크
+  let issueLines = [];
+  try {
+    const { data: iss } = await db.from('voc_issues').select('id,brand,title,kind,status,depts,last_at,created_at').neq('status', '완료').order('id');
+    issueLines = (iss || []).map(i => {
+      const days = daysSince(i.last_at || String(i.created_at || '').slice(0, 10));
+      const ds = (i.depts || []).map(d => `${d.dept}${d.done ? ' ✓' : ''}`).join(' · ');
+      return `  - [${i.title}](#/voc-list?tab=issues&issue=${i.id})${i.brand ? ` (${i.brand})` : ''} — ${ds || '부서 없음'} · ${i.status}${days !== null ? ` · ⏰ ${days}일째` : ''}`;
+    });
+  } catch (e) { /* 26 SQL 전이면 건너뜀 */ }
+  const text = `- **리뷰**\n${reviewLines.join('\n')}\n- **VOC**\n${vocLines.join('\n')}${boardLines.length ? `\n- **게시판**\n${boardLines.join('\n')}` : ''}${issueLines.length ? `\n- **🔧 진행 중 개선 이슈**\n${issueLines.join('\n')}` : ''}`;
   return { text, info };
 }
 

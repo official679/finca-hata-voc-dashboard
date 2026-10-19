@@ -25,7 +25,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~25 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~26 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
@@ -101,6 +101,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 �
 - 지난 주문은 요약으로 (2026-09-30, 사용자 선택 A): 상반기 주문은 order_monthly(월·브랜드·판매처·상품별 lines·qty·취소·반품·교환, 15 SQL)에만 저장, 업로드 화면 체크박스 '월·상품별 요약으로만 저장'. 7월부터는 order_items에 한 줄씩. 상반기 12.2만 줄 → 1.06만 줄. 2026-09-30 적용 완료: order_monthly 10,893줄(합계 124,097줄), order_items의 상반기 줄은 사용자가 SQL로 삭제(한 줄씩 올라갔던 것을 요약으로 옮김).
 - 예약배송 상품 현황 메뉴 (2026-09-30): 예약배송 관리 아래, 구글 시트 "예약배송현황_발송 보류 건(FINCA&HaTA)" 임베드. plan.jsx `SheetEmbedPage` 공용(전사플랜과 같은 방식), 주소 = code_items 'embed_hold'. 시트에 고객 연락처가 있어 DB로 옮기지 않음.
 - 상품 추가분류(앵커/레귤러) = products.line_type (오클릭 카테고리 파일 '추가분류', 14 SQL). VOC 목록 칸·필터.
+- **🔧 개선 이슈 (2026-10-19, 26 SQL voc_issues + voc_cases.issue_id, src/issues.jsx)**: VOC 여러 건에서 나온 원인 개선(생산처 개선 요청·바코드 전체 점검·상세페이지 수정)을 부서별로 팔로업. 다른 팀도 같이 씀. VOC 목록 위쪽 탭 '🔧 개선 이슈'(#/voc-list?tab=issues&dept=…&issue=…), 진행 중/완료 + 부서별 칩(그 부서가 아직 안 끝낸 것), 오래된 기록 순, ⏰ n일째(7일↑ 주황). VOC 상세 처리 칸 '새 개선 이슈로 올리기'(제목·종류·담당 부서 여러 개)/'기존 이슈에 연결'(VOC 하나 = 이슈 하나). 기록 = ProcessLog(부서+한 줄, 바로 저장). **담당 부서마다 완료 버튼**(depts [{dept,done}]) → 모두 완료면 이슈 완료(issueStatusOf: 요청/진행중/완료). 종류 = 기준 관리 '개선 이슈 종류'(issue_kind, 기본 3개, 사용자: 기타 없음). 주간 회의 리포트에 '🔧 진행 중 개선 이슈' 자동.
 - 상품 마스터에 없는 VOC(세트·골라담기 등)는 추가분류를 직접 고름 (24 SQL voc_cases.line_type, 2026-10-14): VOC 접수·수정 화면 추가분류 칸 + 비슷한 이름 상품들의 추가분류 추천(voc.jsx guessLineType, 70% 이상·색 이름 단어 제외). lib.jsx caseLineType = 상품 값 → 없으면 VOC 값. 목록·VOC 현황·보고서 집계에 같이 들어감.
 - **README.md = 사용자용 안내서 겸 인수인계 자료**. 기능·메뉴·규칙을 바꾸면 README도 같이 고쳐서 항상 최신으로 유지 (계정·비밀번호는 넣지 않기).
 - 2026-09-30 사용자: "이제 기능 그만" → 당분간 새 기능보다 데이터 입력·숫자 확인 위주. 새 요청이 와도 브레이크 역할 기억.

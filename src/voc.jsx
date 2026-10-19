@@ -419,6 +419,10 @@ function VocForm({ initial, onSaved, onCancel }) {
           </label>
           <ProcessLog log={log} options={codeOptions('department')} onAdd={addLog} onRemove={removeLog} busy={logBusy} />
         </div>
+        {initial && <div className="field" style={{ gridColumn: '1 / -1' }}>
+          <label>🔧 개선 이슈 <span className="muted" style={{ fontWeight: 400 }}>(원인을 고쳐야 할 때 · 여러 VOC를 한 이슈로 묶어 부서별로 팔로업)</span></label>
+          <VocIssueLink vocCase={initial} productName={form.product_name} />
+        </div>}
         {field('진행상황', <Select className="" value={form.status} onChange={set('status')} options={withCurrent(codeOptions('status'), form.status)} />)}
         {field('처리 구분', <Select className="" value={form.handling} onChange={set('handling')} options={withCurrent(codeOptions('handling'), form.handling)} placeholder="선택" />)}
         {field('완료일', <input type="date" value={form.completed_at} onChange={onInput('completed_at')} />)}
@@ -478,7 +482,11 @@ function VocListPage({ initialFilter }) {
   const [f, setF] = useState({ ...EMPTY_FILTER, ...initialFilter, ...urlFilter });
   // 위쪽 탭 (2026-10-14 정리): 처리할 것(접수·확인중) / 끝난 것 / 전체 · 다른 화면에서 조건을 넘겨 열면 전체로
   const OPEN_STATUS = ['접수', '확인중'];
-  const [tab, setTab] = useState(() => (Object.keys(urlFilter).length || (initialFilter && Object.keys(initialFilter).length) ? 'all' : 'open'));
+  const [tab, setTab] = useState(() => (new URLSearchParams(location.hash.split('?')[1] || '').get('tab') === 'issues' ? 'issues'
+    : Object.keys(urlFilter).length || (initialFilter && Object.keys(initialFilter).length) ? 'all' : 'open'));
+  // 🔧 개선 이슈 탭 숫자 (진행 중)
+  const [openIssues, setOpenIssues] = useState(0);
+  useEffect(() => { db.from('voc_issues').select('id', { count: 'exact', head: true }).neq('status', '완료').then(({ count }) => setOpenIssues(count || 0)); }, [tab]);
   // 자주 안 쓰는 필터는 접어 둠 (걸려 있으면 펼침)
   const MORE_KEYS = ['handler', 'platform', 'channel', 'voc_type', 'category', 'line', 'reason', 'fault', 'status', 'dept', 'action'];
   const [moreOpen, setMoreOpen] = useState(() => MORE_KEYS.some(k => ({ ...initialFilter, ...urlFilter })[k]));
@@ -551,10 +559,11 @@ function VocListPage({ initialFilter }) {
       {/* ① 할 일 탭 + 늘 보이는 조건(브랜드·기간·검색) */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="filters" style={{ marginBottom: 10 }}>
-          <Segmented options={[{ key: 'open', label: `🔥 처리할 것 ${openCount}` }, { key: 'done', label: '✅ 끝난 것' }, { key: 'all', label: '전체' }]} value={tab} onChange={setTab} />
+          <Segmented options={[{ key: 'open', label: `🔥 처리할 것 ${openCount}` }, { key: 'done', label: '✅ 끝난 것' }, { key: 'all', label: '전체' }, { key: 'issues', label: `🔧 개선 이슈${openIssues ? ' ' + openIssues : ''}` }]} value={tab} onChange={setTab} />
           <span style={{ flex: 1 }} />
           <Segmented options={[{ key: '', label: '전체' }, ...codeOptions('brand', true).map(b => ({ key: b, label: b }))]} value={f.brand} onChange={set('brand')} />
         </div>
+        {tab !== 'issues' && <>
         <div className="filters">
           <input className="input" type="date" value={f.from} onChange={e => set('from')(e.target.value)} title="시작일" />
           <span className="muted">~</span>
@@ -587,7 +596,9 @@ function VocListPage({ initialFilter }) {
             {SHOW_FOLLOWUP && <Select value={f.action} onChange={set('action')} options={[{ value: '__any', label: '후속 조치 있는 것' }, ...codeOptions('action', true)]} placeholder="후속 조치 전체" />}
           </div>
         )}
+        </>}
       </div>
+      {tab === 'issues' ? <IssueBoard brand={f.brand} onOpenVoc={setEditing} /> : <>
       {/* ③ 목록: 분류·플랫폼은 상품명 아래, VOC 구분은 사유 아래, 담당 부서·후속 조치는 진행 아래 작게 */}
       <div className="card" style={{ padding: 0 }}>
         <div className="table-wrap">
@@ -626,6 +637,7 @@ function VocListPage({ initialFilter }) {
         </div>
         <div style={{ padding: '0 16px 16px' }}><Pager page={cur} pages={pages} onChange={setPage} size={PAGE_SIZE} onSize={setPageSize} /></div>
       </div>
+      </>}
       <VocEditPanel vocCase={editing} onClose={() => setEditing(null)} />
     </>
   );
