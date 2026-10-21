@@ -442,8 +442,9 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const markNotice = () => run(`${method} 안내 완료`, async () => {
     const d = today(), n1 = [], n2 = [];
     picked.forEach(o => o.lines.forEach(l => {
-      // 예약상품 없는 주문은 출고대기 상품 줄에 1차→2차로 기록
-      if (noLivePre(o) && !(l.prod && l.need > 0) && l.status === '출고대기') {
+      // 예약상품 없는 주문·지연 없는 주문(출고일 없는 예약 등, 2026-10-21 '버튼 항상 켜기')은 출고대기 상품 줄에 1차→2차로 기록
+      const anyDelay = o.lines.some(x => x.prod && x.need > 0 && x.status === '출고대기');
+      if ((noLivePre(o) || !anyDelay) && !(l.prod && l.need > 0) && l.status === '출고대기') {
         if (!l.notice1_date) n1.push(l.id); else if (!l.notice2_date) n2.push(l.id);
         return;
       }
@@ -545,10 +546,13 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
   const splitNeeded = order.low && order.status === '출고대기';
   //   + 예약상품 없는 주문(품절·입고 대기 등)은 출고대기 상품 줄에 1차→2차 안내로 기록 (2026-10-12 사용자 요청)
   const noPre = noLivePre(order) && order.status === '출고대기';
+  //   + 그 밖의 출고대기 주문(지연 계산이 안 되는 예약 — 출고일 없음, 사이즈 확인 연락 등)도 버튼을 늘 켜고 출고대기 줄에 1차→2차로 기록 (2026-10-21 사용자 요청)
+  const anyWait = order.lines.some(l => l.status === '출고대기');
+  const plain = !order.pending && !splitNeeded && !noPre && anyWait;
   const markNotice = (method) => setLs(prev => prev.map(l => {
     const e = order.lines.find(x => x.id === l.id);
     let n = l;
-    if ((e && e.pending) || (noPre && l.status === '출고대기')) n =!l.notice1_date ? { ...n, notice1_method: method, notice1_date: today() } : !l.notice2_date ? { ...n, notice2_method: method, notice2_date: today() } : n;
+    if ((e && e.pending) || ((noPre || plain) && l.status === '출고대기')) n =!l.notice1_date ? { ...n, notice1_method: method, notice1_date: today() } : !l.notice2_date ? { ...n, notice2_method: method, notice2_date: today() } : n;
     if (splitNeeded && l.status === '출고대기' && !l.split_notice_date) n = { ...n, split_notice_method: method, split_notice_date: today() };
     return n;
   }));
@@ -593,8 +597,8 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
           <div className="muted" style={{ marginBottom: 12 }}>{sellerLabel(order.seller)} · 구매일 {fmtDate(order.purchase_date)} · 오클릭 {order.order_no} · 주문 최종 출고예정 <b>{order.final_out ? fmtDate(order.final_out) : '-'}</b></div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
             {['유선', '문자'].map(m => (
-              <button key={m} className="btn btn-primary" onClick={() => markNotice(m)} disabled={!order.pending && !splitNeeded && !noPre}
-                title={noPre ? '예약상품 없는 주문 — 출고대기 상품에 안내(1차→2차)를 기록해요' : splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>{m === '유선' ? '📞' : '💬'} {m} 안내 완료</button>
+              <button key={m} className="btn btn-primary" onClick={() => markNotice(m)} disabled={!order.pending && !splitNeeded && !noPre && !plain}
+                title={noPre ? '예약상품 없는 주문 — 출고대기 상품에 안내(1차→2차)를 기록해요' : plain ? '출고대기 상품에 안내(1차→2차)를 기록해요 (지연 계산이 안 되는 주문)' : splitNeeded && !order.pending ? '재고 소량·분리배송 안내를 기록해요' : '지연 안내를 기록해요'}>{m === '유선' ? '📞' : '💬'} {m} 안내 완료</button>
             ))}
             <button className="btn" onClick={() => copy(PREORDER_SMS.first(smsName, smsDate), '1차 지연')}>📋 1차 지연 문자</button>
             <button className="btn" onClick={() => copy(PREORDER_SMS.second(smsName, smsDate), '2차 지연')}>📋 2차 지연 문자</button>
