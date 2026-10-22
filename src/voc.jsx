@@ -204,8 +204,10 @@ function ProcessLog({ log, options, onAdd, onRemove, busy }) {
           {options.map(d => <button type="button" key={d} className={'dept-opt' + (d === dept ? ' on' : '')} onClick={() => setDept(d)}>{d}</button>)}
         </div>
         <div className="plog-line">
-          <input value={text} onChange={e => setText(e.target.value)} placeholder="무엇을 했는지 한 줄로 (예: 재발송 처리, 상품팀에 불량 사진 전달)"
-            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
+          {/* 여러 줄 기록 (2026-10-22 사용자 요청): Enter = 추가, Shift+Enter = 줄바꿈 · 한글 입력 중 Enter는 무시 */}
+          <textarea className="input" rows={Math.min(6, Math.max(1, text.split('\n').length))} value={text} onChange={e => setText(e.target.value)}
+            placeholder="무엇을 했는지 적기 (예: 재발송 처리, 상품팀에 불량 사진 전달) · 줄바꿈 = Shift+Enter"
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }} />
           <button type="button" className="btn btn-primary btn-sm" disabled={busy || !text.trim()} onClick={add}>{busy ? '저장 중…' : '추가'}</button>
         </div>
       </div>

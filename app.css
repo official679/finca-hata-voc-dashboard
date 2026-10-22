@@ -579,8 +579,9 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .plog-row .plog-dept { margin-left: 0; }
 .plog-add { background: #F8FAFD; padding: 10px 12px; }
 .plog-depts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; margin-bottom: 8px; }
-.plog-line { display: flex; gap: 8px; }
-.plog-line input { flex: 1; min-width: 0; }
+.plog-line { display: flex; gap: 8px; align-items: flex-end; }
+.plog-line input, .plog-line textarea { flex: 1; min-width: 0; }
+.plog-line textarea { resize: vertical; line-height: 1.5; min-height: 0; }
 .dept-opt { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 16px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
 .dept-opt:hover { border-color: #93B4F0; }
 .dept-opt.on { background: #E8F0FE; border-color: #1D4FA3; color: #1D4FA3; font-weight: 600; }
