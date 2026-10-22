@@ -135,6 +135,8 @@ async function readUploadFile(file, kind) {
           // 판매처 칸이 없는 직접 정리 시트: 시트 이름('무신사'·'w컨셉'·'하타 아임웹' 등)에서 판매처
           if (m.platform === '') m.platform = Object.entries(PLATFORM_NAMES).find(([k]) => name.toLowerCase().includes(k))?.[1] || '';
           if (!m.brand) m.brand = normBrand(obj['브랜드'] || obj['브랜드명'] || obj['브랜드 명']) || (/^\s*(\[[^\]]*\]\s*)*hata\b/i.test(String(m.product_name || '')) ? '하타' : '') || normBrand(name);
+          // 아임웹 반품 모양으로 직접 정리한 교환 시트('아임웹핀카교환' 등): 시트 이름에 '교환'이 있으면 교환으로 (2026-10-22, 아임웹 교환은 파일로 안 받아짐)
+          if (format.label === '아임웹 반품' && /교환/.test(name) && m.key) { m.ret_kind = '교환'; m.key = m.key.replace(/^반품\|/, '교환|'); }
           return m;
         })
         // 리뷰·게시판은 내용이 있어야, 주문·반품처럼 key(품목 번호)가 있는 형식은 key가 있어야 저장
