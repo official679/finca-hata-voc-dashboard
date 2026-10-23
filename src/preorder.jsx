@@ -242,9 +242,10 @@ function usePreorderPending() {
 }
 
 // ---------- 주문 메모 (28 SQL preorder_memos, 2026-10-23 요청: 아임웹 관리자 메모처럼 주문 단위로 쌓이고 목록에서 바로 보이게) ----------
-//   키 = 판매처주문번호(없으면 오클릭 주문번호) · log [{ d: 'YYYY-MM-DD HH:mm', who, text }] · 적은 사람 = 업무 보드에서 PC별로 고른 이름(localStorage taskMe)
+//   키 = 판매처주문번호(없으면 오클릭 주문번호) · log [{ d: 'YYYY-MM-DD HH:mm', who, text }] · 적은 사람 = 메모 칸 이름 버튼(PC별로 기억, localStorage memoMe)
 const orderMemoKey = (o) => o.seller_order_no || o.order_no;
-const memoWho = () => { try { return localStorage.getItem('taskMe') || ''; } catch { return ''; } };
+const MEMO_NAMES = ['진아', '이슬', '성희'];
+const memoWho = () => { try { return localStorage.getItem('memoMe') || ''; } catch { return ''; } };
 const memoNow = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
 const memoWhen = (d) => String(d || '').slice(2, 16).replace(/-/g, '.');   // '26.10.23 13:35'
 
@@ -266,6 +267,8 @@ function OrderMemoLog({ order, reload }) {   // 주문 상세 창 맨 위: 쌓�
   const [log, setLog] = useState(order.memoLog || []);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [who, setWho] = useState(memoWho);
+  const pickWho = (n) => { setWho(n); try { localStorage.setItem('memoMe', n); } catch {} };
   const save = async (next) => {
     setBusy(true);
     try {
@@ -275,7 +278,11 @@ function OrderMemoLog({ order, reload }) {   // 주문 상세 창 맨 위: 쌓�
       return true;
     } catch (e) { toast('❌ 메모 저장 실패: ' + (e.message || e) + (/preorder_memos/.test(String(e.message || e)) ? ' (28 SQL을 먼저 실행해 주세요)' : ''), 'err'); return false; } finally { setBusy(false); }
   };
-  const add = async () => { const t = text.trim(); if (!t || busy) return; if (await save([...log, { d: memoNow(), who: memoWho(), text: t }])) setText(''); };
+  const add = async () => {
+    const t = text.trim(); if (!t || busy) return;
+    if (!who) { toast('쓰는 사람 이름을 먼저 눌러 주세요 (한 번 고르면 이 PC에서 기억해요)', 'err'); return; }
+    if (await save([...log, { d: memoNow(), who, text: t }])) setText('');
+  };
   const remove = (i) => { if (window.confirm('이 메모를 지울까요?')) save(log.filter((_, j) => j !== i)); };
   return (
     <div className="card" style={{ marginBottom: 14, background: '#FFFBEA', borderColor: '#F5E3A3' }}>
@@ -288,6 +295,10 @@ function OrderMemoLog({ order, reload }) {   // 주문 상세 창 맨 위: 쌓�
         </div>
       ))}
       {order.lineMemos.map((t, i) => <div key={'l' + i} className="muted" style={{ padding: '6px 0', fontSize: 13 }}>상품 메모: {t}</div>)}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 10, fontSize: 13 }}>
+        <span className="muted">쓰는 사람</span>
+        {MEMO_NAMES.map(n => <button key={n} type="button" className={'btn btn-sm' + (who === n ? ' btn-primary' : '')} onClick={() => pickWho(n)}>{n}</button>)}
+      </div>
       <div className="plog-line" style={{ marginTop: 8 }}>
         <textarea className="input" rows={Math.min(5, Math.max(1, text.split('\n').length))} value={text} onChange={e => setText(e.target.value)}
           placeholder="예: 교환 원해서 박스 받은 뒤 함께 보낼 예정 · 줄바꿈 = Shift+Enter"
@@ -436,7 +447,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   <td>{l && l.seen ? fmtDate(l.seen) : '-'}</td>
                   <td>{l && l.current ? fmtDate(l.current) : '-'}</td>
                   <td><b>{o.final_out ? fmtDate(o.final_out) : '-'}</b></td>
-                  <td>{[o.lines.find(x => x.notice1_date), o.lines.find(x => x.notice2_date)].map((x, i) => x ? <span key={i} className="chip chip-green" style={{ marginRight: 4 }}>{i + 1}차 {x[`notice${i + 1}_method`] || ''} {fmtDate(x[`notice${i + 1}_date`]).slice(3)}</span> : null)}{!o.lines.some(x => x.notice1_date) && <span className="muted">-</span>}</td>
+                  <td>{[o.lines.find(x => x.notice1_date), o.lines.find(x => x.notice2_date)].map((x, i) => x ? <span key={i} className="chip chip-green" style={{ display: 'table', marginBottom: 4, whiteSpace: 'nowrap' }}>{i + 1}차 {x[`notice${i + 1}_method`] || ''} {fmtDate(x[`notice${i + 1}_date`]).slice(3)}</span> : null)}{!o.lines.some(x => x.notice1_date) && <span className="muted">-</span>}</td>
                   <td>{o.split || (o.mixed ? <span className="muted">일반상품 함께</span> : '-')}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     {o.soldout && <SoldoutChip lines={o.lines.filter(l => l.soldout)} />}
