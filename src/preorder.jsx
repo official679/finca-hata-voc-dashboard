@@ -206,14 +206,16 @@ function usePreorder() {
   const [state, setState] = useState({ products: null, lines: null, uploads: null });
   const load = useCallback(async () => {
     const since = toISODate(addDays(new Date(), -60));
-    const [products, open, cancelled, shipped, uploads] = await Promise.all([
+    const [products, open, cancelled, shipped, uploads, memoRows] = await Promise.all([
       fetchAll(() => db.from('preorder_products').select('*').order('id')),
       fetchAll(() => db.from('preorder_lines').select('*').eq('status', '출고대기').order('id')),
       fetchAll(() => db.from('preorder_lines').select('*').eq('status', '취소').order('id')),
       fetchAll(() => db.from('preorder_lines').select('*').eq('status', '출고완').gte('shipped_on', since).order('id')),
       db.from('preorder_uploads').select('*').order('id', { ascending: false }).limit(10).then(r => r.data || []),
+      db.from('preorder_memos').select('order_key,log').then(r => r.data || []),   // 28 SQL 전이면 빈 목록
     ]);
-    setState({ products, lines: [...open, ...cancelled, ...shipped], uploads });
+    const memos = new Map(memoRows.map(m => [m.order_key, Array.isArray(m.log) ? m.log : []]));
+    setState({ products, lines: [...open, ...cancelled, ...shipped], uploads, memos });
   }, []);
   useEffect(() => { load().catch(e => setState(s => ({ ...s, error: e.message || String(e) }))); }, [load]);
   return [state, load];
@@ -239,6 +241,63 @@ function usePreorderPending() {
   return state;
 }
 
+// ---------- 주문 메모 (28 SQL preorder_memos, 2026-10-23 요청: 아임웹 관리자 메모처럼 주문 단위로 쌓이고 목록에서 바로 보이게) ----------
+//   키 = 판매처주문번호(없으면 오클릭 주문번호) · log [{ d: 'YYYY-MM-DD HH:mm', who, text }] · 적은 사람 = 업무 보드에서 PC별로 고른 이름(localStorage taskMe)
+const orderMemoKey = (o) => o.seller_order_no || o.order_no;
+const memoWho = () => { try { return localStorage.getItem('taskMe') || ''; } catch { return ''; } };
+const memoNow = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+const memoWhen = (d) => String(d || '').slice(2, 16).replace(/-/g, '.');   // '26.10.23 13:35'
+
+function OrderMemoBox({ log, lineMemos }) {   // 목록 주문자 칸 아래 노란 상자 (최근 메모 한 개)
+  const last = log && log.length ? log[log.length - 1] : null;
+  const text = last ? last.text : (lineMemos && lineMemos[0]) || '';
+  if (!text) return null;
+  const more = (log ? log.length : 0) + (last ? 0 : (lineMemos || []).length) - 1;
+  return (
+    <div className="order-memo" title={(log || []).map(m => `${memoWhen(m.d)} ${m.who || ''}\n${m.text}`).concat(last ? [] : lineMemos || []).join('\n\n')}>
+      <div className="order-memo-text">{text}</div>
+      <div className="order-memo-meta">{last ? `${memoWhen(last.d)}${last.who ? ' · ' + last.who : ''}` : '상품 메모'}{more > 0 ? ` · 외 ${more}개` : ''}</div>
+    </div>
+  );
+}
+
+function OrderMemoLog({ order, reload }) {   // 주문 상세 창 맨 위: 쌓이는 메모, 추가·지우기 바로 저장
+  const toast = useToast();
+  const [log, setLog] = useState(order.memoLog || []);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async (next) => {
+    setBusy(true);
+    try {
+      const { error } = await db.from('preorder_memos').upsert({ order_key: order.memoKey, log: next, updated_at: new Date().toISOString() }, { onConflict: 'order_key' });
+      if (error) throw error;
+      setLog(next); reload && reload();
+      return true;
+    } catch (e) { toast('❌ 메모 저장 실패: ' + (e.message || e) + (/preorder_memos/.test(String(e.message || e)) ? ' (28 SQL을 먼저 실행해 주세요)' : ''), 'err'); return false; } finally { setBusy(false); }
+  };
+  const add = async () => { const t = text.trim(); if (!t || busy) return; if (await save([...log, { d: memoNow(), who: memoWho(), text: t }])) setText(''); };
+  const remove = (i) => { if (window.confirm('이 메모를 지울까요?')) save(log.filter((_, j) => j !== i)); };
+  return (
+    <div className="card" style={{ marginBottom: 14, background: '#FFFBEA', borderColor: '#F5E3A3' }}>
+      <div style={{ fontWeight: 700, marginBottom: 8 }}>📝 주문 메모 <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>· 쓰면 바로 저장돼요 (목록에도 보여요)</span></div>
+      {log.length === 0 && !order.lineMemos.length && <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>아직 메모가 없어요</div>}
+      {log.map((m, i) => (
+        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 24px', gap: 8, padding: '6px 0', borderBottom: '1px solid #F1E6BF' }}>
+          <div><div style={{ whiteSpace: 'pre-wrap' }}>{m.text}</div><div className="muted" style={{ fontSize: 12 }}>{memoWhen(m.d)}{m.who ? ' · ' + m.who : ''}</div></div>
+          <button type="button" className="plog-del" title="이 메모 지우기" disabled={busy} onClick={() => remove(i)}>×</button>
+        </div>
+      ))}
+      {order.lineMemos.map((t, i) => <div key={'l' + i} className="muted" style={{ padding: '6px 0', fontSize: 13 }}>상품 메모: {t}</div>)}
+      <div className="plog-line" style={{ marginTop: 8 }}>
+        <textarea className="input" rows={Math.min(5, Math.max(1, text.split('\n').length))} value={text} onChange={e => setText(e.target.value)}
+          placeholder="예: 교환 원해서 박스 받은 뒤 함께 보낼 예정 · 줄바꿈 = Shift+Enter"
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }} />
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !text.trim()} onClick={add}>{busy ? '저장 중…' : '추가'}</button>
+      </div>
+    </div>
+  );
+}
+
 // 단품코드 칸에 구코드·신코드를 쉼표로 함께 넣을 수 있음 (예: "101230, FN260PC001-PP00M")
 const productCodes = (p) => String(p.code || '').split(/[,\s]+/).filter(Boolean);
 const productCodeMap = (products) => new Map((products || []).flatMap(p => productCodes(p).map(c => [c, p])));
@@ -252,7 +311,7 @@ async function upsertChunks(table, rows, onConflict) {
 
 // ---------- 화면 ----------
 function PreorderPage() {
-  const [{ products, lines, uploads, error }, reload] = usePreorder();
+  const [{ products, lines, uploads, memos, error }, reload] = usePreorder();
   const { codeOptions } = useApp();
   const toast = useToast();
   const giftOptions = codeOptions ? codeOptions('preorder_gift') : [];
@@ -277,7 +336,11 @@ function PreorderPage() {
       reload();
     });
   }, [products, lines]);
-  const orders = useMemo(() => (lines ? enrichPreorder(lines, productByCode, giftCodes) : []), [lines, productByCode, giftCodes]);
+  // 주문 메모 (28 SQL preorder_memos, 2026-10-23 아임웹 관리자 메모처럼 주문 단위) + 예전 상품 줄 메모도 같이 보여 줌
+  const orders = useMemo(() => (lines ? enrichPreorder(lines, productByCode, giftCodes).map(o => ({
+    ...o, memoKey: orderMemoKey(o), memoLog: (memos && memos.get(orderMemoKey(o))) || [],
+    lineMemos: [...new Set(o.lines.map(l => l.memo).filter(Boolean))],
+  })) : []), [lines, productByCode, giftCodes, memos]);
 
   if (error) return <div className="card" style={{ color: 'var(--danger)' }}>예약배송 데이터를 불러오지 못했어요: {error}<div className="hint">DB 설정 SQL(08_preorder_schema.sql)을 실행했는지 확인해 주세요.</div></div>;
   if (!products || !lines) return <div className="loading-screen">예약배송 불러오는 중...</div>;
@@ -357,7 +420,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   <td>{fmtDate(o.purchase_date)}</td>
                   <td>{sellerLabel(o.seller)}</td>
                   <td>{o.seller_order_no || o.order_no}</td>
-                  <td>{o.orderer || '-'}</td>
+                  <td style={{ whiteSpace: 'normal', minWidth: 90, maxWidth: 200 }}>{o.orderer || '-'}<OrderMemoBox log={o.memoLog} lineMemos={o.lineMemos} /></td>
                   <td style={{ whiteSpace: 'normal', minWidth: 320, maxWidth: 440 }}>
                     {[...o.preLines, ...o.lines.filter(x => !x.prod)].map(x => (
                       <div key={x.id || x.line_key} className="preorder-line" style={x.prod && x.stage ? { fontWeight: 700 } : { color: 'var(--muted)' }}>
@@ -416,7 +479,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
     (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => l.product_name === product))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     // 상태를 출고대기로 보면 상품명·바코드 검색도 아직 안 나간 상품에서만 (분리배송으로 먼저 나간 상품은 오클릭 미출고에 없음, 2026-10-12)
-    matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
+    matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(o.memoLog || []).map(m => m.text), ...(o.lineMemos || []), ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
   const filterKey = [status, stage, product, outFrom, outTo, q, lowOnly, soldOnly].join('|');
   useEffect(() => { setSelected(new Set()); }, [filterKey]);
   const picked = rows.filter(o => selected.has(o.order_no));
@@ -595,6 +658,7 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
         </div>
         <div className="card">
           <div className="muted" style={{ marginBottom: 12 }}>{sellerLabel(order.seller)} · 구매일 {fmtDate(order.purchase_date)} · 오클릭 {order.order_no} · 주문 최종 출고예정 <b>{order.final_out ? fmtDate(order.final_out) : '-'}</b></div>
+          <OrderMemoLog order={order} reload={reload} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
             {['유선', '문자'].map(m => (
               <button key={m} className="btn btn-primary" onClick={() => markNotice(m)} disabled={!order.pending && !splitNeeded && !noPre && !plain}
