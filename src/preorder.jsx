@@ -450,10 +450,10 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   <td><b>{o.final_out ? fmtDate(o.final_out) : '-'}</b></td>
                   <td>{[o.lines.find(x => x.notice1_date), o.lines.find(x => x.notice2_date)].map((x, i) => x ? <span key={i} className="chip chip-green" style={{ display: 'table', marginBottom: 4, whiteSpace: 'nowrap' }}>{i + 1}차 {x[`notice${i + 1}_method`] || ''} {fmtDate(x[`notice${i + 1}_date`]).slice(3)}</span> : null)}{!o.lines.some(x => x.notice1_date) && <span className="muted">-</span>}</td>
                   {showProducts && <td>{o.split || (o.mixed ? <span className="muted">일반상품 함께</span> : '-')}</td>}
-                  <td style={{ whiteSpace: 'nowrap' }}>
+                  <td style={{ whiteSpace: 'nowrap' }}><div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
                     {o.soldout && <SoldoutChip lines={o.lines.filter(l => l.soldout)} />}
                     {o.low ? (o.lines.some(l => l.split_notice_date) ? <span className="chip chip-green" title={`분리배송 안내 ${o.lines.map(l => l.split_notice_method).find(Boolean) || ''} ${fmtDate(maxDate(o.lines.map(l => l.split_notice_date)))}`}>저재고 ✓안내</span> : <span className="chip chip-amber">저재고</span>) : ''}
-                  </td>
+                  </div></td>
                   {!todo && <td>{o.status === '출고완' ? <span className="chip chip-green">출고완 {fmtDate(o.shipped_on).slice(3)}</span> : o.status === '취소' ? <span className="chip">취소</span> : '출고대기'}</td>}
                 </tr>
               );
