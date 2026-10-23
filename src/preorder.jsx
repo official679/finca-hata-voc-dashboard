@@ -419,7 +419,7 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
   return (
     <div className="card" style={{ padding: 0 }}>
       <div className="table-wrap">
-        <table className="table table-wide">
+        <table className={showProducts ? 'table table-wide' : 'table table-nowrap'}>
           <thead><tr>
             {setSelected && <th style={{ width: 36 }}><input type="checkbox" checked={pageAll} title="이 페이지 전체 선택" onChange={() => setSelected(prev => { const n = new Set(prev); shown.forEach(o => (pageAll ? n.delete(o.order_no) : n.add(o.order_no))); return n; })} /></th>}
             <th>구매일</th><th>판매처</th><th>판매처주문번호</th><th>주문자</th>{showProducts && <><th>예약상품</th><th>단계</th></>}<th>주문 당시 안내</th><th>현재 출고예정</th><th>주문 최종 출고</th><th>안내</th>{showProducts && <th>배송구분</th>}<th>재고</th>{!todo && <th>상태</th>}</tr></thead>
