@@ -419,8 +419,8 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   {setSelected && <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={selected.has(o.order_no)} onChange={() => toggle(o.order_no)} /></td>}
                   <td>{fmtDate(o.purchase_date)}</td>
                   <td>{sellerLabel(o.seller)}</td>
-                  <td>{o.seller_order_no || o.order_no}</td>
-                  <td style={{ whiteSpace: 'normal', minWidth: 90, maxWidth: 200 }}>{o.orderer || '-'}<OrderMemoBox log={o.memoLog} lineMemos={o.lineMemos} /></td>
+                  <td style={{ whiteSpace: 'normal', minWidth: 150 }}>{o.seller_order_no || o.order_no}<OrderMemoBox log={o.memoLog} lineMemos={o.lineMemos} /></td>
+                  <td>{o.orderer || '-'}</td>
                   <td style={{ whiteSpace: 'normal', minWidth: 320, maxWidth: 440 }}>
                     {[...o.preLines, ...o.lines.filter(x => !x.prod)].map(x => (
                       <div key={x.id || x.line_key} className="preorder-line" style={x.prod && x.stage ? { fontWeight: 700 } : { color: 'var(--muted)' }}>

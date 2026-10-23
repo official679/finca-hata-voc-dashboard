@@ -584,9 +584,9 @@ a.todo-kpi .kpi-sub { color: var(--primary); }
 .plog-line textarea { resize: vertical; line-height: 1.5; min-height: 0; }
 
 /* 예약배송 주문 메모 (목록 주문자 칸 아래 노란 상자) */
-.order-memo { margin-top: 6px; padding: 6px 8px; background: #FFF6CC; border: 1px solid #F1DC8A; border-radius: 6px; font-size: 12px; line-height: 1.4; max-width: 200px; }
+.order-memo { margin-top: 6px; padding: 6px 8px; background: #FFF6CC; border: 1px solid #F1DC8A; border-radius: 6px; font-size: 13px; line-height: 1.45; min-width: 170px; max-width: 260px; }
 .order-memo-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; color: #4A3B00; }
-.order-memo-meta { margin-top: 3px; font-size: 11px; color: #8A7A3A; }
+.order-memo-meta { margin-top: 3px; font-size: 11px; color: #8A7A3A; white-space: nowrap; }
 .dept-opt { border: 1px solid var(--border); background: #fff; color: #374151; border-radius: 16px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
 .dept-opt:hover { border-color: #93B4F0; }
 .dept-opt.on { background: #E8F0FE; border-color: #1D4FA3; color: #1D4FA3; font-weight: 600; }
