@@ -407,7 +407,7 @@ function PreorderPage() {
 }
 
 // 목록 칸 (2026-10-23 팀 피드백: 상품까지 다 나열할 필요 없음) — 예약상품·단계·배송구분은 '상품 보기'를 켜거나 검색할 때만
-function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected, showProducts }) {
+function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected, showProducts, allLines }) {
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [orders.length]);
   const [SIZE, setSize] = usePageSize('preorder');
@@ -434,7 +434,12 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                   <td style={{ whiteSpace: 'normal', minWidth: 150 }}>{o.seller_order_no || o.order_no}<OrderMemoBox log={o.memoLog} lineMemos={o.lineMemos} /></td>
                   <td>{o.orderer || '-'}</td>
                   {showProducts && <td style={{ whiteSpace: 'normal', minWidth: 320, maxWidth: 440 }}>
-                    {[...o.preLines, ...o.lines.filter(x => !x.prod)].map(x => (
+                    {/* 진행 중인 예약상품만 (2026-10-26 사용자 요청) — 예판 종료·일반 상품은 '+ n개' 한 줄로 접기(저재고·품절 줄은 그대로 보임) · 진행 중 예약상품이 없는 주문이나 검색 중엔 전부 */}
+                    {(() => {
+                      const all = [...o.preLines, ...o.lines.filter(x => !x.prod)];
+                      const live = all.filter(x => (x.prod && x.prod.status !== '종료') || x.low || x.soldout);
+                      return allLines || !o.preLines.some(x => x.prod.status !== '종료') ? all : live;
+                    })().map(x => (
                       <div key={x.id || x.line_key} className="preorder-line" style={x.prod && x.stage ? { fontWeight: 700 } : { color: 'var(--muted)' }}>
                         {x.product_name}{x.size && x.size !== '0' ? ` (${x.size})` : ''}{x.qty > 1 ? ` ×${x.qty}` : ''}
                         {x.prod
@@ -443,6 +448,11 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
                         {x.low && <span className="chip chip-amber" style={{ marginLeft: 4, fontSize: 11 }}>재고 {x.avail}</span>}
                       </div>
                     ))}
+                    {(() => {
+                      if (allLines || !o.preLines.some(x => x.prod.status !== '종료')) return null;
+                      const rest = [...o.preLines, ...o.lines.filter(x => !x.prod)].filter(x => !((x.prod && x.prod.status !== '종료') || x.low || x.soldout));
+                      return rest.length ? <div className="preorder-line muted" style={{ fontSize: 12 }}>+ 예판 종료·일반 {rest.length}개 (주문을 누르면 보여요)</div> : null;
+                    })()}
                   </td>}
                   {showProducts && <td><StageChip stage={o.stage} sameDay={l && l.sameDay} /></td>}
                   <td>{l && l.seen ? fmtDate(l.seen) : '-'}</td>
@@ -487,7 +497,8 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
   const pickShowProd = (v) => { setShowProd(v); try { localStorage.setItem('preorderShowProd', v ? '1' : ''); } catch {} };
 
   // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
-  const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
+  // 진행 중인 예약상품만 (예판 종료 상품은 선택 칸에서 뺌, 2026-10-26 사용자 요청)
+  const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.filter(l => l.prod.status !== '종료').map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
   const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) && (!soldOnly || o.soldout) &&
     // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
     (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => l.product_name === product))) &&
@@ -578,7 +589,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
         <button className="btn btn-sm btn-danger" disabled={!picked.length || busy} onClick={() => setStatusAll('취소')}>취소 처리</button>
         {picked.length > 0 && <button className="btn-link" onClick={() => setSelected(new Set())}>선택 해제</button>}
       </div>
-      <PreorderOrderTable orders={rows} onOpen={onOpen} todo={todo} selected={selected} setSelected={setSelected} showProducts={todo || showProd || !!q.trim() || !!product}
+      <PreorderOrderTable orders={rows} onOpen={onOpen} todo={todo} selected={selected} setSelected={setSelected} showProducts={todo || showProd || !!q.trim() || !!product} allLines={!!q.trim()}
         empty={todo && !hasFilter ? '지금 안내할 주문이 없어요 🎉' : '조건에 맞는 주문이 없어요'} />
     </>
   );
