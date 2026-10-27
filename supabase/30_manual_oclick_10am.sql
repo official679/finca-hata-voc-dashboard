@@ -2,8 +2,8 @@
 -- 핀카 발주 등록이 10시쯤으로 바뀜. 김성희 대리가 슬랙에 '금일 발주 등록했습니다'를 3번 올린 뒤에 받기.
 -- 노션 매일 루틴 글은 같은 날 고침.
 
-update manuals set content =
-  replace(replace(replace(replace(replace(replace(content,
+update manuals set body =
+  replace(replace(replace(replace(replace(replace(body,
     '아침 8시가 지나면', '발주 등록이 끝나면(10시쯤)'),
     '(아침 8시 이후)', '(발주 등록이 끝난 뒤, 10시쯤)'),
     '아침 8시쯤 오클릭에 올라가요', '아침 발주 등록 때(10시쯤) 오클릭에 올라가요'),
@@ -13,4 +13,4 @@ update manuals set content =
 where id = 2;
 
 -- 확인: 0이 나오면 '8시'가 모두 바뀐 것
-select id, (length(content) - length(replace(content, '8시', ''))) / 2 as "남은 8시" from manuals where id = 2;
+select id, (length(body) - length(replace(body, '8시', ''))) / 2 as "남은 8시" from manuals where id = 2;
