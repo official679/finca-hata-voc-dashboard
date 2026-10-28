@@ -136,7 +136,7 @@ async function countUploadsForReport(reportDate, brand) {
     fetchAll(() => db.from('order_items').select(ORDER_COLS).eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
     // 이 기간에 처음 확인된 취소 (주문 날짜는 더 이전일 수 있음, 19 SQL)
     fetchAll(() => db.from('order_items').select(ORDER_COLS).eq('brand', brand).gte('cancel_seen_date', from).lte('cancel_seen_date', to).order('id')),
-    fetchAll(() => db.from('review_items').select('platform,rating').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
+    fetchAll(() => db.from('review_items').select('platform,rating,check_status').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     fetchAll(() => db.from('board_items').select('platform,inquiry_type,content').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     // 반품·교환: 접수일 기준 (데일리 파일 = 전일 접수 건, 접수일 칸이 없으면 올린 날의 전날로 저장됨)
     fetchAll(() => db.from('return_items').select('platform,kind,reason_group').eq('brand', brand).gte('claim_date', from).lte('claim_date', to).order('id')).catch(() => []),
@@ -173,7 +173,7 @@ async function countUploadsForReport(reportDate, brand) {
     if ((!cancelled || r.status !== '취소') && !/분실/.test(r.status || '') && !seenOrder.has(item)) { seenOrder.add(item); bump(r.platform, 'orders'); }
   });
   lateCancels.forEach(r => { if (r.item_no && isCancelRow(r)) countCancel(r); });
-  reviews.forEach(r => { bump(r.platform, 'reviews_total'); bump(r.platform, r.rating !== null && r.rating <= 3 ? 'reviews_negative' : 'reviews_positive'); });
+  reviews.forEach(r => { bump(r.platform, 'reviews_total'); bump(r.platform, isNegReview(r) ? 'reviews_negative' : 'reviews_positive'); });
   const inquiries = board.filter(r => r.inquiry_type !== ANSWER_TYPE && !isStaffAnswer(r.content));
   inquiries.forEach(r => bump(r.platform, 'board_total'));
   // 반품·교환 → 단순 / 과실·상품이상(불량·파손) / 과실·오배송(오배송·누락). '과실·기타'는 직접 입력

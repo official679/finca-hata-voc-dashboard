@@ -62,6 +62,8 @@ const BRAND_ONLY = [{ key: '핀카', label: '핀카' }, { key: '하타', label: 
 // 품질 계열 VOC 구분은 브랜드 과실로 집계 (예전 '(반품)브랜드과실' 표기도 포함)
 const FAULT_TYPES = ['품질', '세탁·이염', '내구성'];
 const isFault = (vocType) => FAULT_TYPES.includes(vocType) || (vocType || '').includes('브랜드과실');
+// 데일리 리포트·CS 데일리의 부정 리뷰: 리뷰 목록에서 사람이 체크한 값이 있으면 그 값(부정만), 없으면 1~3점 (2026-10-28 사용자 요청)
+const isNegReview = (r) => (r.check_status ? r.check_status === '부정' : r.rating !== null && r.rating <= 3);
 
 // Supabase는 한 번에 최대 1000행만 돌려주므로 나눠서 전부 가져옴
 async function fetchAll(buildQuery) {

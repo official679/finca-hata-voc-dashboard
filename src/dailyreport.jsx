@@ -58,7 +58,7 @@ function DailyReportPanel({ date: startDate, onClose }) {
     const s = (d) => `${d}T00:00:00+09:00`, e = (d) => `${d}T23:59:59+09:00`;
     Promise.all([
       fetchAll(() => db.from('board_items').select('id,brand,platform,product_name,title,content,inquiry_type,written_at').gte('written_at', s(week0 < from ? week0 : from)).lte('written_at', e(to)).order('id')),
-      fetchAll(() => db.from('review_items').select('brand,platform,product_name,rating,content,written_at').gte('written_at', s(from)).lte('written_at', e(to)).order('id')),
+      fetchAll(() => db.from('review_items').select('brand,platform,product_name,rating,content,written_at,check_status').gte('written_at', s(from)).lte('written_at', e(to)).order('id')),
     ]).then(([boards, reviews]) => { if (alive) setExtra({ boards, reviews }); }).catch(() => { if (alive) setExtra({ boards: [], reviews: [] }); });
     return () => { alive = false; };
   }, [from, to, week0]);
@@ -174,7 +174,7 @@ function reportInsights(brand, extra, vocs, from, to, week0, productById) {
     .map(x => ({ ...x, wantText: [...x.wants.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([l, n]) => (n > 1 ? `${l} ${n}` : l)).join(' · ') }));
   // 리뷰
   const reviews = extra.reviews.filter(r => r.brand === brand);
-  const neg = reviews.filter(r => r.rating !== null && r.rating <= 3), pos = reviews.filter(r => r.rating !== null && r.rating > 3);
+  const neg = reviews.filter(isNegReview), pos = reviews.filter(r => !isNegReview(r) && (r.rating !== null || r.check_status));
   const themes = (rows, negative) => {
     const m = new Map(); rows.forEach(r => reviewThemes(r.content, negative).forEach(t => m.set(t, (m.get(t) || 0) + 1)));
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
