@@ -101,16 +101,16 @@ function DataUploadPage() {
   const [counts, setCounts] = useState({});
   const [version, setVersion] = useState(0);
   useEffect(() => {
-    Promise.all(['review_items', 'board_items', 'order_items', 'return_items'].map(t => db.from(t).select('id', { count: 'exact', head: true }).then(({ count }) => [t, count])))
+    Promise.all(['review_items', 'board_items', 'order_items', 'return_items', 'happytalk_items'].map(t => db.from(t).select('id', { count: 'exact', head: true }).then(({ count }) => [t, count])))
       .then(rs => setCounts(Object.fromEntries(rs)));
   }, [version]);
   const n = (t) => (counts[t] === undefined ? '...' : (counts[t] || 0).toLocaleString());
   return (
     <>
-      <PageHeader title="데이터 업로드" desc={`지금까지 저장: 리뷰 ${n('review_items')}건 · 게시판 문의 ${n('board_items')}건 · 주문 품목 ${n('order_items')}줄 · 반품·교환 ${n('return_items')}건`} />
+      <PageHeader title="데이터 업로드" desc={`지금까지 저장: 리뷰 ${n('review_items')}건 · 게시판 문의 ${n('board_items')}건 · 주문 품목 ${n('order_items')}줄 · 반품·교환 ${n('return_items')}건 · 해피톡 상담 ${n('happytalk_items')}건`} />
       <UploadPanel
-        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD, return: RETURN_UPLOAD }}
-        guide={<UploadGuide kinds={['review', 'board', 'order', 'return']} />}
+        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD, return: RETURN_UPLOAD, happytalk: HAPPYTALK_UPLOAD }}
+        guide={<UploadGuide kinds={['review', 'board', 'order', 'return', 'happytalk']} />}
         onDone={() => setVersion(v => v + 1)}
       />
       <Claims29Card />

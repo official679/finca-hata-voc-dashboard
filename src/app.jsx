@@ -4,7 +4,7 @@
 // 화면 주소(#/report 등)는 그대로라 예전 링크·회의록 링크도 그대로 열림.
 const HUBS = {
   preorder: { label: '예약배송 관리', icon: '📦', tabs: [['preorder', '📦 예약배송 관리'], ['hold-sheet', '📊 예약배송 상품 현황']] },
-  analysis: { label: '분석', icon: '📊', tabs: [['report', '📉 VOC 현황'], ['returns', '↩️ 반품·교환'], ['reviews', '💬 리뷰'], ['board', '🔎 게시판']] },
+  analysis: { label: '분석', icon: '📊', tabs: [['report', '📉 VOC 현황'], ['returns', '↩️ 반품·교환'], ['reviews', '💬 리뷰'], ['board', '🔎 게시판'], ['happytalk', '🎧 해피톡']] },
   reports: { label: '보고 · 회의', icon: '📈', tabs: [['monthly', '📈 보고서 (주간·월간)'], ['meetings', '📒 CX 미팅 로그'], ['kpi', '🎯 KPI']] },
 };
 // 👀 보기 모드 (대표님·MD용, PC별 기억 localStorage 'viewMode', 2026-10-12): 입력·업로드·예약배송·기준 관리 메뉴를 숨기고
@@ -147,6 +147,7 @@ function Shell({ session }) {
     'upload-board': <DataUploadPage />,
     'upload-orders': <DataUploadPage />,
     board: <BoardAnalysisPage key={location.hash} />,
+    happytalk: <HappytalkPage />,
     'voc-new': <VocEntryPage />,
     'voc-list': <VocListPage />,
     codes: <CodesPage />,
