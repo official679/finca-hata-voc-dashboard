@@ -43,14 +43,14 @@ function useReviewCheckCount(brand) {
   }, [brand]);
   return n;
 }
-// 최근 3주 1~3점 리뷰 (핵심 지표 '부정 리뷰율'이 튈 때 이유를 보여 주려고, 2026-10-14)
+// 최근 3주 부정 리뷰 (핵심 지표 '부정 리뷰율'이 튈 때 이유를 보여 주려고, 2026-10-14) · 부정 = 리뷰 목록 체크 값 우선 (isNegReview)
 function useRecentNegReviews(brand) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     let alive = true;
-    db.from('review_items').select('product_name,content,written_at,rating').eq('brand', brand).lte('rating', 3)
-      .gte('written_at', `${toISODate(addDays(new Date(), -21))}T00:00:00+09:00`)
-      .then(({ data }) => alive && setRows(data || []));
+    fetchAll(() => db.from('review_items').select('product_name,content,written_at,rating,check_status').eq('brand', brand)
+      .gte('written_at', `${toISODate(addDays(new Date(), -21))}T00:00:00+09:00`).order('id'))
+      .then(data => alive && setRows(data.filter(r => isNegReview(r)))).catch(() => alive && setRows([]));
     return () => { alive = false; };
   }, [brand]);
   return rows;
@@ -224,7 +224,7 @@ function HomePage() {
         <Kpi label="과실률" value={pct(faults(s), s.orders)} sub={<Delta cur={ratio(faults(s), s.orders)} prev={ratio(faults(p), p.orders)} vs={vsLabel} />} />
         <Kpi label="부정 리뷰율" value={pct(s.reviews_negative, s.reviews_total)} sub={<>
           <Delta cur={ratio(s.reviews_negative, s.reviews_total)} prev={ratio(p.reviews_negative, p.reviews_total)} vs={vsLabel} />
-          {negWhy && <a className="kpi-why" href={`#/review-list?brand=${encodeURIComponent(brand)}&period=7d&stars=neg`} title="이번 주 1~3점 리뷰 보기">
+          {negWhy && <a className="kpi-why" href={`#/review-list?brand=${encodeURIComponent(brand)}&period=7d&stars=neg`} title="이번 주 부정 리뷰 보기">
             <b>이번 주 부정 리뷰 {negWhy.n}건 보기 →</b>
             {negWhy.themes.length > 0 && <span>불만: {negWhy.themes.join(', ')}</span>}
             {negWhy.prods.length > 0 && <span>상품: {negWhy.prods.join(', ')}</span>}

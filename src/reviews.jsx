@@ -43,7 +43,7 @@ const reviewThemes = (text, negative) => (negative ? NEGATIVE_THEMES : POSITIVE_
 
 // 고른 기간의 리뷰만 불러옴 (전체 기간은 '전체'를 눌렀을 때만)
 function useReviews(since) {
-  return useSince('review_items', 'id,brand,platform,product_name,product_id,rating,content,written_at', since);
+  return useSince('review_items', 'id,brand,platform,product_name,product_id,rating,content,written_at,check_status', since);
 }
 
 // 부정 리뷰 불만 키워드 → VOC 구분 (먼저 걸리는 것)
@@ -177,7 +177,7 @@ function ReviewAnalysisPage() {
   const scoped = useMemo(() => (reviews || []).filter(r =>
     (!brand || r.brand === brand) && (!platform || r.platform === platform) && (!category || categoryOf(r.product_id, productById) === category) &&
     r.written_at && r.written_at.slice(0, 10) >= from && r.written_at.slice(0, 10) <= to), [reviews, brand, platform, category, from, to, productById]);
-  const isNeg = (r) => r.rating !== null && r.rating <= negMax;
+  const isNeg = (r) => isNegReview(r, negMax);
   const enriched = useMemo(() => scoped.map(r => ({ ...r, neg: isNeg(r), themes: reviewThemes(r.content, isNeg(r)), name: (r.product_id && productById.get(r.product_id)?.product_name) || r.product_name || '(상품명 없음)' })), [scoped, negMax, productById]);
 
   if (!reviews) return <div className="loading-screen">리뷰 불러오는 중...</div>;
@@ -201,7 +201,7 @@ function ReviewAnalysisPage() {
 
   return (
     <>
-      <PageHeader title="리뷰 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준 · 부정 = ${negMax}점 이하`}>
+      <PageHeader title="리뷰 분석" desc={`${from === '2000-01-01' ? '전체 기간' : `${fmtDate(from)} ~`} · 작성일 기준 · 부정 = 리뷰 목록 체크 '부정' (체크 없으면 ${negMax}점 이하)`}>
         <Segmented options={BRAND_ONLY} value={brand} onChange={setBrand} />
         <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
         <Select value={category} onChange={setCategory} options={categoryOptions(products)} placeholder="대분류 전체" />
@@ -212,8 +212,8 @@ function ReviewAnalysisPage() {
       <div className="grid grid-kpi">
         <Kpi label="리뷰 수" value={enriched.length.toLocaleString()} sub="건" />
         <Kpi label="평균 별점" value={avg} sub="5점 만점" />
-        <Kpi label="긍정 비중" value={pct(pos.length, enriched.length)} sub={`${pos.length.toLocaleString()}건 · ${negMax + 1}~5점`} />
-        <Kpi label="부정 비중" value={pct(neg.length, enriched.length)} sub={`${neg.length.toLocaleString()}건 · 1~${negMax}점`} alert={neg.length > 0} />
+        <Kpi label="긍정 비중" value={pct(pos.length, enriched.length)} sub={`${pos.length.toLocaleString()}건 · 부정 아닌 리뷰`} />
+        <Kpi label="부정 비중" value={pct(neg.length, enriched.length)} sub={`${neg.length.toLocaleString()}건 · 체크 우선`} alert={neg.length > 0} />
       </div>
 
       <div className="grid grid-2">

@@ -49,7 +49,7 @@ function ReviewListPage() {
     const t = q.trim().toLowerCase();
     const list = (reviews || []).filter(r => r.brand === brand && r.written_at && toISODate(new Date(r.written_at)) >= from && toISODate(new Date(r.written_at)) <= to &&
       (!platform || r.platform === platform) &&
-      (!stars || (stars === 'neg' ? r.rating !== null && r.rating <= negMax : stars === 'pos' ? r.rating > negMax : r.rating === Number(stars))) &&
+      (!stars || (stars === 'neg' ? isNegReview(r, negMax) : stars === 'pos' ? r.rating !== null && !isNegReview(r, negMax) : r.rating === Number(stars))) &&
       (!check || (check === '미확인' ? !r.check_status : r.check_status === check)) &&
       (!theme || reviewThemes(r.content, true).includes(theme) || reviewThemes(r.content, false).includes(theme)) &&
       (!product || nameOf(r) === product) &&
@@ -118,7 +118,7 @@ function ReviewListPage() {
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="filters">
           <Select value={platform} onChange={setPlatform} options={platforms} placeholder="플랫폼 전체" />
-          <Select value={stars} onChange={setStars} options={[{ value: 'neg', label: `부정 (1~${negMax}점)` }, { value: 'pos', label: `긍정 (${negMax + 1}~5점)` }, ...[5, 4, 3, 2, 1].map(n => ({ value: String(n), label: `★${n}점` }))]} placeholder="별점 전체" />
+          <Select value={stars} onChange={setStars} options={[{ value: 'neg', label: '부정 리뷰 (체크 우선)' }, { value: 'pos', label: '부정 아닌 리뷰' }, ...[5, 4, 3, 2, 1].map(n => ({ value: String(n), label: `★${n}점` }))]} placeholder="별점 전체" />
           <Select value={check} onChange={setCheck} options={['미확인', ...REVIEW_CHECKS.map(c => c.key)]} placeholder="체크 전체" />
           <Select value={sort} onChange={setSort} options={REVIEW_SORTS} />
           <input className="input" style={{ minWidth: 220 }} value={q} onChange={e => setQ(e.target.value)} placeholder="상품명·리뷰 내용·주문번호 검색" />
@@ -138,7 +138,7 @@ function ReviewListPage() {
                 const voc = vocOf(r);
                 const needVoc = r.check_status === '부정' || r.check_status === '체크필요';
                 return (
-                  <tr key={r.id} className={r.rating !== null && r.rating <= negMax ? 'review-neg' : ''}>
+                  <tr key={r.id} className={isNegReview(r, negMax) ? 'review-neg' : ''}>
                     <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(r.written_at.slice(0, 10))}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>{r.platform}</td>
                     <td style={{ minWidth: 180, maxWidth: 260 }}>{nameOf(r)}</td>

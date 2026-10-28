@@ -9,7 +9,7 @@ const KPI_DEFS = [
   // needs: 이 칸들을 그달 한 번도 입력하지 않았으면 0%가 아니라 '미입력' (예: 8월 출고전 취소·전화는 입력 안 함)
   { key: 'cancel_rate', label: '출고전 취소율', unit: '%', lowerBetter: true, def: 5, desc: '출고전 취소 ÷ 주문건 (CS 데일리)', needs: ['cancels'],
     calc: (s) => (s.orders ? s.cancels / s.orders * 100 : null) },
-  { key: 'neg_review_rate', label: '부정 리뷰율', unit: '%', lowerBetter: true, def: 5, desc: '1~3점 리뷰 ÷ 작성 리뷰 (CS 데일리)',
+  { key: 'neg_review_rate', label: '부정 리뷰율', unit: '%', lowerBetter: true, def: 5, desc: '부정 리뷰(리뷰 목록 체크, 없으면 1~3점) ÷ 작성 리뷰 (CS 데일리)',
     calc: (s) => (s.reviews_total ? s.reviews_negative / s.reviews_total * 100 : null) },
   { key: 'inquiry_per_100', label: '주문 100건당 문의', unit: '건', lowerBetter: true, def: 8, desc: '(게시판+해피톡+전화 인입) ÷ 주문건 × 100', needs: ['board_total', 'ht_total'],   // 전화는 하타처럼 없는 달도 있어서 제외
     calc: (s) => (s.orders ? (s.board_total + s.ht_total + s.call_in) / s.orders * 100 : null) },

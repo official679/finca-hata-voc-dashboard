@@ -97,7 +97,7 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
   // 표와 같은 기간: CS 데일리가 있으면 실제 데이터 날짜(연휴 포함, 예: 9/28~10/5), 없으면 그 주 월~일
   const range = (w) => actualDataRange(daily, w) || [toISODate(addDays(parseDate(w.from), -1)), toISODate(addDays(parseDate(w.to), -1))];
   const [cf, ct] = range(cur), [pf] = range(prev);
-  const reviews = await fetchAll(() => db.from('review_items').select('brand,product_name,rating,content,written_at')
+  const reviews = await fetchAll(() => db.from('review_items').select('brand,product_name,rating,content,written_at,check_status')
     .gte('written_at', `${pf}T00:00:00+09:00`).lt('written_at', `${toISODate(addDays(parseDate(ct), 1))}T00:00:00+09:00`).order('id'));
   // 게시판 문의 유형 (문의가 크게 늘면 어떤 유형이 늘었는지 요약에 넣기, 2026-10-12 사용자 요청)
   const boards = await fetchAll(() => db.from('board_items').select('brand,inquiry_type,written_at,product_name,title,content')
@@ -113,8 +113,8 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
   ['핀카', '하타'].forEach(brand => {
     const cr = reviews.filter(r => r.brand === brand && inWeek(r.written_at, cf, ct));
     const pr = reviews.filter(r => r.brand === brand && !inWeek(r.written_at, cf, ct));
-    const neg = cr.filter(r => r.rating !== null && r.rating <= negMax);
-    const pneg = pr.filter(r => r.rating !== null && r.rating <= negMax).length;
+    const neg = cr.filter(r => isNegReview(r, negMax));
+    const pneg = pr.filter(r => isNegReview(r, negMax)).length;
     const vocs = cases.filter(c => c.brand === brand && c.received_date >= cf && c.received_date <= ct);
     const fault = vocs.filter(c => isFault(c.voc_type));
     const vname = (c) => short((c.product_id && productById.get(c.product_id)?.product_name) || c.product_name);
@@ -122,7 +122,7 @@ async function weeklyReviewVocDraft(meetingDate, cases, productById, daily = [])
     const avg = (list) => { const v = list.filter(r => r.rating !== null); return v.length ? v.reduce((a, r) => a + r.rating, 0) / v.length : null; };
     const [ca, pa] = [avg(cr), avg(pr)];
     const avgText = ca === null ? '-' : `★${ca.toFixed(2)}${pa === null ? '' : ` (전주 ${pa.toFixed(2)}, ${ca - pa >= 0 ? '+' : ''}${(ca - pa).toFixed(2)})`}`;
-    const pos = cr.filter(r => r.rating !== null && r.rating > negMax);
+    const pos = cr.filter(r => r.rating !== null && !isNegReview(r, negMax));
     const quote = pos.filter(r => r.rating === 5 && reviewThemes(r.content, false).length && !reviewThemes(r.content, true).length && !/커요|작아요|아쉽|불편|별로|크게 나|작게 나/.test(String(r.content || "")) && String(r.content || '').trim().length >= 20)
       .sort((a, b) => reviewThemes(b.content, false).length - reviewThemes(a.content, false).length).slice(0, 2)
       .map(r => `"${String(r.content).replace(/\s+/g, ' ').trim().slice(0, 60)}${String(r.content).trim().length > 60 ? '…' : ''}" (${short(r.product_name)})`);

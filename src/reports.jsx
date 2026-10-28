@@ -48,8 +48,8 @@ function ComboChart({ items, color, lineColor = '#E5484D', title }) {
 // 기간 안의 리뷰: 부정(1~3점) 불만 TOP · 긍정(4~5점) 좋았던 점 TOP
 function complaintTop(reviews, brand, from, to, n = 5) {
   const all = reviews.filter(r => r.brand === brand && inRange(r.written_at, from, to));
-  const neg = all.filter(r => r.rating !== null && r.rating <= 3);
-  const pos = all.filter(r => r.rating !== null && r.rating > 3);
+  const neg = all.filter(r => isNegReview(r));
+  const pos = all.filter(r => !isNegReview(r) && (r.rating !== null || r.check_status));
   const topOf = (rows, negative) => {
     const counts = new Map();
     rows.forEach(r => reviewThemes(r.content, negative).forEach(t => counts.set(t, (counts.get(t) || 0) + 1)));
@@ -60,7 +60,7 @@ function complaintTop(reviews, brand, from, to, n = 5) {
 
 function ReportsPage() {
   const daily = useDaily();
-  const reviews = useLight('review_items', 'brand,rating,content,written_at,product_name,product_id');
+  const reviews = useLight('review_items', 'brand,rating,content,written_at,product_name,product_id,check_status');
   const board = useLight('board_items', 'brand,inquiry_type,written_at,product_name,product_id,option_text');
   const [tab, setTab] = useState(() => { try { return localStorage.getItem('reportTab') === 'monthly' ? 'monthly' : 'weekly'; } catch { return 'weekly'; } });
   const [brand, setBrand] = useState('핀카');
@@ -117,15 +117,15 @@ function MonthDetails({ reviews, board, brand, ym, range, title }) {
       <div className="detail-section">⭐ {m} 리뷰 <small className="muted" style={{ fontWeight: 400 }}>업로드한 리뷰 {rv.total.toLocaleString()}건 · 부정 {rv.neg.length.toLocaleString()}건 ({pct(rv.neg.length, rv.total)}) · 긍정 {rv.pos.length.toLocaleString()}건 ({pct(rv.pos.length, rv.total)})</small></div>
       <div className="grid grid-pair">
         <div className="card">
-          <div className="card-title">😟 불만 TOP 5 <small>1~3점 리뷰에서 많이 나온 말</small></div>
+          <div className="card-title">😟 불만 TOP 5 <small>부정 리뷰에서 많이 나온 말</small></div>
           <Bars items={rv.top} color="var(--danger)" />
         </div>
         <div className="card">
-          <div className="card-title">😊 좋았던 점 TOP 5 <small>4~5점 리뷰에서 많이 나온 말</small></div>
+          <div className="card-title">😊 좋았던 점 TOP 5 <small>부정 아닌 리뷰에서 많이 나온 말</small></div>
           <Bars items={rv.posTop} color="var(--success)" />
         </div>
         <div className="card">
-          <div className="card-title">부정 리뷰 많은 상품 TOP 5 <small>1~3점 · 누르면 리뷰 보기</small></div>
+          <div className="card-title">부정 리뷰 많은 상품 TOP 5 <small>리뷰 목록 체크 우선 · 누르면 리뷰 보기</small></div>
           <Bars items={byProduct(rv.neg)} color="var(--danger)" wide onPick={openProduct('neg')} />
         </div>
         <div className="card">
