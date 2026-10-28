@@ -191,12 +191,13 @@ function reportInsights(brand, extra, vocs, from, to, week0, productById) {
   const htRows = htAll.filter(r => !isHtBot(r));
   const htTypes = HT_TYPES.map(t => ({ t, n: htRows.filter(r => (r.ht_type || '기타') === t).length })).filter(x => x.n).sort((a, b) => b.n - a.n);
   htRows.filter(r => r.ht_type === '불량·오배송' && r.product_name).forEach(r => { const k = normProductName(r.product_name); if (k) fixMap.set(k, { name: r.product_name, n: (fixMap.get(k)?.n || 0) + 1, why: fixMap.get(k)?.why || '해피톡 불량·오배송' }); });
-  const hintSeen = new Set();
-  const htHints = htAll.filter(r => r.hint && !hintSeen.has(r.hint) && hintSeen.add(r.hint))
-    .sort((a, b) => (b.ht_type === '불량·오배송') - (a.ht_type === '불량·오배송')).slice(0, 3);
+  // 특이건 = 접수 내용 3개 (2026-10-28 사용자: 개선 힌트 말고 상품명·내용) · 불량·오배송 → 교환·반품 → 취소·변경 → 그 밖, 메시지 없는 접수·기타는 뺌
+  const HT_PICK = ['불량·오배송', '교환·반품', '취소·변경', '재입고', '상품문의', '배송'];
+  const htPicks = htRows.filter(r => !isHtOnly(r) && HT_PICK.includes(r.ht_type))
+    .sort((a, b) => HT_PICK.indexOf(a.ht_type) - HT_PICK.indexOf(b.ht_type) || !!b.product_name - !!a.product_name).slice(0, 3);
   const fix = [...fixMap.values()].sort((a, b) => b.n - a.n).slice(0, 3);
   return { boardCount: today.length, types, restockTop, reviews, neg, pos, posThemes: themes(pos, false), negThemes: themes(neg, true), reorder, fix,
-    ht: { count: htRows.length, bots: htAll.length - htRows.length, types: htTypes, hints: htHints } };
+    ht: { count: htRows.length, bots: htAll.length - htRows.length, types: htTypes, picks: htPicks } };
 }
 
 function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from, to, week0 }) {
@@ -291,11 +292,11 @@ function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from,
             <div className="dr-box" style={{ marginTop: 12 }}>
               <div className="dr-box-title">🎧 해피톡 상담 {ins.ht.count}건 <span>{ins.ht.bots ? `봇만 응대한 ${ins.ht.bots}건 제외 · ` : ''}유형별</span></div>
               <div className="dr-chips">{ins.ht.types.length ? ins.ht.types.map(x => <span key={x.t} className={x.t === '불량·오배송' ? 'hot' : ''}>{x.t} {x.n}</span>) : <span className="none">-</span>}</div>
-              {ins.ht.hints.length > 0 && <>
-                <div className="dr-box-sub">💡 개선 힌트</div>
-                {ins.ht.hints.map((r, i) => (
+              {ins.ht.picks.length > 0 && <>
+                <div className="dr-box-sub">📝 주요 접수 내용</div>
+                {ins.ht.picks.map((r, i) => (
                   <div key={i} className="dr-quote" style={{ borderLeftColor: r.ht_type === '불량·오배송' ? '#D64545' : '#4C7BE0' }}>
-                    <b>{r.ht_type || '기타'}</b>{r.product_name ? ` · ${r.product_name}` : ''}<div>{r.hint}</div>
+                    <b>{r.ht_type}</b>{r.product_name ? ` · ${r.product_name}` : ''}<div>{String(r.content || '').replace(/\s+/g, ' ').slice(0, 90)}{String(r.content || '').length > 90 ? '…' : ''}</div>
                   </div>
                 ))}
               </>}
