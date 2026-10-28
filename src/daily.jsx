@@ -132,7 +132,7 @@ async function countUploadsForReport(reportDate, brand) {
   //   리뷰·게시판도 같은 방식: 보고일에 올린 파일이 없으면 0으로 둠 (2026-10-07 사용자 요청)
   const uploadedSince = async (table) => { const { data } = await db.from(table).select('id').eq('brand', brand).gte('created_at', `${reportDate}T00:00:00+09:00`).limit(1); return !!(data && data.length); };
   const [ordersFresh, reviewsFresh, boardFresh] = await Promise.all(['order_items', 'review_items', 'board_items'].map(uploadedSince));
-  const [orders, lateCancels, reviews, board, returns] = await Promise.all([
+  const [orders, lateCancels, reviews, board, returns, happytalk] = await Promise.all([
     fetchAll(() => db.from('order_items').select(ORDER_COLS).eq('brand', brand).gte('order_date', from).lte('order_date', to).order('id')),
     // 이 기간에 처음 확인된 취소 (주문 날짜는 더 이전일 수 있음, 19 SQL)
     fetchAll(() => db.from('order_items').select(ORDER_COLS).eq('brand', brand).gte('cancel_seen_date', from).lte('cancel_seen_date', to).order('id')),
@@ -140,7 +140,10 @@ async function countUploadsForReport(reportDate, brand) {
     fetchAll(() => db.from('board_items').select('platform,inquiry_type,content').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')),
     // 반품·교환: 접수일 기준 (데일리 파일 = 전일 접수 건, 접수일 칸이 없으면 올린 날의 전날로 저장됨)
     fetchAll(() => db.from('return_items').select('platform,kind,reason_group').eq('brand', brand).gte('claim_date', from).lte('claim_date', to).order('id')).catch(() => []),
+    // 해피톡: Aside가 읽은 상담 (상담 시각 기준, 2026-10-28)
+    fetchAll(() => db.from('happytalk_items').select('ht_type,content,answer').eq('brand', brand).gte('written_at', start).lt('written_at', end).order('id')).catch(() => []),
   ]);
+  const ht = htDailyCounts(happytalk);
   const byPlatform = {}, others = new Set();
   const bump = (platform, field, n = 1) => {
     const p = UPLOAD_PLATFORM_TO_DAILY[platform];
@@ -182,11 +185,11 @@ async function countUploadsForReport(reportDate, brand) {
     if (UPLOAD_PLATFORM_TO_DAILY[r.platform]) returnPlatforms.add(UPLOAD_PLATFORM_TO_DAILY[r.platform]);
   });
   return {
-    byPlatform, others: [...others], returnPlatforms: [...returnPlatforms],
+    byPlatform, others: [...others], returnPlatforms: [...returnPlatforms], ht,
     ordersStale: !ordersFresh && orders.length > 0,
     stale: { orders: !ordersFresh, reviews: !reviewsFresh, board: !boardFresh },
-    has: { orders: ordersFresh && orders.length > 0, reviews: reviewsFresh && reviews.length > 0, board: boardFresh && inquiries.length > 0, returns: returns.length > 0 },
-    totals: { orders: Object.values(byPlatform).reduce((a, c) => a + (c.orders || 0), 0), reviews: reviews.length, board: inquiries.length, returns: returns.length },
+    has: { orders: ordersFresh && orders.length > 0, reviews: reviewsFresh && reviews.length > 0, board: boardFresh && inquiries.length > 0, returns: returns.length > 0, happytalk: happytalk.length > 0 },
+    totals: { orders: Object.values(byPlatform).reduce((a, c) => a + (c.orders || 0), 0), reviews: reviews.length, board: inquiries.length, returns: returns.length, happytalk: ht.counted },
   };
 }
 
@@ -261,10 +264,12 @@ function DailyEntryPage() {
             if (got.returnPlatforms.includes(p)) ['return_simple', 'return_defect', 'return_misship', 'exchange_simple', 'exchange_defect', 'exchange_misship'].forEach(f => { v[f] = c[f] || 0; });
             next[p] = v;
           });
+          // 해피톡은 플랫폼 구분 없는 줄에 · 올린 상담이 없으면 손으로 넣은 값 그대로
+          if (got.has.happytalk) next[BRAND_TOTAL] = withAutoTotals({ ...next[BRAND_TOTAL], ...got.ht.values });
           return { ...prev, [b]: next };
         });
-        [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건'], ['returns', '반품·교환', '건']].forEach(([k, name, unit]) => {
-          if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}`); else skipped.push(name);
+        [['orders', '주문', '개(상품)'], ['reviews', '리뷰', '건'], ['board', '게시판', '건'], ['returns', '반품·교환', '건'], ['happytalk', '해피톡', '건']].forEach(([k, name, unit]) => {
+          if (got.has[k]) filled.push(`${name} ${got.totals[k].toLocaleString()}${unit}${k === 'happytalk' && got.ht.bots ? ` (봇만 응대한 ${got.ht.bots}건 뺌)` : ''}`); else skipped.push(name);
         });
         const staleList = [got.stale.orders && `주문·출고전 취소(${b === '하타' ? '사방넷' : '오클릭'} 파일)`, got.stale.reviews && '리뷰', got.stale.board && '게시판'].filter(Boolean);
         // 이 브랜드 CS 데일리에 칸이 없는 플랫폼(예: 핀카의 W컨셉)은 빠지므로 따로 알려줌
@@ -281,7 +286,7 @@ function DailyEntryPage() {
         if (filled.length) filledBrands.push(b);
       }
       setFillNote([
-        `${dataLabel(date)} 데이터로 핀카·하타를 함께 채웠어요. 위 브랜드 버튼으로 바꿔 보며 확인하고 해피톡·전화 등을 넣은 뒤 💾 저장 한 번이면 둘 다 저장돼요.`,
+        `${dataLabel(date)} 데이터로 핀카·하타를 함께 채웠어요. 위 브랜드 버튼으로 바꿔 보며 확인하고 전화 등을 넣은 뒤 💾 저장 한 번이면 둘 다 저장돼요.`,
         ...notes,
         '출고전 취소 = 오클릭·사방넷에 들어온 뒤 취소된 상품 수 (들어오기 전에 바로 취소된 주문은 주문건·취소 모두에서 빠져요).',
       ].join('\n'));

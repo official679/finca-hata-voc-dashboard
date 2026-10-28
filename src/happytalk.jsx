@@ -33,6 +33,23 @@ const HAPPYTALK_UPLOAD = {
     content: str(r.content), answer: r.answer, hint: r.hint }),
 };
 
+// CS 데일리 해피톡 칸 채우기 (2026-10-28 사용자 결정)
+//   · 봇만 응대한 상담(우리 안내가 '[봇]'으로 시작)은 안 셈, 진행 중이라도 상담원이 받은 건 셈
+//   · ONLY 접수 = 고객 메시지 없이 접수만 된 상담 · VOC 상담 = 불량·오배송 (교환/반품 칸에도 같이 들어감, 총 상담엔 안 더함)
+const HT_DAILY_FIELD = { '배송': 'ht_delivery', '교환·반품': 'ht_return', '불량·오배송': 'ht_return', '취소·변경': 'ht_cancel', '상품문의': 'ht_product', '재입고': 'ht_product', '기타': 'ht_etc' };
+const isHtBot = (r) => /^\s*\[봇\]/.test(r.answer || '');
+const isHtOnly = (r) => !String(r.content || '').trim() || /메시지\s*(없이|없음)|접수만/.test(r.content);
+function htDailyCounts(rows) {
+  const v = { ht_only: 0, ht_delivery: 0, ht_return: 0, ht_cancel: 0, ht_product: 0, ht_etc: 0, ht_voc: 0 };
+  const counted = rows.filter(r => !isHtBot(r));
+  counted.forEach(r => {
+    if (isHtOnly(r)) { v.ht_only++; return; }
+    v[HT_DAILY_FIELD[r.ht_type] || 'ht_etc']++;
+    if (r.ht_type === '불량·오배송') v.ht_voc++;
+  });
+  return { values: v, counted: counted.length, bots: rows.length - counted.length };
+}
+
 // Aside에 맡길 말 (기간 = 전날, 월요일 = 금~일 · 29CM 반품·Q&A와 같은 규칙)
 function htAsideRange() {
   const now = new Date();
