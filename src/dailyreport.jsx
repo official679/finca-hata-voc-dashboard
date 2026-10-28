@@ -45,7 +45,8 @@ function DailyReportPanel({ date: startDate, onClose }) {
   const brands = only ? [only] : ['핀카', '하타'];
   const titleBrand = only === '핀카' ? 'FINCA' : only === '하타' ? 'HaTA' : 'FINCA / HaTA';
   const rowsOf = (brand) => (daily || []).filter(r => r.report_date === date && r.brand === brand);
-  const vocOf = (brand) => cases.filter(c => c.brand === brand && c.received_date >= from && c.received_date <= to)
+  // 처리 구분 '해당 없음'(VOC로 볼 일이 아니라고 판단한 건)은 리포트에서 뺌 (2026-10-28 사용자 요청)
+  const vocOf = (brand) => cases.filter(c => c.brand === brand && c.received_date >= from && c.received_date <= to && c.handling !== '해당 없음')
     .sort((a, b) => (a.received_date || '').localeCompare(b.received_date || ''));
   const photoPaths = brands.flatMap(b => vocOf(b).map(c => (c.photos || [])[0]).filter(Boolean));
   const photos = useReportPhotos(photoPaths);
