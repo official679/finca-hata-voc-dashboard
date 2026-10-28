@@ -59,7 +59,9 @@ function DailyReportPanel({ date: startDate, onClose }) {
     Promise.all([
       fetchAll(() => db.from('board_items').select('id,brand,platform,product_name,title,content,inquiry_type,written_at').gte('written_at', s(week0 < from ? week0 : from)).lte('written_at', e(to)).order('id')),
       fetchAll(() => db.from('review_items').select('brand,platform,product_name,rating,content,written_at,check_status').gte('written_at', s(from)).lte('written_at', e(to)).order('id')),
-    ]).then(([boards, reviews]) => { if (alive) setExtra({ boards, reviews }); }).catch(() => { if (alive) setExtra({ boards: [], reviews: [] }); });
+      // 해피톡 상담 (🎧 해피톡에 넣은 것, 2026-10-28)
+      fetchAll(() => db.from('happytalk_items').select('brand,written_at,ht_type,product_name,content,answer,hint').gte('written_at', s(from)).lte('written_at', e(to)).order('id')).catch(() => []),
+    ]).then(([boards, reviews, happytalk]) => { if (alive) setExtra({ boards, reviews, happytalk }); }).catch(() => { if (alive) setExtra({ boards: [], reviews: [], happytalk: [] }); });
     return () => { alive = false; };
   }, [from, to, week0]);
 
@@ -184,8 +186,17 @@ function reportInsights(brand, extra, vocs, from, to, week0, productById) {
   const fixMap = new Map();
   neg.forEach(r => { const k = normProductName(r.product_name); if (k) fixMap.set(k, { name: r.product_name, n: (fixMap.get(k)?.n || 0) + 1, why: '부정 리뷰' }); });
   vocs.filter(c => isFault(c.voc_type)).forEach(c => { const nm = caseProductName(c, productById) || ''; const k = normProductName(nm); if (k) fixMap.set(k, { name: nm, n: (fixMap.get(k)?.n || 0) + 1, why: '과실 VOC' }); });
+  // 해피톡 (2026-10-28): 봇만 응대한 상담은 건수·유형에서 뺌 (CS 데일리 해피톡 칸과 같은 기준) · 불량·오배송 상품은 검수·개선 액션에
+  const htAll = (extra.happytalk || []).filter(r => r.brand === brand && inDay(r.written_at));
+  const htRows = htAll.filter(r => !isHtBot(r));
+  const htTypes = HT_TYPES.map(t => ({ t, n: htRows.filter(r => (r.ht_type || '기타') === t).length })).filter(x => x.n).sort((a, b) => b.n - a.n);
+  htRows.filter(r => r.ht_type === '불량·오배송' && r.product_name).forEach(r => { const k = normProductName(r.product_name); if (k) fixMap.set(k, { name: r.product_name, n: (fixMap.get(k)?.n || 0) + 1, why: fixMap.get(k)?.why || '해피톡 불량·오배송' }); });
+  const hintSeen = new Set();
+  const htHints = htAll.filter(r => r.hint && !hintSeen.has(r.hint) && hintSeen.add(r.hint))
+    .sort((a, b) => (b.ht_type === '불량·오배송') - (a.ht_type === '불량·오배송')).slice(0, 3);
   const fix = [...fixMap.values()].sort((a, b) => b.n - a.n).slice(0, 3);
-  return { boardCount: today.length, types, restockTop, reviews, neg, pos, posThemes: themes(pos, false), negThemes: themes(neg, true), reorder, fix };
+  return { boardCount: today.length, types, restockTop, reviews, neg, pos, posThemes: themes(pos, false), negThemes: themes(neg, true), reorder, fix,
+    ht: { count: htRows.length, bots: htAll.length - htRows.length, types: htTypes, hints: htHints } };
 }
 
 function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from, to, week0 }) {
@@ -275,6 +286,21 @@ function DailyReportBrand({ brand, rows, vocs, photos, productById, extra, from,
               ) : <div className="dr-note">이 날짜에 업로드된 리뷰가 없어요</div>}
             </div>
           </div>
+          {/* 해피톡 넣은 날만 보임 (2026-10-28) */}
+          {ins.ht.count + ins.ht.bots > 0 && (
+            <div className="dr-box" style={{ marginTop: 12 }}>
+              <div className="dr-box-title">🎧 해피톡 상담 {ins.ht.count}건 <span>{ins.ht.bots ? `봇만 응대한 ${ins.ht.bots}건 제외 · ` : ''}유형별</span></div>
+              <div className="dr-chips">{ins.ht.types.length ? ins.ht.types.map(x => <span key={x.t} className={x.t === '불량·오배송' ? 'hot' : ''}>{x.t} {x.n}</span>) : <span className="none">-</span>}</div>
+              {ins.ht.hints.length > 0 && <>
+                <div className="dr-box-sub">💡 개선 힌트</div>
+                {ins.ht.hints.map((r, i) => (
+                  <div key={i} className="dr-quote" style={{ borderLeftColor: r.ht_type === '불량·오배송' ? '#D64545' : '#4C7BE0' }}>
+                    <b>{r.ht_type || '기타'}</b>{r.product_name ? ` · ${r.product_name}` : ''}<div>{r.hint}</div>
+                  </div>
+                ))}
+              </>}
+            </div>
+          )}
         </>
       )}
 
