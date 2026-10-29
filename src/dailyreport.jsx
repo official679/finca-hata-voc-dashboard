@@ -45,8 +45,10 @@ function DailyReportPanel({ date: startDate, onClose }) {
   const brands = only ? [only] : ['핀카', '하타'];
   const titleBrand = only === '핀카' ? 'FINCA' : only === '하타' ? 'HaTA' : 'FINCA / HaTA';
   const rowsOf = (brand) => (daily || []).filter(r => r.report_date === date && r.brand === brand);
-  // 처리 구분 '해당 없음'(VOC로 볼 일이 아니라고 판단한 건)은 리포트에서 뺌 (2026-10-28 사용자 요청)
-  const vocOf = (brand) => cases.filter(c => c.brand === brand && c.received_date >= from && c.received_date <= to && c.handling !== '해당 없음')
+  // 처리 구분 '해당 없음'으로 이미 끝낸 VOC(VOC로 볼 일이 아니라고 판단한 건)만 리포트에서 뺌 (2026-10-28 사용자 요청)
+  //   '해당 없음'이어도 접수·확인중이면 보여 줌 (반품·교환 없이 재고 검수하는 건 등, 2026-10-29: 4건 중 2건만 보였음)
+  const vocOf = (brand) => cases.filter(c => c.brand === brand && c.received_date >= from && c.received_date <= to &&
+    !(c.handling === '해당 없음' && !['접수', '확인중'].includes(c.status || '접수')))
     .sort((a, b) => (a.received_date || '').localeCompare(b.received_date || ''));
   const photoPaths = brands.flatMap(b => vocOf(b).map(c => (c.photos || [])[0]).filter(Boolean));
   const photos = useReportPhotos(photoPaths);
