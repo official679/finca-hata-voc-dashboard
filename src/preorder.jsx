@@ -549,6 +549,20 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
     await updateIds(ids, { status: to, shipped_on: to === '출고완' ? today() : null });
     return ids.length;
   });
+  // 메모 일괄 추가 (2026-11-02 사용자 요청): 선택한 주문마다 같은 메모를 하나씩 쌓음 (상세 창 메모와 같은 곳)
+  const [memoText, setMemoText] = useState('');
+  const [who, setWho] = useState(memoWho);
+  const pickWho = (n) => { setWho(n); try { localStorage.setItem('memoMe', n); } catch {} };
+  const addMemoAll = () => {
+    const t = memoText.trim(); if (!t) return;
+    if (!who) { toast('쓰는 사람 이름을 먼저 눌러 주세요 (한 번 고르면 이 PC에서 기억해요)', 'err'); return; }
+    return run('메모 추가', async () => {
+      const entry = { d: memoNow(), who, text: t };
+      const byKey = new Map(picked.map(o => [o.memoKey, { order_key: o.memoKey, log: [...(o.memoLog || []), entry], updated_at: new Date().toISOString() }]));
+      await upsertChunks('preorder_memos', [...byKey.values()], 'order_key');
+      setMemoText('');
+    });
+  };
 
   return (
     <>
@@ -587,6 +601,12 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
         <button className="btn btn-sm" disabled={!picked.length || busy} onClick={() => setStatusAll('출고완')}>📦 출고완</button>
         <button className="btn btn-sm" disabled={!picked.length || busy} onClick={() => setStatusAll('출고대기')}>↩ 출고대기로</button>
         <button className="btn btn-sm btn-danger" disabled={!picked.length || busy} onClick={() => setStatusAll('취소')}>취소 처리</button>
+        <span className="bulk-sep" />
+        {!who && MEMO_NAMES.map(n => <button key={n} type="button" className="btn btn-sm" title="메모 쓰는 사람 (이 PC에서 기억해요)" onClick={() => pickWho(n)}>{n}</button>)}
+        <input className="input" style={{ minWidth: 220, flex: 1 }} value={memoText} onChange={e => setMemoText(e.target.value)}
+          placeholder={`📝 선택한 주문에 메모 한꺼번에${who ? ` (${who})` : ''}`}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing && picked.length && !busy) { e.preventDefault(); addMemoAll(); } }} />
+        <button className="btn btn-sm" disabled={!picked.length || busy || !memoText.trim()} onClick={addMemoAll} title="선택한 주문마다 이 메모를 하나씩 추가해요 (주문 상세 창 메모와 같아요)">📝 메모 추가</button>
         {picked.length > 0 && <button className="btn-link" onClick={() => setSelected(new Set())}>선택 해제</button>}
       </div>
       <PreorderOrderTable orders={rows} onOpen={onOpen} todo={todo} selected={selected} setSelected={setSelected} showProducts={todo || showProd || !!q.trim() || !!product} allLines={!!q.trim()}
