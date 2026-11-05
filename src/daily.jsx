@@ -10,13 +10,14 @@ const PLATFORM_FIELDS = [
 ];
 const BRAND_FIELDS = [
   { section: '해피톡 (1:1 상담)', fields: [['ht_total', '총 상담'], ['ht_only', 'ONLY 접수'], ['ht_delivery', '배송문의'], ['ht_return', '교환/반품'], ['ht_cancel', '주문취소/변경'], ['ht_product', '상품문의'], ['ht_etc', '기타문의'], ['ht_voc', 'VOC 상담']] },
-  { section: '전화 상담', fields: [['call_in', '총 인입'], ['call_delivery', '배송문의'], ['call_return', '반품/교환'], ['call_cancel', '취소/변경'], ['call_product', '상품'], ['call_etc', '기타'], ['call_out', '총 발신']] },
+  // 전화 세부 칸 = 전화 시스템 ARS 번호 순서 (1 배송 · 2 반품 · 3 교환 · 4 취소/변경 · 5 상품, 2026-11-05 반품/교환 나눔)
+  { section: '전화 상담', fields: [['call_in', '총 인입'], ['call_delivery', '배송문의'], ['call_return', '반품'], ['call_exchange', '교환'], ['call_cancel', '취소/변경'], ['call_product', '상품'], ['call_etc', '기타'], ['call_out', '총 발신']] },
 ];
 const ALL_DAILY_FIELDS = [...PLATFORM_FIELDS, ...BRAND_FIELDS].flatMap(s => s.fields.map(f => f[0]));
 // 합계 칸은 직접 안 넣고 세부 칸을 더해서 자동 (VOC 상담·총 발신은 따로 세는 칸이라 합계에 안 들어감)
 const AUTO_TOTALS = {
   ht_total: ['ht_only', 'ht_delivery', 'ht_return', 'ht_cancel', 'ht_product', 'ht_etc'],
-  call_in: ['call_delivery', 'call_return', 'call_cancel', 'call_product', 'call_etc'],
+  call_in: ['call_delivery', 'call_return', 'call_exchange', 'call_cancel', 'call_product', 'call_etc'],
 };
 // 세부 칸이 하나라도 있으면 그 합계, 모두 0이면 예전에 합계만 넣어 둔 값을 그대로 둠
 const withAutoTotals = (v) => {
