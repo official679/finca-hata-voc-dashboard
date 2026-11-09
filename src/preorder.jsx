@@ -152,11 +152,13 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
     const isGift = giftCodes.includes(l.barcode);
     // 품절 = 예약상품이 아닌 출고대기 상품의 오클릭 재고 0 (창고에 하나도 없음, 2026-10-13 사용자 요청)
     //   상품상태 종료/취소 = 단종(재입고 없음 → 취소 안내), 그 밖 = 입고 대기(입고예정일 안내) · 맞춤 제작은 원래 재고 0이라 제외 · 사은품 제외
-    const soldout = l.status === '출고대기' && !prod && !isGift && l.stock !== null && l.stock <= 0 && !/맞춤\s*제작/.test(l.product_name || '');
+    //   2026-11-09: 실재고가 있어도 가용재고가 마이너스면(먼저 들어온 주문에 다 잡혀 이 주문은 못 나감) 품절로 봄 — 레그워머 가용 -2가 품절·저재고 둘 다 빠졌던 일
+    const zero = l.stock !== null && l.stock <= 0, short = !zero && l.avail !== null && l.avail < 0;
+    const soldout = l.status === '출고대기' && !prod && !isGift && (zero || short) && !/맞춤\s*제작/.test(l.product_name || '');
     const discontinued = soldout && /종료|취소/.test(l.item_state || '');
     // 저재고 = 아직 출고대기인 상품만 (분리배송으로 먼저 나간 상품·취소한 상품은 빼고 판단, 품절은 따로)
     const low = !soldout && l.status === '출고대기' && l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
-    return { ...l, prod, ...s, done, low, soldout, discontinued, isGift, pending: l.status === '출고대기' && s.need > done };
+    return { ...l, prod, ...s, done, low, soldout, short: soldout && short, discontinued, isGift, pending: l.status === '출고대기' && s.need > done };
   });
   const orders = new Map();
   rows.forEach(r => {
@@ -183,7 +185,8 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
 }
 
 // 품절 칩: 단종(종료/취소) = 빨강, 입고 대기 = 주황 · 마우스를 올리면 상품·입고예정
-const soldoutText = (l) => `${l.product_name} — ${l.discontinued ? '단종(재입고 없음)' : `재고 0${l.restock_eta ? ` · 입고예정 ${l.restock_eta}` : ''}`}${l.soldout_memo ? ` · ${l.soldout_memo}` : ''}`;
+const stockLack = (l) => l.short ? `가용 ${l.avail} (다른 주문에 잡힘)` : '재고 0';
+const soldoutText = (l) => `${l.product_name} — ${l.discontinued ? `단종(재입고 없음) · ${stockLack(l)}` : `${stockLack(l)}${l.restock_eta ? ` · 입고예정 ${l.restock_eta}` : ''}`}${l.soldout_memo ? ` · ${l.soldout_memo}` : ''}`;
 const SoldoutChip = ({ lines }) => {
   const disc = lines.some(l => l.discontinued);
   return <span className={`chip ${disc ? 'chip-red' : 'chip-amber'}`} style={{ marginRight: 4 }} title={lines.map(soldoutText).join('\n')}>{disc ? '단종 포함' : '품절 포함'}{lines.length > 1 ? ` ${lines.length}` : ''}</span>;
@@ -579,7 +582,7 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
           <label className={`chip ${lowOnly ? 'chip-amber' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="가용재고 0~10 상품이 들어 있는 주문 (분리배송 검토)">
             <input type="checkbox" checked={lowOnly} onChange={e => setLowOnly(e.target.checked)} style={{ width: 'auto' }} /> 저재고 주문만{lowCount ? ` ${lowCount}` : ''}
           </label>
-          <label className={`chip ${soldOnly ? 'chip-red' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="예약상품이 아닌 상품의 오클릭 재고가 0인 주문 (단종 = 재입고 없음 → 취소 안내, 그 밖 = 입고 대기) · 맞춤 제작 제외">
+          <label className={`chip ${soldOnly ? 'chip-red' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="예약상품이 아닌 상품의 오클릭 재고가 0이거나 가용재고가 마이너스(다른 주문에 다 잡힘)인 주문 (단종 = 재입고 없음 → 취소 안내, 그 밖 = 입고 대기) · 맞춤 제작 제외">
             <input type="checkbox" checked={soldOnly} onChange={e => setSoldOnly(e.target.checked)} style={{ width: 'auto' }} /> 품절 포함 주문만{soldCount ? ` ${soldCount}` : ''}
           </label>
           {!todo && <label className={`chip ${showProd ? 'chip-blue' : ''}`} style={{ cursor: 'pointer', display: 'inline-flex', gap: 4, alignItems: 'center' }} title="예약상품·단계·배송구분 칸을 펼쳐요 (검색하면 자동으로 보여요)">
@@ -742,7 +745,7 @@ function PreorderOrderPanel({ order, onClose, reload, giftOptions = [] }) {
                     {l.status !== '출고대기' && <span className={'chip' + (l.status === '출고완' ? ' chip-green' : '')}>{l.status}</span>}
                   </label>
                   <span>{e.prod ? <><StageChip stage={e.stage} sameDay={e.sameDay} /> <span className="muted">안내 {fmtDate(e.seen)} → 현재 {fmtDate(e.current)}</span></> : <span className="muted">일반상품</span>}{e.low && <span className="chip chip-amber" style={{ marginLeft: 6 }}>가용재고 {l.avail}</span>}
-                    {e.soldout && <span className={`chip ${e.discontinued ? 'chip-red' : 'chip-amber'}`} style={{ marginLeft: 6 }} title={soldoutText(e)}>{e.discontinued ? '단종 · 재고 0' : `품절 · 재고 0${e.restock_eta ? ` · 입고예정 ${e.restock_eta}` : ''}`}</span>}</span>
+                    {e.soldout && <span className={`chip ${e.discontinued ? 'chip-red' : 'chip-amber'}`} style={{ marginLeft: 6 }} title={soldoutText(e)}>{e.discontinued ? `단종 · ${stockLack(e)}` : `품절 · ${stockLack(e)}${e.restock_eta ? ` · 입고예정 ${e.restock_eta}` : ''}`}</span>}</span>
                 </div>
                 {!e.prod && (noPre || l.notice1_date || l.notice2_date) && (
                   <div className="form-grid">
