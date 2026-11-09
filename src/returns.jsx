@@ -185,7 +185,7 @@ const RETURN_UPLOAD = {
     const created = await faultReturnsToVoc(newRows, app.products);
     if (!created) return null;
     app.setCases(prev => [...created, ...prev]);
-    return <>📝 과실 반품·교환(불량·파손·오배송·누락) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
+    return <>📝 과실 반품·교환(불량·파손·오배송·누락) <b>{created.length}건</b>을 VOC 접수로 등록했어요{pastVocNote(created)}. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
   },
 };
 
@@ -219,7 +219,7 @@ async function faultReturnsToVoc(rows, products) {
       reason_detail: `[${r.kind} ${r.reason_group}] ${[r.reason_raw, r.reason_detail].filter(Boolean).join(' / ')}`,
       note: RETURN_VOC_NOTE,
     };
-  });
+  }).map(withPastVocDone);
   if (!vocRows.length) return null;
   const { data, error } = await db.from('voc_cases').insert(vocRows).select();
   if (error) throw new Error('과실 반품·교환 VOC 등록 실패: ' + error.message);

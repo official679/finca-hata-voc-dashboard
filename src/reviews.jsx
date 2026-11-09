@@ -55,6 +55,11 @@ const THEME_TO_VOC_TYPE = {
 };
 const REVIEW_PLATFORM_TO_VOC = { '아임웹': '자사몰', '카페24': '자사몰' };
 const REVIEW_VOC_NOTE = '리뷰 자동 등록';
+// 지난 파일을 몰아 올릴 때 (2026-11-09 사용자 요청: 7~9월 반품 121건이 '접수'로 쌓임)
+//   접수일이 오늘보다 VOC_PAST_DAYS일 넘게 지난 자동 VOC는 처음부터 '처리완료'(완료일 = 접수일) → 처리 대기에 안 뜨고 과실·VOC 건수엔 그대로 들어감
+const VOC_PAST_DAYS = 14;
+const withPastVocDone = (row) => (row.received_date && row.received_date < toISODate(addDays(new Date(), -VOC_PAST_DAYS)) ? { ...row, status: '처리완료', completed_at: row.received_date } : row);
+const pastVocNote = (created) => { const n = created.filter(c => c.status === '처리완료').length; return n ? ` (그중 ${VOC_PAST_DAYS}일 넘게 지난 ${n}건은 바로 처리완료로)` : ''; };
 
 // 새로 올라온 부정 리뷰(1~3점)를 VOC 접수로 등록 → 담당자는 VOC 목록에서 사진·처리 내용만 채움
 // 리뷰 한 건 → VOC 접수 내용 (VOC 목록에서 '[리뷰 ★점수] 내용'으로 보임)
@@ -108,7 +113,7 @@ async function linkReviewsToVoc(reviews, created) {
 
 async function negativeReviewsToVoc(newReviews, products) {
   const src = newReviews.filter(r => r.rating !== null && r.rating <= 3);
-  const rows = src.map(r => reviewToVocRow({ ...r, product_id: r.product_id || findReviewProductId(r.product_name, r.brand, products) }));
+  const rows = src.map(r => withPastVocDone(reviewToVocRow({ ...r, product_id: r.product_id || findReviewProductId(r.product_name, r.brand, products) })));
   if (!rows.length) return null;
   const created = [];
   for (let i = 0; i < rows.length; i += 200) {
@@ -140,7 +145,7 @@ const REVIEW_UPLOAD = {
     const created = await negativeReviewsToVoc(newRows, app.products);
     if (!created) return null;
     app.setCases(prev => [...created, ...prev]);
-    return <>📝 새 부정 리뷰(1~3점) <b>{created.length}건</b>을 VOC 접수로 등록했어요. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
+    return <>📝 새 부정 리뷰(1~3점) <b>{created.length}건</b>을 VOC 접수로 등록했어요{pastVocNote(created)}. <a href="#/voc-list">VOC 목록</a>에서 사진과 처리 내용을 채워주세요.</>;
   },
 };
 
