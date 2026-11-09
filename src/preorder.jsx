@@ -154,7 +154,8 @@ function enrichPreorder(lines, productByCode, giftCodes = PREORDER_GIFT_CODES) {
     //   상품상태 종료/취소 = 단종(재입고 없음 → 취소 안내), 그 밖 = 입고 대기(입고예정일 안내) · 맞춤 제작은 원래 재고 0이라 제외 · 사은품 제외
     //   2026-11-09: 실재고가 있어도 가용재고가 마이너스면(먼저 들어온 주문에 다 잡혀 이 주문은 못 나감) 품절로 봄 — 레그워머 가용 -2가 품절·저재고 둘 다 빠졌던 일
     const zero = l.stock !== null && l.stock <= 0, short = !zero && l.avail !== null && l.avail < 0;
-    const soldout = l.status === '출고대기' && !prod && !isGift && (zero || short) && !/맞춤\s*제작/.test(l.product_name || '');
+    //   예판 종료된 예약상품은 일반 상품처럼 봄 (2026-11-09: 레그워머가 '예판 종료'라 품절에서 빠졌음)
+    const soldout = l.status === '출고대기' && (!prod || prod.status === '종료') && !isGift && (zero || short) && !/맞춤\s*제작/.test(l.product_name || '');
     const discontinued = soldout && /종료|취소/.test(l.item_state || '');
     // 저재고 = 아직 출고대기인 상품만 (분리배송으로 먼저 나간 상품·취소한 상품은 빼고 판단, 품절은 따로)
     const low = !soldout && l.status === '출고대기' && l.avail !== null && l.avail >= PREORDER_LOW_STOCK[0] && l.avail <= PREORDER_LOW_STOCK[1] && !isGift;
