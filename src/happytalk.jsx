@@ -33,6 +33,46 @@ const HAPPYTALK_UPLOAD = {
     content: str(r.content), answer: r.answer, hint: r.hint }),
 };
 
+// ---------- 전화 상담 숫자 파일 (2026-11-09 사용자 요청: 아침 모으기 전화 파일을 올리면 CS 데일리 전화 칸 자동) ----------
+//   Aside가 IPCC 녹취이력조회(전날·수신/발신·호상태 정상)를 날짜별 숫자로 정리한 파일 · 전화번호·녹음은 없음 · 핀카만(하타는 전화 없음)
+//   칸 = ARS 번호 순서 (1 배송 · 2 반품 · 3 교환 · 4 취소/변경 · 5 상품) + 기타 · '총 인입'이 세부 합보다 크면 남는 수는 기타로
+//   저장 = 그 날짜가 들어가는 보고일(월요일 = 금~일 합)의 CS 데일리 '브랜드 전체' 줄 전화 칸에 바로 (같은 파일을 다시 올리면 같은 숫자로 덮어씀)
+const CALL_FILE_FIELDS = [['배송', 'call_delivery'], ['반품', 'call_return'], ['교환', 'call_exchange'], ['취소/변경', 'call_cancel'], ['상품', 'call_product'], ['기타', 'call_etc'], ['총 발신', 'call_out']];
+FILE_FORMATS.push({ kind: 'call', label: '전화 상담 숫자 (Aside 정리)', headers: ['전화 날짜', '총 발신'],
+  template: ['전화 날짜', '총 인입', ...CALL_FILE_FIELDS.map(f => f[0])],
+  map: (r) => {
+    const when = parseWhen(r['전화 날짜']);
+    const v = Object.fromEntries(CALL_FILE_FIELDS.map(([h, f]) => [f, Math.max(0, num(r[h] ?? r[h.replace('/', '·')]) || 0)]));
+    const parts = CALL_FILE_FIELDS.filter(([, f]) => f !== 'call_out').reduce((a, [, f]) => a + v[f], 0);
+    const total = num(r['총 인입']) || 0;
+    if (total > parts) v.call_etc += total - parts;
+    return { key: when ? when.key.slice(0, 10) : '', brand: '핀카', platform: '전화', when, content: '전화', calls: v };
+  } });
+KIND_LABEL.call = '전화 상담';
+KIND_GUIDE.call = { icon: '📞', title: '전화 상담', does: 'IPCC 전화 숫자(날짜별) → CS 데일리 전화 칸(핀카)에 바로 들어가요 · 월요일 보고 = 금~일 합 · 전화번호·녹음은 저장 안 함' };
+const CALL_UPLOAD = {
+  // 보통 표에 쌓지 않고 CS 데일리에 바로 넣음 (UploadPanel의 save)
+  save: async (rows, app) => {
+    const nextReportDay = (d) => { let x = addDays(parseDate(d), 1); for (let i = 0; i < 14 && !isReportDay(x); i++) x = addDays(x, 1); return toISODate(x); };
+    const byDay = new Map(rows.map(r => [r.key, r.calls]));   // 같은 날짜가 여러 줄이면 마지막 줄
+    const byReport = new Map();
+    [...byDay.entries()].sort().forEach(([d, v]) => {
+      const rd = nextReportDay(d);
+      const cur = byReport.get(rd) || { days: [], v: Object.fromEntries(CALL_FILE_FIELDS.map(([, f]) => [f, 0])) };
+      cur.days.push(d); CALL_FILE_FIELDS.forEach(([, f]) => { cur.v[f] += v[f]; });
+      byReport.set(rd, cur);
+    });
+    // 총 인입 = 세부 칸 합 (0이어도 넣어서 예전 숫자가 남지 않게)
+    byReport.forEach(x => { x.v.call_in = AUTO_TOTALS.call_in.reduce((a, f) => a + x.v[f], 0); });
+    const now = new Date().toISOString();
+    const up = [...byReport.entries()].map(([rd, { v }]) => ({ report_date: rd, brand: '핀카', platform: BRAND_TOTAL, ...v, updated_at: now }));
+    const { data, error } = await db.from('cs_daily').upsert(up, { onConflict: 'report_date,brand,platform' }).select();
+    if (error) throw new Error('전화: ' + error.message);
+    if (app.daily) app.setDaily(prev => [...(prev || []).filter(r => !data.some(d => d.report_date === r.report_date && d.brand === r.brand && d.platform === r.platform)), ...data]);
+    return { inserted: byDay.size, extra: [...byReport.entries()].map(([rd, { days, v }]) => `${fmtDate(rd)} 보고(${days.map(d => fmtMD(parseDate(d))).join('·')}): 인입 ${v.call_in}건 · 발신 ${v.call_out}건`).join(' / ') + ' → CS 데일리 핀카 전화 칸에 넣었어요' };
+  },
+};
+
 // CS 데일리 해피톡 칸 채우기 (2026-10-28 사용자 결정)
 //   · 봇만 응대한 상담(우리 안내가 '[봇]'으로 시작)은 안 셈, 진행 중이라도 상담원이 받은 건 셈
 //   · ONLY 접수 = 고객 메시지 없이 접수만 된 상담 · VOC 상담 = 불량·오배송 (교환/반품 칸에도 같이 들어감, 총 상담엔 안 더함)

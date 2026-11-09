@@ -109,8 +109,8 @@ function DataUploadPage() {
     <>
       <PageHeader title="데이터 업로드" desc={`지금까지 저장: 리뷰 ${n('review_items')}건 · 게시판 문의 ${n('board_items')}건 · 주문 품목 ${n('order_items')}줄 · 반품·교환 ${n('return_items')}건 · 해피톡 상담 ${n('happytalk_items')}건`} />
       <UploadPanel
-        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD, return: RETURN_UPLOAD, happytalk: HAPPYTALK_UPLOAD }}
-        guide={<UploadGuide kinds={['review', 'board', 'order', 'return', 'happytalk']} />}
+        configs={{ review: REVIEW_UPLOAD, board: BOARD_UPLOAD, order: ORDER_UPLOAD, return: RETURN_UPLOAD, happytalk: HAPPYTALK_UPLOAD, call: CALL_UPLOAD }}
+        guide={<UploadGuide kinds={['review', 'board', 'order', 'return', 'happytalk', 'call']} />}
         onDone={() => setVersion(v => v + 1)}
       />
       <Claims29Card />

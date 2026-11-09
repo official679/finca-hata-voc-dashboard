@@ -297,6 +297,11 @@ function UploadPanel({ configs, onDone, guide }) {
         ready.filter(s => s.format.kind === kind).forEach(s => s.rows.forEach(r => { const b = r.brand || brand; if (b) src.push({ ...r, brand: b }); }));
         // 저장 전 보충 (예: 29CM 반품은 주문번호만 있어 올려 둔 주문에서 상품을 찾아 채움)
         if (cfg.prepare && src.length) { setBusy(`${KIND_LABEL[kind]} 정리 중...`); src = await cfg.prepare(src); }
+        // 표에 쌓지 않고 따로 저장하는 종류 (전화 숫자 → CS 데일리)
+        if (cfg.save) {
+          if (src.length) { setBusy(`${KIND_LABEL[kind]} 넣는 중...`); const r = await cfg.save(src, app); results.push({ kind, dup: 0, skipped: 0, orderFilled: 0, statusUpdated: 0, ...r }); }
+          continue;
+        }
         const rows = src.map(r => ({
           ...cfg.toRow(r), brand: r.brand, platform: r.platform,
           source_key: r.key ? String(r.key) : contentKey(r.when, (r.title || '') + r.content),
