@@ -149,14 +149,20 @@ async function buildBackupWorkbook(setBusy) {
 // 29CM 반품·교환 정리 버튼 설치 (2026-10-19): 즐겨찾기 막대로 끌어다 놓는 버튼 → 29CM 화면에서 누르면 src/claims29.js를 불러와 실행
 //   스크립트는 이 사이트에서 매번 새로 불러옴 → 29CM 화면이 바뀌어 고칠 때 claims29.js만 고치면 버튼은 다시 안 만들어도 됨
 const CLAIMS29_BOOKMARKLET = `javascript:(()=>{const s=document.createElement('script');s.src='${location.origin}/src/claims29.js?'+Date.now();s.onload=()=>claims29Run();s.onerror=()=>alert('대시보드에서 정리 버튼 파일을 못 불러왔어요');document.body.appendChild(s);})()`;
+// 2026-11-12: 평소엔 ego + Claude로 모아서 안 씀 → 한 줄로 접어 둠 (Claude 없이 직접 받을 때·새 PC 설치할 때만 펼침)
 function Claims29Card() {
-  const ref = useRef(null);
-  useEffect(() => { if (ref.current) ref.current.setAttribute('href', CLAIMS29_BOOKMARKLET); }, []);   // React가 javascript: 주소를 막아서 직접 넣음
+  const [open, setOpen] = useState(false);
+  const setHref = (el) => { if (el) el.setAttribute('href', CLAIMS29_BOOKMARKLET); };   // React가 javascript: 주소를 막아서 직접 넣음
+  if (!open) return (
+    <div className="card" style={{ marginTop: 16, padding: '10px 16px', cursor: 'pointer' }} onClick={() => setOpen(true)}>
+      <span className="hint">📋 29CM·아임웹 정리 버튼 설치하기 ▸ <small>(Claude 없이 직접 받을 때만 · 즐겨찾기에 한 번 끌어다 놓으면 끝)</small></span>
+    </div>
+  );
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-title">📋 29CM·아임웹 정리 버튼 <small>손으로 따던 상품명·옵션·상세사유·문의를 버튼 한 번으로</small></div>
+      <div className="card-title" style={{ cursor: 'pointer' }} onClick={() => setOpen(false)}>📋 29CM·아임웹 정리 버튼 ▾ <small>손으로 따던 상품명·옵션·상세사유·문의를 버튼 한 번으로</small></div>
       <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <a ref={ref} className="btn btn-primary" onClick={e => { e.preventDefault(); alert('이 버튼은 여기서 누르는 게 아니라, 크롬 즐겨찾기 막대로 끌어다 놓아서 써요.'); }}
+        <a ref={setHref} className="btn btn-primary" onClick={e => { e.preventDefault(); alert('이 버튼은 여기서 누르는 게 아니라, 크롬 즐겨찾기 막대로 끌어다 놓아서 써요.'); }}
           title="크롬 즐겨찾기 막대로 끌어다 놓으세요">📋 29CM 반품·교환 정리</a>
         <ol className="hint" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>처음 한 번: 왼쪽 파란 버튼을 <b>크롬 즐겨찾기 막대로 끌어다 놓기</b> (막대가 안 보이면 Ctrl + Shift + B)</li>
