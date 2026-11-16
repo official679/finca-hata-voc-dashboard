@@ -449,13 +449,21 @@ function VocEntryPage() {
   );
 }
 
+// 노션·슬랙에 붙일 대시보드 주소 복사 (2026-11-16): 한 건 = #/voc-list?id=N, 목록 = 지금 걸린 조건 그대로
+async function copyVocLink(hash, toast, label) {
+  const url = `${location.origin}${location.pathname}${hash}`;
+  try { await navigator.clipboard.writeText(url); toast(`🔗 ${label} 링크를 복사했어요`); } catch { toast('❌ 복사하지 못했어요', 'err'); }
+}
+
 function VocEditPanel({ vocCase, onClose }) {
+  const toast = useToast();
   if (!vocCase) return null;
   return (
     <div className="overlay" {...overlayClose(onClose)}>
       <div className="panel" onClick={e => e.stopPropagation()}>
         <div className="panel-head">
           <h2>VOC 상세 · 수정</h2>
+          {vocCase.id && <button className="btn btn-sm" style={{ marginLeft: 'auto', marginRight: 6 }} onClick={() => copyVocLink(`#/voc-list?id=${vocCase.id}`, toast, `VOC #${vocCase.id}`)} title="이 VOC 한 건만 여는 주소 (노션·슬랙에 붙여 넣기)">🔗 링크 복사</button>}
           <button className="btn btn-sm" onClick={onClose}>닫기</button>
         </div>
         <div className="card"><VocForm initial={vocCase} onSaved={onClose} onCancel={onClose} /></div>
@@ -571,6 +579,7 @@ function VocListPage({ initialFilter }) {
           <span className="muted">~</span>
           <input className="input" type="date" value={f.to} onChange={e => set('to')(e.target.value)} title="종료일" />
           <input className="input" style={{ flex: 1, minWidth: 220 }} value={f.q} onChange={e => set('q')(e.target.value)} placeholder="상품명·주문번호·고객명·처리자·내용 검색" />
+          {hasFilter && <button className="btn-link" onClick={() => copyVocLink(`#/voc-list?${new URLSearchParams(Object.entries(f).filter(([, v]) => v))}`, toast, '이 목록')} title="지금 조건(브랜드·기간·검색어 등) 그대로 여는 주소">🔗 이 목록 링크 복사</button>}
           {hasFilter && <button className="btn-link" onClick={() => setF(EMPTY_FILTER)}>필터 초기화</button>}
         </div>
         {/* ② 나머지 필터는 접어 둠 · 걸린 조건은 칩으로 */}
