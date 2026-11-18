@@ -16,7 +16,7 @@ Claude가 어느 PC에서 작업하든 같은 맥락으로 이어가기 위한 *
 ## 인수인계
 - GitHub·Netlify·Supabase = 회사 공용 계정(official@1inahundred.com). 대시보드·데이터는 회사 소유.
 - Claude 대화·개인 메모는 다음 담당자에게 안 넘어감 → 결정은 이 파일·`docs/decisions.md`·README·업무 매뉴얼에 남긴다. 다음 담당자는 이 폴더를 열고 "CLAUDE.md 읽고 이어서".
-- 개인 예약 루틴(daily-cx-todo, weekly-cx-team-report)은 꺼 둠, 공용 계정에서 켜지 말 것(개인 메일 연결 필요). 공용 계정엔 회사 커넥터만.
+- 개인 예약 루틴(daily-cx-todo, weekly-cx-team-report)은 2026-11-18 삭제함(개인 메일 연결 필요해서 안 씀). 남은 예약 작업 = 입고 일정 시트 갱신(평일 14시)뿐. 공용 계정엔 회사 커넥터만.
 - VOC 리포트 스킬 = `skills/finca-voc-report.skill`(공용 계정 Skills에도 있음). 분석 코드 zip(FINCA_VOC리포트_분석코드.zip)은 고객 인용·판매 숫자 포함 → **공개 저장소 금지**, 지금은 사용자 PC `문서\업무자료\04 VOC 리포트`에만 있음.
 - 판매처 파일 형식이 바뀌면 고칠 사람이 필요. 그동안은 '직접 정리한 양식(공통 양식)'으로 올리면 됨.
 - 백업: 데이터 업로드 > 📦 '🗂 백업 받기 (zip)' 월 1회 → 회사 드라이브 비공개 폴더. 30일 지나면 메인 '오늘 할 일'에 알림.
