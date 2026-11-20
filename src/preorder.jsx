@@ -506,10 +506,31 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
 
   // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
   // 진행 중인 예약상품만 (예판 종료 상품은 선택 칸에서 뺌, 2026-10-26 사용자 요청)
-  const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.filter(l => l.prod.status !== '종료').map(l => l.product_name)).filter(Boolean))].sort(), [orders]);
+  // 예약상품 선택 칸 (2026-11-20 사용자 요청): 판매처마다 품명이 '… (set)'처럼 달라도 오클릭 바코드가 같으면 한 줄로.
+  // 바코드를 하나라도 같이 쓰는 품명끼리 묶고, 표시 이름 = (set) 없는 쪽(없으면 가장 짧은 이름). 고르면 묶인 품명 주문이 모두 잡힘.
+  const nameGroups = useMemo(() => {
+    const parent = new Map(); const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
+    const byCode = new Map();
+    orders.forEach(o => o.preLines.forEach(l => {
+      if (l.prod.status === '종료' || !l.product_name) return;
+      if (!parent.has(l.product_name)) parent.set(l.product_name, l.product_name);
+      // 같은 바코드 또는 '(set)'만 뗀 이름이 같으면 한 묶음 (사이즈마다 바코드가 달라서 이름으로도 묶음)
+      [l.barcode && 'b:' + l.barcode, 'n:' + l.product_name.replace(/\s*\(\s*set\s*\)\s*$/i, '').trim()].filter(Boolean).forEach(k => {
+        if (byCode.has(k)) { const a = find(byCode.get(k)), b = find(l.product_name); if (a !== b) parent.set(b, a); } else byCode.set(k, l.product_name);
+      });
+    }));
+    const groups = new Map();
+    [...parent.keys()].forEach(n => { const r = find(n); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(n); });
+    const isSet = (n) => /\(\s*set\s*\)\s*$/i.test(n);
+    const label = (ns) => [...ns].sort((a, b) => isSet(a) - isSet(b) || a.length - b.length || a.localeCompare(b))[0];
+    const m = new Map();   // 표시 이름 → 묶인 품명들
+    groups.forEach(ns => m.set(label(ns), new Set(ns)));
+    return m;
+  }, [orders]);
+  const productNames = useMemo(() => [...nameGroups.keys()].sort(), [nameGroups]);
   const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) && (!soldOnly || o.soldout) &&
     // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
-    (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => l.product_name === product))) &&
+    (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => (nameGroups.get(product) || new Set([product])).has(l.product_name)))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     // 상태를 출고대기로 보면 상품명·바코드 검색도 아직 안 나간 상품에서만 (분리배송으로 먼저 나간 상품은 오클릭 미출고에 없음, 2026-10-12)
     matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(o.memoLog || []).map(m => m.text), ...(o.lineMemos || []), ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
