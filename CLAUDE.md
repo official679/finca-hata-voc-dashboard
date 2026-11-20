@@ -19,7 +19,7 @@ Claude용 핵심 메모(매 메시지마다 읽힘 → **짧게 유지**). 사�
 ## 구성
 - https://finca-hata-cx.netlify.app ← GitHub `official679/finca-hata-voc-dashboard` main 푸시 = Netlify 자동 배포.
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx`(React 18 UMD + 브라우저 Babel, 순서는 index.html). CDN 버전 고정, 올릴 땐 하나씩.
-- DB = Supabase `hbudvjnqzejqbvkqfklz`, 코드엔 publishable 키만. 테이블·RLS·스토리지 변경은 `supabase/NN_*.sql` → **사용자가 SQL Editor에서 실행**(01~40 적용). RLS = 로그인 직원만.
+- DB = Supabase `hbudvjnqzejqbvkqfklz`, 코드엔 publishable 키만. 테이블·RLS·스토리지 변경은 `supabase/NN_*.sql` → **Claude가 ego 브라우저로 SQL Editor에 붙여 넣고 실행, Run 직전에 사용자 확인**(2026-11-20~, 01~40 적용). RLS = 로그인 직원만.
 - Git 작성자 official679. git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 - 메뉴 = app.jsx `HUBS`(10개 + 위쪽 탭, 가끔 쓰는 건 '더보기'). 메인 '오늘 할 일' = home.jsx.
 

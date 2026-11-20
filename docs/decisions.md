@@ -26,7 +26,7 @@ CLAUDE.md에서 옮긴 기능별 상세 결정·이력입니다(2026-10-29 다�
 - 사이트: https://finca-hata-cx.netlify.app — GitHub `official679/finca-hata-voc-dashboard`의 main에 푸시하면 Netlify가 자동 배포(1분 이내).
 - 빌드 없음: `index.html` + `app.css` + `src/*.jsx` (React 18 UMD + 브라우저 Babel). 스크립트 순서는 index.html 참고.
 - DB: Supabase 프로젝트 `hbudvjnqzejqbvkqfklz` (finca-hata-voc-dashboard-v2). 코드에는 publishable 키만 있음 →
-  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 사용자가 SQL Editor에서 실행 (01~33 적용 완료, 노션 회의록 가져오기 SQL도 실행함).
+  테이블·RLS·스토리지 변경은 `supabase/NN_*.sql`로 만들어 SQL Editor에서 실행 (01~40 적용 완료, 노션 회의록 가져오기 SQL도 실행함). 2026-11-20부터는 사용자 요청으로 **Claude가 ego 브라우저(Supabase 로그인된 상태)로 SQL Editor를 열어 붙여 넣고 실행** — DB를 바꾸는 일이라 Run 직전에 매번 사용자에게 한 줄 확인. 로그인이 풀려 있으면 사용자에게 로그인만 부탁(비밀번호는 Claude가 입력 X). 실행 뒤 결과(Success/에러)를 확인하고 나서 코드 푸시.
 - 모든 테이블 RLS = 로그인한 직원만. 공용 계정 official@1inahundred.com, 외부 가입 차단.
 - Git 커밋 작성자: official679 / official@1inahundred.com. Windows에 git이 PATH에 없으면 `C:\Program Files\Git\cmd\git.exe`.
 
