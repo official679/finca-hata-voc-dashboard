@@ -90,12 +90,16 @@ function toPreorderProducts({ rows, get }) {
     const code = str(get(r, '단품코드')); if (!code) return;
     const row = { code };
     cols.forEach(([k, h, f]) => { const v = f(get(r, h)); if (v) row[k] = v; });
+    const q = qtyNum(get(r, '예상입고수량')); if (q) row.expected_qty = q;   // 2026-11-20 (41 SQL)
     const st = String(get(r, '예판 상태') || '');
     if (/종료/.test(st)) row.status = '종료'; else if (/진행/.test(st)) row.status = '진행';
     m.set(code, row);
   });
   return [...m.values()];
 }
+
+// 예상입고수량: '1,200' · '300개' → 숫자, 0·빈칸·글 = null
+function qtyNum(v) { const n = Number(String(v == null ? '' : v).replace(/[,\s개]/g, '')); return isFinite(n) && n > 0 ? Math.floor(n) : null; }
 
 // 파일의 상품을 이미 있는 예약상품과 맞춰 저장: 단품코드가 쉼표로 여러 개인 상품(구·신코드)도 그중 하나만 맞으면 같은 상품
 async function savePreorderProducts(ps, existing) {
@@ -859,7 +863,7 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
       </div>
       <div className="table-wrap">
         <table className="table table-wide">
-          <thead><tr><th onClick={e => e.stopPropagation()}><input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map(p => p.id)))} title="전체 선택" /></th><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고</th><th title="고객 안내 시작한 날">1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th title="다시 안내 시작한 날">2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제 입고</th><th className="num">대기 수량</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
+          <thead><tr><th onClick={e => e.stopPropagation()}><input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map(p => p.id)))} title="전체 선택" /></th><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고</th><th title="고객 안내 시작한 날">1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th title="다시 안내 시작한 날">2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제 입고</th><th className="num" title="MD 예약시트 '예상입고수량'">예상입고</th><th className="num">대기 수량</th><th className="num" title="예상입고 − 대기 수량. 마이너스 = 들어올 것보다 주문이 많아요">남는 수</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
           <tbody>
             {rows.map(p => {
               const c = counts.get(p.code) || {};
@@ -872,7 +876,11 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
                   <td style={warn && p.change1_out && !p.change1_notice ? { background: 'var(--warn-soft)' } : null}>{d(p.change1_notice) || (p.change1_out ? '⚠️ 비어있음' : '')}</td><td>{d(p.change1_in)}</td><td>{d(p.change1_out)}</td>
                   <td style={warn && p.change2_out && !p.change2_notice ? { background: 'var(--warn-soft)' } : null}>{d(p.change2_notice) || (p.change2_out ? '⚠️ 비어있음' : '')}</td><td>{d(p.change2_in)}</td><td>{d(p.change2_out)}</td>
                   <td>{d(p.actual_in)}</td>
-                  <td className="num">{c.total || ''}</td><td className="num">{c['1차 지연'] || ''}</td><td className="num">{c['2차 지연'] || ''}</td>
+                  <td className="num">{p.expected_qty || ''}</td>
+                  <td className="num">{c.total || ''}</td>
+                  {(() => { const left = p.expected_qty ? p.expected_qty - (c.total || 0) : null;
+                    return <td className="num" style={left != null && left < 0 ? { color: 'var(--danger)', fontWeight: 700 } : null} title={left != null && left < 0 ? '들어올 수량보다 주문이 많아요 → MD·재고 확인' : ''}>{left == null ? '' : left}</td>; })()}
+                  <td className="num">{c['1차 지연'] || ''}</td><td className="num">{c['2차 지연'] || ''}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>{p.status === '종료' ? <span className="chip">종료</span>
                     : p.actual_in && c.total ? <span className="chip chip-amber" title="입고됐는데 아직 출고 안 된 주문이 있어요">입고됨 · 미출고 {c.total}</span>
                     : p.actual_in ? <span className="chip chip-green">입고 완료</span>
@@ -989,7 +997,7 @@ function PreorderProductPanel({ product, onClose, reload }) {
     e.preventDefault();
     if (!f.code.trim()) { toast('❌ 단품코드를 넣어주세요', 'err'); return; }
     setSaving(true);
-    const row = { code: productCodes(f).join(', '),product_name: str(f.product_name), option_text: str(f.option_text), note: str(f.note), status: f.status, ...Object.fromEntries(PRODUCT_DATE_FIELDS.map(([k]) => [k, f[k] || null])) };
+    const row = { code: productCodes(f).join(', '),product_name: str(f.product_name), option_text: str(f.option_text), note: str(f.note), status: f.status, expected_qty: qtyNum(f.expected_qty), ...Object.fromEntries(PRODUCT_DATE_FIELDS.map(([k]) => [k, f[k] || null])) };
     const { error } = product.id ? await db.from('preorder_products').update(row).eq('id', product.id) : await db.from('preorder_products').insert(row);
     setSaving(false);
     if (error) { toast('❌ 저장 실패: ' + (error.message.includes('duplicate') ? '이미 있는 단품코드예요' : error.message), 'err'); return; }
@@ -1007,6 +1015,7 @@ function PreorderProductPanel({ product, onClose, reload }) {
             <div className="field" style={{ gridColumn: 'span 2' }}><label>상품명</label><input value={f.product_name} onChange={e => set('product_name')(e.target.value)} /></div>
             <div className="field"><label>옵션</label><input value={f.option_text} onChange={e => set('option_text')(e.target.value)} /></div>
             <div className="field"><label>예판 상태</label><Select className="" value={f.status} onChange={set('status')} options={['진행', '종료']} /></div>
+            <div className="field"><label>예상입고수량</label><input type="number" min="0" value={f.expected_qty} onChange={e => set('expected_qty')(e.target.value)} placeholder="MD 예약시트 H칸" /></div>
           </div>
           <div className="form-section">일정 <small className="muted" style={{ fontWeight: 400 }}>일이 생긴 순서대로 위에서부터 채워요</small></div>
           <ScheduleSteps f={f} set={set} />
