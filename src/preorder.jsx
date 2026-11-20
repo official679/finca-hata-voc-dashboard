@@ -862,25 +862,39 @@ function PreorderProducts({ products, lines, productByCode, onEdit, reload }) {
         {picked.size > 0 && <button className="btn-link" onClick={() => setPicked(new Set())}>선택 해제</button>}
       </div>
       <div className="table-wrap">
-        <table className="table table-wide">
-          <thead><tr><th onClick={e => e.stopPropagation()}><input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map(p => p.id)))} title="전체 선택" /></th><th>단품코드</th><th>상품명</th><th>옵션</th><th>최초 입고</th><th>최초 출고</th><th title="고객 안내 시작한 날">1차 공지일</th><th>1차 입고</th><th>1차 출고</th><th title="다시 안내 시작한 날">2차 공지일</th><th>2차 입고</th><th>2차 출고</th><th>실제 입고</th><th className="num" title="MD 예약시트 '예상입고수량'">예상입고</th><th className="num">대기 수량</th><th className="num" title="예상입고 − 대기 수량. 마이너스 = 들어올 것보다 주문이 많아요">남는 수</th><th className="num">1차 지연</th><th className="num">2차 지연</th><th>상태</th></tr></thead>
+        {/* 2026-11-20: 차수별 날짜 9칸·수량 5칸 → '지금 일정' 1칸 + '수량' 1칸 (가로 스크롤 없이 한 줄). 모든 날짜는 마우스를 올리거나 행을 눌러 보기 */}
+        <table className="table">
+          <thead><tr><th style={{ width: 36 }} onClick={e => e.stopPropagation()}><input type="checkbox" checked={allPicked} onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map(p => p.id)))} title="전체 선택" /></th><th>상품</th><th title="가장 최근에 바뀐 입고·출고 예정일. 아래 회색 = 지나온 출고일">지금 일정</th><th title="대기 = 출고대기 주문 수량 · 예상 = MD 예약시트 '예상입고수량' · 남음 = 예상 − 대기 (마이너스 = 들어올 것보다 주문이 많아요)">수량</th><th>상태</th></tr></thead>
           <tbody>
             {rows.map(p => {
               const c = counts.get(p.code) || {};
-              const warn = (p.change1_out && !p.change1_notice) || (p.change2_out && !p.change2_notice);
+              // 지금 일정 = 가장 최근 차수 (2차 → 1차 → 최초)
+              const cur = (p.change2_out || p.change2_in || p.change2_notice) ? { label: '2차 변경', in: p.change2_in, out: p.change2_out }
+                : (p.change1_out || p.change1_in || p.change1_notice) ? { label: '1차 변경', in: p.change1_in, out: p.change1_out }
+                : { label: '최초', in: p.first_in, out: p.first_out };
+              const outs = [['최초', p.first_out], ['1차', p.change1_out], ['2차', p.change2_out]].filter(([, v]) => v);
+              const missing = [p.change1_out && !p.change1_notice && '1차', p.change2_out && !p.change2_notice && '2차'].filter(Boolean);
+              const tip = PRODUCT_DATE_FIELDS.filter(([k]) => p[k]).map(([k, label]) => `${label}: ${fmtDate(p[k])}`).join('\n');
+              const left = p.expected_qty ? p.expected_qty - (c.total || 0) : null;
+              const delayed = [c['1차 지연'] && `1차 지연 ${c['1차 지연']}`, c['2차 지연'] && `2차 지연 ${c['2차 지연']}`].filter(Boolean);
               return (
                 <tr key={p.id} className="clickable" onClick={() => onEdit(p)} style={{ opacity: p.status === '종료' ? 0.55 : 1, background: picked.has(p.id) ? 'var(--accent-soft)' : undefined }}>
                   <td onClick={e => e.stopPropagation()}><input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} /></td>
-                  <td>{p.code}</td><td className="ellipsis" style={{ maxWidth: 260 }} title={p.product_name}>{p.product_name}</td><td>{p.option_text || ''}</td>
-                  <td>{d(p.first_in)}</td><td>{d(p.first_out)}</td>
-                  <td style={warn && p.change1_out && !p.change1_notice ? { background: 'var(--warn-soft)' } : null}>{d(p.change1_notice) || (p.change1_out ? '⚠️ 비어있음' : '')}</td><td>{d(p.change1_in)}</td><td>{d(p.change1_out)}</td>
-                  <td style={warn && p.change2_out && !p.change2_notice ? { background: 'var(--warn-soft)' } : null}>{d(p.change2_notice) || (p.change2_out ? '⚠️ 비어있음' : '')}</td><td>{d(p.change2_in)}</td><td>{d(p.change2_out)}</td>
-                  <td>{d(p.actual_in)}</td>
-                  <td className="num">{p.expected_qty || ''}</td>
-                  <td className="num">{c.total || ''}</td>
-                  {(() => { const left = p.expected_qty ? p.expected_qty - (c.total || 0) : null;
-                    return <td className="num" style={left != null && left < 0 ? { color: 'var(--danger)', fontWeight: 700 } : null} title={left != null && left < 0 ? '들어올 수량보다 주문이 많아요 → MD·재고 확인' : ''}>{left == null ? '' : left}</td>; })()}
-                  <td className="num">{c['1차 지연'] || ''}</td><td className="num">{c['2차 지연'] || ''}</td>
+                  <td style={{ maxWidth: 320 }}>
+                    <div className="ellipsis" title={p.product_name}><b>{p.product_name}</b></div>
+                    <div className="muted" style={{ fontSize: 12 }}>{p.code}{p.option_text ? ` · ${p.option_text}` : ''}</div>
+                  </td>
+                  <td title={tip} style={{ whiteSpace: 'nowrap' }}>
+                    {p.actual_in
+                      ? <div><b>실제 입고 {d(p.actual_in)}</b></div>
+                      : <div><span className="chip" style={{ marginRight: 6 }}>{cur.label}</span>입고 {d(cur.in) || '-'} · <b>출고 {d(cur.out) || '-'}</b></div>}
+                    {outs.length > 1 && <div className="muted" style={{ fontSize: 12 }}>출고 {outs.map(([k, v]) => `${k} ${d(v)}`).join(' → ')}</div>}
+                    {missing.length > 0 && <div style={{ fontSize: 12, background: 'var(--warn-soft)', display: 'inline-block', padding: '0 4px', borderRadius: 4 }}>⚠️ {missing.join('·')} 공지일 비어있음</div>}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <div>대기 <b>{c.total || 0}</b>{p.expected_qty ? <> / 예상 {p.expected_qty} · 남음 <b style={left < 0 ? { color: 'var(--danger)' } : null} title={left < 0 ? '들어올 수량보다 주문이 많아요 → MD·재고 확인' : ''}>{left}</b></> : null}</div>
+                    {delayed.length > 0 && <div className="muted" style={{ fontSize: 12 }}>{delayed.join(' · ')}</div>}
+                  </td>
                   <td style={{ whiteSpace: 'nowrap' }}>{p.status === '종료' ? <span className="chip">종료</span>
                     : p.actual_in && c.total ? <span className="chip chip-amber" title="입고됐는데 아직 출고 안 된 주문이 있어요">입고됨 · 미출고 {c.total}</span>
                     : p.actual_in ? <span className="chip chip-green">입고 완료</span>
