@@ -1095,9 +1095,12 @@ function PreorderUpload({ lines, products, uploads, reload }) {
         const fileOrders = new Set(fileLines.map(l => l.order_no));
         const openLines = lines.filter(l => l.status === '출고대기');
         const gone = [...new Set(openLines.filter(l => !fileOrders.has(l.order_no)).map(l => l.order_no))];
+        // 주문은 파일에 남아 있는데 그 상품 줄만 빠진 것도 출고완 (분리배송·부분취소·오클릭 코드 변경 105261→FN264ET020-CH00F, 2026-11-20)
+        const fileKeys = new Set(fileLines.map(l => l.line_key));
+        const goneLineIds = openLines.filter(l => fileOrders.has(l.order_no) && !fileKeys.has(l.line_key)).map(l => l.id);
         const fileSellers = new Set(fileLines.map(l => l.seller));
         const missingSellers = [...new Set(openLines.map(l => l.seller).filter(s => s && !fileSellers.has(s)))];
-        let doShip = gone.length > 0;
+        let doShip = gone.length > 0 || goneLineIds.length > 0;
         if (doShip && missingSellers.length) doShip = confirm(`이전에 있던 판매처가 이번 파일에 한 건도 없어요: ${missingSellers.map(sellerLabel).join(', ')}\n실제로 전부 출고된 게 맞으면 [확인], 원본을 다시 확인하려면 [취소]\n(취소해도 주문 내용은 반영돼요. 출고완 처리만 건너뜀)`);
         if (doShip && openLines.length && fileLines.length < openLines.length * PREORDER_SHIP_SAFETY) doShip = confirm(`이번 파일 줄 수(${fileLines.length})가 이전(${openLines.length})보다 너무 적어요.\n원본을 덜 복사했다면 주문이 잘못 출고완 처리될 수 있어요. 그래도 출고완 처리할까요?`);
         await upsertChunks('preorder_lines', rows, 'line_key');
@@ -1106,11 +1109,16 @@ function PreorderUpload({ lines, products, uploads, reload }) {
             const { error } = await db.from('preorder_lines').update({ status: '출고완', shipped_on: snapshotDate }).in('order_no', gone.slice(i, i + 200)).eq('status', '출고대기');
             if (error) throw error;
           }
+          for (let i = 0; i < goneLineIds.length; i += 200) {
+            const { error } = await db.from('preorder_lines').update({ status: '출고완', shipped_on: snapshotDate }).in('id', goneLineIds.slice(i, i + 200)).eq('status', '출고대기');
+            if (error) throw error;
+          }
         }
         const newCount = rows.filter(r => !ex.has(r.line_key)).length;
         await db.from('preorder_uploads').insert({ snapshot_date: snapshotDate, file_name: lineSheets[0].file, line_count: fileLines.length, order_count: fileOrders.size, new_count: newCount, shipped_orders: doShip ? gone : [], note: doShip || !gone.length ? null : '출고완 처리 건너뜀' });
         msgs.push(`📦 예약주문 ${fileLines.length}줄 (주문 ${fileOrders.size}건) 반영 · 새로 들어온 줄 ${newCount}`);
         msgs.push(gone.length ? (doShip ? `✅ 파일에서 빠진 주문 ${gone.length}건 → 출고완` : `⏸️ 파일에서 빠진 주문 ${gone.length}건은 출고완 처리 안 함`) : '출고완으로 바뀐 주문 없음');
+        if (goneLineIds.length) msgs.push(doShip ? `✅ 주문은 남고 상품만 빠진 줄 ${goneLineIds.length}개 → 출고완 (분리배송·부분취소·코드 변경)` : `⏸️ 상품만 빠진 줄 ${goneLineIds.length}개는 출고완 처리 안 함`);
         current = null;
       } else if (allLineSheets.length > 1) {
         msgs.push(`⏭️ 예약주문 시트 ${allLineSheets.length}장 중 오늘 것을 고르지 않아서 주문은 반영하지 않았어요.`);
@@ -1165,7 +1173,7 @@ function PreorderUpload({ lines, products, uploads, reload }) {
           </div>
         </div>
         <ul className="hint" style={{ marginTop: 12, lineHeight: 1.8, paddingLeft: 18 }}>
-          <li><b>오클릭 예약주문</b>: 첫 줄에 {PREORDER_FORMATS[0].headers.join(' · ')} 칸이 있는 파일 (구글시트 A~L열에 붙여넣던 원본). 올릴 때마다 <b>파일에 없는 주문은 출고완</b>으로 바뀌어요.{' '}
+          <li><b>오클릭 예약주문</b>: 첫 줄에 {PREORDER_FORMATS[0].headers.join(' · ')} 칸이 있는 파일 (구글시트 A~L열에 붙여넣던 원본). 올릴 때마다 <b>파일에 없는 주문은 출고완</b>으로 바뀌어요(주문은 남고 상품만 빠진 줄도 그 줄만 출고완).{' '}
             <TemplateButton name="예약주문_오클릭미출고" headers={['주문번호', '판매처', '판매처주문번호', '입력일', '주문자', '바코드', '품명', '사이즈', '수량', '재고', '가용재고', '미출고']} /></li>
           <li><b>예약상품리스트</b>: {PREORDER_FORMATS[1].headers.join(' · ')} … 칸. 이미 있는 상품(구·신코드 포함)은 <b>파일에 적힌 칸만</b> 바꾸고 빈칸은 그대로 둬요. 새 단품코드는 새 상품으로 추가(예판 상태 = 진행). 여러 상품 일정을 한 번에 넣을 때 편해요.{' '}
             <TemplateButton name="예약상품리스트" headers={['단품코드', '상품명', '옵션', '최초 입고예정', '최초 출고일 공지', '1차 일정 변경 공지일', '1차 변경 입고일', '1차 변경 출고안내일', '2차 일정 변경 공지일', '2차 변경 입고일', '2차 변경 출고안내일', '실제입고일', '비고', '예판 상태']} /> <span className="muted">(날짜는 2026-11-09 형식 · 예판 상태는 진행/종료)</span></li>
