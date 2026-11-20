@@ -485,8 +485,8 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
 }
 
 const NO_PRE = '__none';   // 예약상품 선택 칸의 '예약상품 없는 주문'
-// 예약상품 선택 칸 묶음용 이름: 앞 '단품)'·'단품 )'·'[단품]'·'(단품)', 끝 '(set)'·'(SET)'을 떼고 띄어쓰기 정리 (2026-11-20)
-const baseName = (n) => String(n || '').replace(/^\s*(?:[\[(]\s*단품\s*[\])]|단품\s*\))\s*/, '').replace(/\s*\(\s*set\s*\)\s*$/i, '').replace(/\s+/g, ' ').trim();
+// 예약상품 선택 칸 이름 = 예약상품 일정에 등록한 상품명 (비어 있으면 단품코드)
+const preName = (l) => String(l.prod.product_name || '').trim() || l.prod.code;
 // 예약상품 없는 주문 = 진행 중인 예약상품이 없는 주문 (예판 종료 상품만 있으면 일반 주문으로 봄, 2026-10-13 사용자 요청)
 const noLivePre = (o) => !o.preLines.some(l => l.prod.status !== '종료');
 // 주문 목록 + 조회(상태·단계·출고예정일·예약상품·검색) + 선택한 주문 일괄 처리
@@ -508,31 +508,12 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
 
   // 예약상품 이름 목록 (이 목록에 있는 주문들 기준)
   // 진행 중인 예약상품만 (예판 종료 상품은 선택 칸에서 뺌, 2026-10-26 사용자 요청)
-  // 예약상품 선택 칸 (2026-11-20 사용자 요청): 판매처마다 품명이 '… (set)'처럼 달라도 오클릭 바코드가 같으면 한 줄로.
-  // 바코드를 하나라도 같이 쓰는 품명끼리 묶고, 표시 이름 = (set) 없는 쪽(없으면 가장 짧은 이름). 고르면 묶인 품명 주문이 모두 잡힘.
-  const nameGroups = useMemo(() => {
-    const parent = new Map(); const find = (x) => { while (parent.get(x) !== x) x = parent.get(x); return x; };
-    const byCode = new Map();
-    orders.forEach(o => o.preLines.forEach(l => {
-      if (l.prod.status === '종료' || !l.product_name) return;
-      if (!parent.has(l.product_name)) parent.set(l.product_name, l.product_name);
-      // 같은 바코드 또는 '(set)'·'단품)'만 뗀 이름이 같으면 한 묶음 (사이즈마다 바코드가 달라서 이름으로도 묶음)
-      [l.barcode && 'b:' + l.barcode, 'n:' + baseName(l.product_name)].filter(Boolean).forEach(k => {
-        if (byCode.has(k)) { const a = find(byCode.get(k)), b = find(l.product_name); if (a !== b) parent.set(b, a); } else byCode.set(k, l.product_name);
-      });
-    }));
-    const groups = new Map();
-    [...parent.keys()].forEach(n => { const r = find(n); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(n); });
-    const tagged = (n) => (baseName(n) !== n.trim() ? 1 : 0);   // (set)·단품) 붙은 이름은 뒤로
-    const label = (ns) => baseName([...ns].sort((a, b) => tagged(a) - tagged(b) || a.length - b.length || a.localeCompare(b))[0]);
-    const m = new Map();   // 표시 이름 → 묶인 품명들
-    groups.forEach(ns => m.set(label(ns), new Set(ns)));
-    return m;
-  }, [orders]);
-  const productNames = useMemo(() => [...nameGroups.keys()].sort(), [nameGroups]);
+  // 2026-11-20 사용자 요청: 판매처 품명('단품) …', '… (set)')이 아니라 '예약상품 일정'에 등록한 상품명으로 보여 줌.
+  // 주문 줄은 오클릭 바코드로 등록 상품(l.prod)에 연결돼 있으니 품명 변형이 저절로 한 줄로 모임. 연결 안 된 주문 = '⚪ 예약상품 없는 주문'.
+  const productNames = useMemo(() => [...new Set(orders.flatMap(o => o.preLines.filter(l => l.prod.status !== '종료').map(l => preName(l))).filter(Boolean))].sort(), [orders]);
   const rows = orders.filter(o => (!status || o.status === status) && (!stage || o.stage === stage) && (!lowOnly || o.low) && (!soldOnly || o.soldout) &&
     // '예약상품 없는 주문' = 미출고 파일에 있지만 예약상품 일정에 등록된 상품이 하나도 없는 주문 (2026-10-07 사용자 요청)
-    (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => (nameGroups.get(product) || new Set([product])).has(l.product_name)))) &&
+    (!product || (product === NO_PRE ? noLivePre(o) : o.preLines.some(l => preName(l) === product))) &&
     (!outFrom || (o.final_out && o.final_out >= outFrom)) && (!outTo || (o.final_out && o.final_out <= outTo)) &&
     // 상태를 출고대기로 보면 상품명·바코드 검색도 아직 안 나간 상품에서만 (분리배송으로 먼저 나간 상품은 오클릭 미출고에 없음, 2026-10-12)
     matchQuery(q, o.order_no, o.seller_order_no, o.orderer, ...(o.memoLog || []).map(m => m.text), ...(o.lineMemos || []), ...(ls => [ls.map(l => l.product_name), ls.map(l => l.barcode)])(status === '출고대기' ? o.lines.filter(l => l.status === '출고대기') : o.lines)));
