@@ -485,6 +485,8 @@ function PreorderOrderTable({ orders, onOpen, empty, todo, selected, setSelected
 }
 
 const NO_PRE = '__none';   // 예약상품 선택 칸의 '예약상품 없는 주문'
+// 예약상품 선택 칸 묶음용 이름: 앞 '단품)'·'단품 )'·'[단품]'·'(단품)', 끝 '(set)'·'(SET)'을 떼고 띄어쓰기 정리 (2026-11-20)
+const baseName = (n) => String(n || '').replace(/^\s*(?:[\[(]\s*단품\s*[\])]|단품\s*\))\s*/, '').replace(/\s*\(\s*set\s*\)\s*$/i, '').replace(/\s+/g, ' ').trim();
 // 예약상품 없는 주문 = 진행 중인 예약상품이 없는 주문 (예판 종료 상품만 있으면 일반 주문으로 봄, 2026-10-13 사용자 요청)
 const noLivePre = (o) => !o.preLines.some(l => l.prod.status !== '종료');
 // 주문 목록 + 조회(상태·단계·출고예정일·예약상품·검색) + 선택한 주문 일괄 처리
@@ -514,15 +516,15 @@ function PreorderAllOrders({ orders, onOpen, reload, todo, initLow }) {
     orders.forEach(o => o.preLines.forEach(l => {
       if (l.prod.status === '종료' || !l.product_name) return;
       if (!parent.has(l.product_name)) parent.set(l.product_name, l.product_name);
-      // 같은 바코드 또는 '(set)'만 뗀 이름이 같으면 한 묶음 (사이즈마다 바코드가 달라서 이름으로도 묶음)
-      [l.barcode && 'b:' + l.barcode, 'n:' + l.product_name.replace(/\s*\(\s*set\s*\)\s*$/i, '').trim()].filter(Boolean).forEach(k => {
+      // 같은 바코드 또는 '(set)'·'단품)'만 뗀 이름이 같으면 한 묶음 (사이즈마다 바코드가 달라서 이름으로도 묶음)
+      [l.barcode && 'b:' + l.barcode, 'n:' + baseName(l.product_name)].filter(Boolean).forEach(k => {
         if (byCode.has(k)) { const a = find(byCode.get(k)), b = find(l.product_name); if (a !== b) parent.set(b, a); } else byCode.set(k, l.product_name);
       });
     }));
     const groups = new Map();
     [...parent.keys()].forEach(n => { const r = find(n); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(n); });
-    const isSet = (n) => /\(\s*set\s*\)\s*$/i.test(n);
-    const label = (ns) => [...ns].sort((a, b) => isSet(a) - isSet(b) || a.length - b.length || a.localeCompare(b))[0];
+    const tagged = (n) => (baseName(n) !== n.trim() ? 1 : 0);   // (set)·단품) 붙은 이름은 뒤로
+    const label = (ns) => baseName([...ns].sort((a, b) => tagged(a) - tagged(b) || a.length - b.length || a.localeCompare(b))[0]);
     const m = new Map();   // 표시 이름 → 묶인 품명들
     groups.forEach(ns => m.set(label(ns), new Set(ns)));
     return m;
