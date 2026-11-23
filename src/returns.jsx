@@ -14,14 +14,21 @@ const RETURN_REASON_GROUPS = [
 const RETURN_GROUP_ORDER = [...RETURN_REASON_GROUPS.map(g => g.group), '기타'];
 
 // 판매처 사유로 먼저, 사유가 비어 있으면 고객이 적은 상세 사유로
+// 판매처 사유가 '상품 불만족'·'기타'·'판매자 부담'인데 고객이 적은 말이 불량·오배송이면 과실로 (2026-11-23 사용자 요청:
+//   아임웹 '서비스 및 상품 불만족 (판매자 부담)' + '이염이 심해요'가 과실 아님으로 빠져 VOC가 안 생겼음)
+//   단순변심·사이즈·배송을 고른 건은 그대로 (고객 부담 사유)
+const RETURN_DETAIL_OVERRIDE = ['상품불만족·정보상이', '기타'];
 function returnReasonGroup(raw, detail) {
-  for (const text of [raw, detail]) {
-    const t = String(text || '').trim();
-    if (!t) continue;
-    const g = RETURN_REASON_GROUPS.find(x => x.re.test(t));
-    return g ? { group: g.group, fault: g.fault } : { group: '기타', fault: false };
+  const find = (t) => RETURN_REASON_GROUPS.find(x => x.re.test(t));
+  const r = String(raw || '').trim(), d = String(detail || '').trim();
+  if (!r) { const g = d && find(d); return g ? { group: g.group, fault: g.fault } : { group: '기타', fault: false }; }
+  const g = find(r);
+  const res = g ? { group: g.group, fault: g.fault } : { group: '기타', fault: false };
+  if (!res.fault && d && (RETURN_DETAIL_OVERRIDE.includes(res.group) || /판매자 ?부담/.test(r))) {
+    const dg = find(d);
+    if (dg && dg.fault) return { group: dg.group, fault: true };
   }
-  return { group: '기타', fault: false };
+  return res;
 }
 
 // ---------- 반품·교환 파일 업로드 (데이터 업로드 화면) ----------
