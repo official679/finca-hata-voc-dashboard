@@ -109,7 +109,40 @@ FILE_FORMATS.unshift(...RETURN_FORMATS);
 
 // 29CM 반품·교환: 올려 둔 주문에서 같은 주문번호의 상품 줄을 찾아 채움
 //   하타(사방넷) = 상태가 반품…/교환…인 줄, 핀카(오클릭) = 교환은 '교환' 재발송 줄, 그 외 상품이 하나뿐일 때만. 못 찾으면 (상품 확인 불가)
+// 아임웹 반품: 같은 반품이 다른 키로 이미 저장돼 있으면 건너뜀 (2026-11-25)
+//   키 = 파일에 '주문섹션품목번호' 칸이 있으면 '반품|품목번호', 없으면 '반품|주문번호|상품|옵션' → 두 형식 파일을 섞어 올려
+//   10월 반품 40줄이 두 번 저장됐음(옵션 띄어쓰기만 다른 것도). 주문번호·상품·옵션(띄어쓰기 무시)이 같은 줄을 같은 반품으로 봄
+async function skipSameImwebReturns(rows) {
+  const im = rows.filter(r => r.platform === '아임웹' && r.key && r.order_no);
+  if (!im.length) return rows;
+  const sp = (s) => String(s || '').replace(/\s/g, '');
+  const sig = (kind, no, p, o) => `${kind}|${no}|${sp(p)}|${sp(o)}`;
+  const nos = [...new Set(im.map(r => r.order_no))];
+  const ex = [];
+  for (let i = 0; i < nos.length; i += 200) {
+    const { data, error } = await db.from('return_items').select('source_key,kind,order_no,product_name,option_text').eq('platform', '아임웹').in('order_no', nos.slice(i, i + 200));
+    if (error) throw error;
+    ex.push(...data);
+  }
+  const fileKeys = new Set(im.map(r => r.key));
+  const exKeys = new Set(ex.map(e => e.source_key));
+  // 이 파일과 다른 키로 저장된 줄 = 다른 형식 파일로 먼저 올린 같은 반품
+  const pool = new Map();
+  ex.filter(e => !fileKeys.has(e.source_key)).forEach(e => {
+    const k = sig(e.kind, e.order_no, e.product_name, e.option_text);
+    pool.set(k, (pool.get(k) || 0) + 1);
+  });
+  return rows.filter(r => {
+    if (r.platform !== '아임웹' || !r.key || !r.order_no || exKeys.has(r.key)) return true;
+    const k = sig(r.ret_kind, r.order_no, r.product_name, r.option_text);
+    if (!pool.get(k)) return true;
+    pool.set(k, pool.get(k) - 1);
+    return false;
+  });
+}
+
 async function prepareReturns(rows) {
+  rows = await skipSameImwebReturns(rows);
   const nos = [...new Set(rows.filter(r => r.needs_product).map(r => r.order_no))];
   const lines = [];
   for (let i = 0; i < nos.length; i += 200) {
